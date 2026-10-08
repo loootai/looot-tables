@@ -1,4 +1,8 @@
+<p align="center"><img src="assets/hero.png" alt="looot-tables: Enrichment tables like Clay, open source" width="100%"></p>
+
 # looot-tables
+
+[![License](https://img.shields.io/github/license/loootai/looot-tables)](LICENSE) [![Release](https://img.shields.io/github/v/release/loootai/looot-tables)](https://github.com/loootai/looot-tables/releases) [![Docs](https://img.shields.io/badge/docs-docs.looot.ai-12A06A)](https://docs.looot.ai)
 
 Open-source Clay-style enrichment tables, powered by [looot](https://looot.ai) and Supabase.
 
