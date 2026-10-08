@@ -2,6 +2,15 @@
 
 Open-source Clay-style enrichment tables, powered by [looot](https://looot.ai) and Supabase.
 
+## Install for agents
+
+```bash
+git clone https://github.com/loootai/looot-tables.git
+claude mcp add --transport http looot https://api.looot.ai/mcp
+```
+
+See also: [awesome-looot-use-cases](https://github.com/loootai/awesome-looot-use-cases) (copy-paste recipes) and [awesome-gtm](https://github.com/loootai/awesome-gtm) (open-source GTM tools).
+
 Import a CSV, add a column that runs a looot operation (work email, company data, Google results, LinkedIn profiles, and about 2,500 more endpoints), pick which rows to run, see the cost first, confirm. Each result is stored in its cell with its status and cost. Export the table as CSV when you are done.
 
 It is a small Next.js app (App Router, TypeScript) with a Supabase Postgres database. There is one table of data per sheet and no background workers. The looot token stays on the server.
