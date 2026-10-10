@@ -43,16 +43,10 @@ export default function HomePage() {
     }
   }
 
-  async function signOut() {
-    await browserSupabase().auth.signOut();
-    router.push("/login");
-  }
-
   return (
     <>
       <header className="bar">
-        <h1>looot tables</h1>
-        <button onClick={signOut}>Sign out</button>
+        <h1>Tables</h1>
       </header>
       <form className="card" onSubmit={create}>
         <div className="row">
