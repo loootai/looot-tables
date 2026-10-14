@@ -15,6 +15,9 @@ function asText(value: unknown): string {
 
 /** Convert a mapped value to the JSON type the operation declares for that input. */
 export function coerceValue(value: unknown, type: string | undefined): unknown {
+  if (type === "array" && value !== null && value !== undefined && !Array.isArray(value)) {
+    return typeof value === "string" ? (value.trim() === "" ? value : [value.trim()]) : [value];
+  }
   if (typeof value !== "string") return value;
   const text = value.trim();
   if (type === "number" || type === "integer") {

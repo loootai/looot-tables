@@ -24,6 +24,11 @@ describe("applyInputMap", () => {
     const { input } = applyInputMap({ size: "{{Employees}}", flag: "true" }, row, { size: "integer", flag: "boolean" });
     expect(input).toEqual({ size: 42, flag: true });
   });
+  it("wraps a single value in a list when the operation wants an array", () => {
+    const { input } = applyInputMap({ domains: "{{Company}}" }, row, { domains: "array" });
+    expect(input).toEqual({ domains: ["Analytical Engines"] });
+    expect(coerceValue(["a"], "array")).toEqual(["a"]);
+  });
   it("returns nothing for a missing map", () => {
     expect(applyInputMap(null, row)).toEqual({ input: {}, empty: [] });
   });

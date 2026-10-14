@@ -1,6 +1,21 @@
-<p align="center"><img src="assets/hero.png" alt="looot-tables: Enrichment tables like Clay, open source" width="100%"></p>
+<p align="center"><img src="docs/media/banner.png" alt="looot tables: ten companies enriched with six columns of data from looot, with the price shown before each run" width="100%"></p>
 
-<p align="center"><img src="assets/screenshot-desktop.png" alt="A table with the sidebar" width="68%"> <img src="assets/screenshot-mobile.png" alt="A table on a phone, dark theme" width="22%"></p>
+<p align="center"><sub>Logos and names belong to their owners. Public data from a live run on 2026-10-14. No affiliation.</sub></p>
+
+<table>
+<tr>
+<td><img src="docs/media/card-table.png" alt="A table of ten companies with industry, HQ, country, employees, founded and tech stack columns"></td>
+<td><img src="docs/media/card-add-column.png" alt="Searching the looot catalog and mapping an operation input to a column"></td>
+</tr>
+<tr>
+<td><img src="docs/media/card-cost.png" alt="Cost per column from the live run, 60 calls, $0.1705"></td>
+<td><img src="docs/media/card-dark.png" alt="The same table in dark theme and on a phone"></td>
+</tr>
+</table>
+
+<p align="center"><img src="docs/media/demo.gif" alt="Walkthrough of the table, the add column panel and the cost per column" width="760"></p>
+
+<p align="center"><a href="docs/media/demo.mp4">Watch the walkthrough as MP4</a></p>
 
 # looot-tables
 
@@ -107,6 +122,21 @@ browser  --/api/tables/run (6 rows per request)-------->  server  --POST /v1/run
 - `src/lib/cost.ts` estimates cost. `src/lib/csv.ts` imports and exports CSV.
 - `src/lib/runner.ts` runs a column over rows with 3 in parallel, polls slow runs, and writes each cell.
 - `src/lib/looot.ts` is the REST client: search, inspect, run, get run, balance.
+
+## Live run
+
+Run on 2026-10-14 against the production looot API. The table holds ten companies from looot's own market (Clay, Apollo.io, Apify, Firecrawl, Exa, Tavily, Bright Data, ZoomInfo, People Data Labs, Coresignal). Everything in the images comes from this run, so there is no "Demo data".
+
+- 6 enrichment columns, 10 rows each, 60 calls, $0.1705 charged (read from the run cost on each cell).
+- Industry, HQ city, Country, Employees and Founded use `dropleads-company-enrich` at $0.00145 per call. Tech stack uses `companyenrich-companies-enrich-get` at $0.0098 per call.
+- 3 extra probe calls ($0.0132) picked the operations before the grid run. Total for the whole session was $0.1837 over 63 calls.
+- All 60 cells finished with status `done`. Two cells came back empty (Founded for Firecrawl and Exa). The provider has no founding year for them, and the cell still shows the charge.
+- Industry is the same value for all ten ("information technology & services"). That is what the provider returns, so it is a weak column for this list.
+- Employees are the provider's own numbers and can disagree with other sources. Clay shows 610 here, while another operation reported the 1K-5K band.
+- Slow runs (a few Tech stack and Founded calls) were `pending` for a while before they settled, and the app polled them until they finished.
+- The Supabase side was a small local stand-in for the REST and auth endpoints, because the run used no Docker. The app code and the looot calls were the real ones.
+
+One fix came out of this run. `dropleads-company-enrich` declares its inputs as arrays, and the input mapper sent a plain string, so the call would be refused. `coerceValue` now wraps a single value in a list when the operation declares an array input. A test covers it.
 
 ## Development
 
