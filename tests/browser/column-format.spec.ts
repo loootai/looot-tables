@@ -9,7 +9,7 @@ test('column-wide formats display currency and units and persist checkbox boolea
 	let sheet: Sheet = { id: 'format-test', name: 'Formats', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: Object.fromEntries(columns.map((column, c) => [column.id, { v: c === 0 ? 1234.5 + i : c === 1 ? 'false' : 12.5 + i, s: 'done', t: 1 }])) }));
 	await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
-	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/sheets**', async (route) => {
 		const request = route.request();
 		if (request.method() === 'PATCH') {
@@ -81,7 +81,7 @@ test('years omit commas and column number settings survive reload without changi
 	let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: { c0: { v: 2024 - i, s: 'done', t: 1 }, c1: { v: 2007 + i, s: 'done', t: 1 }, c2: { v: 1234.5 + i, s: 'done', t: 1 } } }));
 	const originalRows = structuredClone(rows);
 	await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
-	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/sheets**', async (route) => {
 		const request = route.request();
 		if (request.method() === 'PATCH') {
@@ -132,7 +132,7 @@ test('category columns offer configured choices, persist selections, and keep ex
 	let sheet: Sheet = { id: 'category-test', name: 'Formats', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: Object.fromEntries(columns.map((column, c) => [column.id, { v: c === 0 ? 1234.5 + i : c === 1 ? 'false' : 12.5 + i, s: 'done', t: 1 }])) }));
 	await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
-	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/sheets**', async (route) => {
 		const request = route.request();
 		if (request.method() === 'PATCH') {

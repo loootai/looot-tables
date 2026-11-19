@@ -3,7 +3,7 @@ import { memberCookie, test } from './authenticated-test';
 
 test('another member can load and edit shared sheets from a separate browser, while oversized CSV imports offer the first 1,000 rows', async ({ page, browser }) => {
 	test.setTimeout(90_000);
-	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));
 	await page.goto('/app');
 	await page.getByRole('dialog').waitFor();
 	await page.getByRole('button', { name: 'Close', exact: true }).click();
@@ -18,7 +18,7 @@ test('another member can load and edit shared sheets from a separate browser, wh
 		await colleague.addCookies([{ name: 'enrichable.session', value: memberCookie('colleague'), url: new URL(url).origin, httpOnly: true, sameSite: 'Lax' }]);
 		const other = await colleague.newPage();
 		await other.route('**/api/looot/balance*',route=>route.fulfill({json:{credits:25000,used:0}}));
-		await other.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+		await other.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));
 		await other.goto(url);
 		await other.getByRole('dialog').waitFor();
 		await other.getByRole('button', { name: 'Close', exact: true }).click();

@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import { test } from './authenticated-test';
 
 test('entity names expand when they fit, and compact together when a column narrows', async ({ page }) => {
-	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));
 	await page.goto('/app');
 	await page.getByRole('dialog').waitFor();
 	await page.getByRole('button', { name: 'Close', exact: true }).click();

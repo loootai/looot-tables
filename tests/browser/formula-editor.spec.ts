@@ -5,7 +5,7 @@ test.afterEach(async ({ page }) => { expect(await page.pageErrors()).toEqual([])
 
 test.beforeEach(async ({ page }) => {
 	// Formula editing requires no API keys. Keep setup independent of this deployment's credentials.
-	await page.route('**/api/keys/verify', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+	await page.route('**/api/keys/verify', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));
 	await page.goto('/app');
 	await page.getByRole('dialog').waitFor();
 	await page.getByRole('button', { name: 'Close', exact: true }).click();

@@ -5,7 +5,7 @@ async function mockWorkspace(page: Page) {
  await page.route('**/api/sheets', route => route.fulfill({ json: [{ sheet, rowCount: 1 }] }));
  await page.route('**/api/sheets/own-keys*', route => route.fulfill({ json: { sheet, rows: [{ id: 'r1', sheetId: sheet.id, order: 0, createdAt: 1, cells: { name: { v: 'Example Person', s: 'done', t: 1 }, domain: { v: 'example.com', s: 'done', t: 1 } } }], next: null } }));
  // Even unexpected hosted metadata must not expose a funded offer in self-hosted mode.
- await page.route('**/api/keys/verify*', route => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false, openaiTrial: { model: 'gpt-6-luna' }, enrichmentTrial: true } }));
+ await page.route('**/api/keys/verify*', route => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false, openaiTrial: { model: 'gpt-6-luna' }, enrichmentTrial: true } }));
 }
 
 test('self-hosted setup requires own keys, keeps optional providers in Configuration, and hides hosted balances', async ({ page }) => {

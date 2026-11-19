@@ -10,7 +10,7 @@ test('document chips open a Markdown preview, edit, and download a client PDF', 
  let rows: Row[] = [{ id: 'r', sheetId: sheet.id, order: 0, createdAt: 1, cells: { draft: { v: initial, s: 'done', t: 1 } } }];
  await page.route('**/api/organization-settings', (route) => route.fulfill({ json: { local: true } }));
  await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
- await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+ await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));
  const wordmark = (name: string) => 'data:image/svg+xml;base64,' + Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="160"><text x="80" y="90" font-family="sans-serif" font-size="22">${name}</text></svg>`).toString('base64');
  const logo = wordmark('Publisher');
  await page.route('**/api/documents/branding', async (route) => {

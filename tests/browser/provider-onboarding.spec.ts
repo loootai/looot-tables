@@ -18,7 +18,7 @@ async function mockProviders(page: Page, available: Record<string, unknown>) {
 
 test('hosted first run asks only for the required connections and offers one Reconnect button for Context.dev', async ({ page, context, baseURL }) => {
  await context.addCookies([{ name: 'enrichable.session', value: memberCookie('onboarding-new'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
- await mockProviders(page, { openai: false, context: false, typesafe: false, passwordRequired: false });
+ await mockProviders(page, { openai: false, looot: false, typesafe: false, passwordRequired: false });
  await page.goto('/app');
  const dialog = page.getByRole('dialog', { name: 'Set up enrichment' });
  const providers = dialog.getByRole('region');

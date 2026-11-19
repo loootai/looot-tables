@@ -4,7 +4,7 @@ test('agent access retrieves and copies a shared key after reload and preserves 
 	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 	// UI boundary test; database and protocol behavior are covered with embedded Postgres in server/mcp.test.ts.
 	await page.route('**/api/sheets', (route) => route.fulfill({ json: [] }));
-	await page.route('**/api/keys/verify', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, contextConnected: false, passwordRequired: false } }));
+	await page.route('**/api/keys/verify', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, contextConnected: false, passwordRequired: false } }));
 	let key: { prefix: string; version: string; createdAt: number; recoverable?: boolean; secret?: string } | null = null;
 	const first = `enr_mcp_${'a'.repeat(43)}`;
 	const replacement = `enr_mcp_${'b'.repeat(43)}`;

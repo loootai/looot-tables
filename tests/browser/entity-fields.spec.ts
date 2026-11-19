@@ -11,7 +11,7 @@ for (const connected of [false, true]) test(`company and person fields insert to
 		requests.push(body);
 		await route.fulfill({ json: { value: body.op.kind === 'ai' ? 'Custom answer' : body.op.kind === 'company' ? 'San Francisco' : 'Engineer' } });
 	});
-	await page.route('**/api/keys/verify', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+	await page.route('**/api/keys/verify', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));
 	await page.goto('/app');
 	if (!connected) {
 		await page.getByRole('dialog').waitFor();
@@ -151,7 +151,7 @@ for (const connected of [false, true]) test(`company and person fields insert to
 
 test('run scopes offer 10, 100 and all remaining cells and execute only the chosen count', async ({ page }) => {
 	await page.addInitScript(() => localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
-	await page.route('**/api/keys/verify', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+	await page.route('**/api/keys/verify', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));
 	const companies: string[] = [];
 	await page.route('**/api/enrich', async (route) => {
 		companies.push(route.request().postDataJSON().row.Company);
