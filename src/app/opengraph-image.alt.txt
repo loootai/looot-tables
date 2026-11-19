@@ -1,1 +1,1 @@
-Enrichable: a spreadsheet that enriches itself from the internet, shown finding US solar companies and researching each row with AI
+looot tables: a spreadsheet that enriches itself from the internet, shown finding US solar companies and researching each row with AI

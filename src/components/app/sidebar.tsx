@@ -121,7 +121,7 @@ export function Sidebar({ account }: { account: Account }) {
 			<div className="flex h-11 items-center gap-2 pl-3 md:h-8">
 				<Link href="/app" onClick={close} className="flex items-center gap-2">
 					<Logo size={18} />
-					<span className="text-body-sm font-semibold text-fg">Enrichable</span>
+					<span className="text-body-sm font-semibold text-fg">looot tables</span>
 				</Link>
 				<button type="button" aria-label="Close navigation" onClick={() => setMobileOpen(false)} className="ml-auto grid size-11 place-items-center md:size-8 rounded-lg text-fg-subtle hover:bg-tint/[0.04] md:hidden">
 					<X className="size-4" strokeWidth={1.5} />

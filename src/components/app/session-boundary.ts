@@ -14,7 +14,7 @@ export type BoundaryEvent =
 	| { type: 'transient'; source: Warning['source']; message: string }
 	| { type: 'retry' };
 
-export const SESSION_UNREACHABLE = 'Can’t reach Enrichable right now. Retrying automatically…';
+export const SESSION_UNREACHABLE = 'Can’t reach looot tables right now. Retrying automatically…';
 
 export function boundary(state: Boundary, event: BoundaryEvent): Boundary {
 	if (state.phase === 'leaving') return state;

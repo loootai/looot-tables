@@ -43,7 +43,7 @@ const FIELD_HINTS: Record<string, string> = { prompt: 'Add a question', question
 
 function ColumnPromptHelp() {
 	return <HelpTooltip label="About AI columns">
-		<span>Describe what you want to know about each row. Enrichable picks the operation and fills every cell. For simple changes to existing data it writes a formula and checks it on up to 10 rows first.</span>
+		<span>Describe what you want to know about each row. looot tables picks the operation and fills every cell. For simple changes to existing data it writes a formula and checks it on up to 10 rows first.</span>
 		<span>Type / to insert a column, a cell or a range (A1, $A$1, A1:B3). References move with each row; $ locks a coordinate.</span>
 	</HelpTooltip>;
 }

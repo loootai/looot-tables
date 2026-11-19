@@ -8,11 +8,11 @@ import './globals.css';
 const rethinkSans = Rethink_Sans({ subsets: ['latin'], variable: '--font-rethink-sans', display: 'swap', weight: 'variable' });
 
 export const metadata: Metadata = {
-	title: { default: SITE_TITLE, template: '%s · Enrichable' },
+	title: { default: SITE_TITLE, template: '%s · looot tables' },
 	description: SITE_DESCRIPTION,
-	applicationName: 'Enrichable',
+	applicationName: 'looot tables',
 	metadataBase: siteUrl(),
-	openGraph: { type: 'website', siteName: 'Enrichable', locale: 'en_US' },
+	openGraph: { type: 'website', siteName: 'looot tables', locale: 'en_US' },
 	twitter: { card: 'summary_large_image' },
 	robots: indexingEnabled() ? { googleBot: { 'max-image-preview': 'large' } } : { index: false, follow: false },
 	icons: { icon: [{ url: '/icon.svg', type: 'image/svg+xml' }], apple: '/apple-touch-icon.png' },

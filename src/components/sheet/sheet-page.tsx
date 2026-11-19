@@ -146,7 +146,7 @@ function useDocumentTitle(sheetName: string) {
 	useEffect(() => {
 		if (!sheetName) return;
 		const previous = document.title;
-		document.title = `${sheetName} · Enrichable`;
+		document.title = `${sheetName} · looot tables`;
 		return () => { document.title = previous; };
 	}, [sheetName]);
 }
