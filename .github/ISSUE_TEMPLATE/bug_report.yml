@@ -1,0 +1,44 @@
+name: Bug report
+description: Report a reproducible problem. Maintainers handle implementation; no PR needed.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search existing issues first. We welcome issues and do not accept external PRs.
+        Use synthetic examples. Never include API keys, cookies, MCP keys, database URLs, or customer data.
+        Report vulnerabilities privately using SECURITY.md.
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - Official enrichable.io site
+        - Self-hosted locally
+        - Self-hosted remotely
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include a minimal synthetic example, prompt, or CSV where useful.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Redacted errors or screenshots are welcome.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Commit/version, browser and OS; Node version for self-hosted instances.

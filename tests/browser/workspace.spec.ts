@@ -1,0 +1,53 @@
+import { expect } from '@playwright/test';
+import { memberCookie, test } from './authenticated-test';
+
+test('another member can load and edit shared sheets from a separate browser, while oversized CSV imports offer the first 1,000 rows', async ({ page, browser }) => {
+	test.setTimeout(90_000);
+	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+	await page.goto('/app');
+	await page.getByRole('dialog').waitFor();
+	await page.getByRole('button', { name: 'Close', exact: true }).click();
+	await page.getByRole('button', { name: 'Import CSV', exact: true }).click();
+	await page.getByLabel('Or paste CSV', { exact: true }).fill('Value,Other\n10,20');
+	await page.getByLabel('Sheet name', { exact: true }).fill('Shared with the organization');
+	await page.getByRole('button', { name: 'Import', exact: true }).click();
+	await expect(page.getByRole('gridcell').first()).toHaveText('10');
+	const url = page.url();
+	const colleague = await browser.newContext({ baseURL: new URL(url).origin });
+	try {
+		await colleague.addCookies([{ name: 'enrichable.session', value: memberCookie('colleague'), url: new URL(url).origin, httpOnly: true, sameSite: 'Lax' }]);
+		const other = await colleague.newPage();
+		await other.route('**/api/context/usage*',route=>route.fulfill({json:{credits:25000,used:0}}));
+		await other.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
+		await other.goto(url);
+		await other.getByRole('dialog').waitFor();
+		await other.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(other.getByRole('gridcell').first()).toHaveText('10');
+		await other.getByRole('gridcell').first().dblclick();
+		await other.getByRole('textbox', { name: 'Edit cell value or formula', exact: true }).fill('99');
+		const colleagueSaved = other.waitForResponse((response) => response.url().includes('/api/sheets/') && response.request().method() === 'PATCH' && response.status() === 200);
+		await other.getByRole('textbox', { name: 'Edit cell value or formula', exact: true }).press('Enter');
+		await colleagueSaved;
+		await expect(other.getByRole('gridcell').first()).toHaveText('99');
+		await page.getByRole('gridcell').nth(1).dblclick();
+		await page.getByRole('textbox', { name: 'Edit cell value or formula', exact: true }).fill('42');
+		const saved = page.waitForResponse((response) => response.url().includes('/api/sheets/') && response.request().method() === 'PATCH' && response.status() === 200);
+		await page.getByRole('textbox', { name: 'Edit cell value or formula', exact: true }).press('Enter');
+		await saved;
+		await expect(page.getByRole('gridcell').nth(1)).toHaveText('42');
+		await page.reload();
+		await page.getByRole('dialog').waitFor();
+		await page.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.getByRole('gridcell').first()).toHaveText('99');
+		await expect(page.getByRole('gridcell').nth(1)).toHaveText('42');
+		await page.goto('/app');
+		await page.getByRole('dialog').waitFor();
+		await page.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.getByText('1 / 10 sheets')).toBeVisible();
+		await page.getByRole('button', { name: 'New sheet', exact: true }).click();
+		await page.getByRole('dialog', { name: 'New sheet' }).getByRole('button', { name: 'Import CSV', exact: true }).click();
+		await page.getByLabel('Or paste CSV', { exact: true }).fill('Value\n' + Array.from({ length: 1001 }, (_, i) => i).join('\n'));
+		await expect(page.getByRole('status').filter({ hasText: 'only the first 1,000 of 1,001 will be imported' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Import first 1,000 rows', exact: true })).toBeEnabled();
+	} finally { await colleague.close(); }
+});

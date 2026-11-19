@@ -1,0 +1,34 @@
+name: Feature request
+description: Describe a problem or idea. Maintainers implement accepted issues.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome ideas through issues and do not accept external PRs.
+        You do not need to generate a patch or spend AI tokens. Explain the outcome you need.
+        Use synthetic examples and omit credentials or customer data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What would a useful result look like?
+      description: An example workflow, input, or desired output helps.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current workaround
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Where would you use this?
+      options:
+        - Official enrichable.io site
+        - Self-hosted deployment
+        - Both

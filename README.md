@@ -1,159 +1,130 @@
-<p align="center"><img src="docs/media/banner.png" alt="looot tables: ten companies enriched with six columns of data from looot, with the price shown before each run" width="100%"></p>
+<p align="center">
+  <a href="https://www.enrichable.io"><img src=".github/assets/banner.png" alt="Enrichable: a spreadsheet that enriches itself from the internet" width="100%" /></a>
+</p>
 
-<p align="center"><sub>Logos and names belong to their owners. Public data from a live run on 2026-10-14. No affiliation.</sub></p>
+<p align="center">
+  <a href="https://link.context.dev/enrichable/github/context">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/powered-by-context-dark.png" />
+      <img src=".github/assets/powered-by-context-light.png" height="44" alt="Powered by Context.dev" />
+    </picture>
+  </a>
+</p>
 
-<table>
-<tr>
-<td><img src="docs/media/card-table.png" alt="A table of ten companies with industry, HQ, country, employees, founded and tech stack columns"></td>
-<td><img src="docs/media/card-add-column.png" alt="Searching the looot catalog and mapping an operation input to a column"></td>
-</tr>
-<tr>
-<td><img src="docs/media/card-cost.png" alt="Cost per column from the live run, 60 calls, $0.1705"></td>
-<td><img src="docs/media/card-dark.png" alt="The same table in dark theme and on a phone"></td>
-</tr>
-</table>
+<p align="center">
+  <a href="https://www.enrichable.io"><strong>Website</strong></a> ·
+  <a href="#self-host">Self-host</a> ·
+  <a href="docs/usage.md">Docs</a> ·
+  <a href="docs/mcp.md">MCP</a> ·
+  <a href="https://github.com/context-dot-dev/enrichable/issues/new/choose">Report an issue</a>
+</p>
 
-<p align="center"><img src="docs/media/demo.gif" alt="Walkthrough of the table, the add column panel and the cost per column" width="760"></p>
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2563eb?style=flat-square" alt="MIT license" /></a>
+  <a href="https://github.com/context-dot-dev/enrichable/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/context-dot-dev/enrichable/ci.yml?branch=main&style=flat-square&label=CI" alt="CI status" /></a>
+  <a href="docs/mcp.md"><img src="https://img.shields.io/badge/MCP-server-2563eb?style=flat-square" alt="MCP server" /></a>
+</p>
 
-<p align="center"><a href="docs/media/demo.mp4">Watch the walkthrough as MP4</a></p>
+> **Built by [Context.dev](https://link.context.dev/enrichable/github/context)**, the web context API for software and AI agents. One API for search, scraping, and company and people data. Every lookup in Enrichable runs on it, so this repo doubles as a working reference for building your own research tools. [Get an API key](https://link.context.dev/enrichable/api-keys).
 
-# looot-tables
+**Enrichable is an open-source AI spreadsheet for data enrichment.** Describe the companies or people you want and it finds them. Then add a column with a plain-English question and it researches every row on the live web: pricing pages, CEOs, tech stacks, work emails, anything public. Every answer keeps its sources.
 
-[![License](https://img.shields.io/github/license/loootai/looot-tables)](LICENSE) [![Release](https://img.shields.io/github/v/release/loootai/looot-tables)](https://github.com/loootai/looot-tables/releases) [![Docs](https://img.shields.io/badge/docs-docs.looot.ai-12A06A)](https://docs.looot.ai)
+Use it free at [enrichable.io](https://www.enrichable.io), or run your own copy with your own API keys.
 
-Open-source Clay-style enrichment tables, powered by [looot](https://looot.ai) and Supabase.
+## Features
 
-## Install for agents
-
-```bash
-git clone https://github.com/loootai/looot-tables.git
-claude mcp add --transport http looot https://api.looot.ai/mcp
-```
-
-See also: [awesome-looot-use-cases](https://github.com/loootai/awesome-looot-use-cases) (copy-paste recipes) and [awesome-gtm](https://github.com/loootai/awesome-gtm) (open-source GTM tools).
-
-Import a CSV, add a column that runs a looot operation (work email, company data, Google results, LinkedIn profiles, and about 2,500 more endpoints), pick which rows to run, see the cost first, confirm. Each result is stored in its cell with its status and cost. Export the table as CSV when you are done.
-
-It is a small Next.js app (App Router, TypeScript) with a Supabase Postgres database. There is one table of data per sheet and no background workers. The looot token stays on the server.
-
-## What you can do
-
-- Create a table or import a CSV (one input column per header).
-- Search the looot catalog in plain words, inspect an operation to see its inputs and price, and add it as an enrichment column.
-- Map each operation input to your columns with templates such as `{{Company website}}` or `https://{{Domain}}`. Inputs with a matching column name are filled in for you.
-- Select rows and press Run column. The app shows the estimated cost and asks you to confirm before it spends anything.
-- Cells show `pending`, `done` or `error`, plus the cost of that call. A cell that finished too slowly for one request stays `pending`; run the column again and it is read back without paying twice.
-- Export the table, results included, as CSV.
-
-## Quickstart
-
-You need Node 20 or newer, a free Supabase project, and a looot account.
-
-1. Create a Supabase project in the Supabase dashboard. Under Authentication, create your own user (email and password) and turn off public sign-ups (see Access below).
-2. Get a looot agent token. In the looot dashboard open Settings, Agent tokens, create one, and tick `catalog.read`, `runs.read`, `runs.execute` and `usage.read`. Top up the balance from $5.
-3. Clone and install.
-
-   ```bash
-   git clone https://github.com/loootai/looot-tables.git
-   cd looot-tables
-   npm install
-   ```
-
-4. Run the migration with the Supabase CLI.
-
-   ```bash
-   supabase login
-   supabase link --project-ref YOUR_PROJECT_REF
-   supabase db push
-   ```
-
-   `supabase db push` applies `supabase/migrations/20261008000000_init.sql`. You can also paste that file into the SQL editor.
-
-5. Copy `.env.example` to `.env.local` and fill it in.
-
-   | Variable | Value |
-   | --- | --- |
-   | `NEXT_PUBLIC_SUPABASE_URL` | Project URL from Project Settings, API |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | The anon (public) key from the same page |
-   | `LOOOT_TOKEN` | The looot agent token. Server only. |
-   | `LOOOT_API_URL` | Optional. Defaults to `https://api.looot.ai`. |
-
-6. Start it.
-
-   ```bash
-   npm run dev
-   ```
-
-   Open http://localhost:3000, sign in, and import a CSV.
-
-## Deploy to Vercel
-
-Use the button text below in any README or page.
-
-[Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Floootai%2Flooot-tables&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,LOOOT_TOKEN&project-name=looot-tables)
-
-Set the three environment variables when Vercel asks. Mark `LOOOT_TOKEN` as sensitive. The run endpoint allows up to 60 seconds, which needs a Vercel plan that supports it; on a shorter limit, rows that do not finish stay `pending` and you run the column again.
-
-## How billing works
-
-looot is prepaid. You top up a balance (from $5) and every call draws from it. There is no subscription and no per-seat fee, and this app adds no markup.
-
-- The price of an operation is shown when you pick it, and stored on the column.
-- Before every run the app shows `rows x price per row` and asks you to confirm. The server refuses a run if the confirmed amount is lower than its own estimate.
-- A failed call costs nothing. The cost on each cell is what looot actually charged for that call, and the header shows the table's total spend.
-- Every run carries an idempotency key built from the column, row and input, so pressing Run twice never pays twice for the same input.
-- If the balance runs out, the remaining cells show an error and nothing else is charged. Top up and run again.
-
-## Access and security
-
-The schema uses one simple rule: any signed-in user can read and write every table (`using (true)` for the `authenticated` role, with row level security on). That fits a single person or a small team sharing one workspace. It is not multi-tenant. To keep it private, create your user by hand and disable sign-ups in Authentication, Providers, Email. If you need separate workspaces per user, add an `owner_id uuid default auth.uid()` column to `tables` and change the policies to `owner_id = auth.uid()`.
-
-The looot token is read from `LOOOT_TOKEN` in server code only (`src/lib/looot.ts`, route handlers under `src/app/api`). The browser never sees it. The server routes check your Supabase session before they call looot.
+- **Lead lists from a prompt.** "Every solar company in the US with 50+ employees." Rows stream in, deduplicated by domain.
+- **AI research columns.** "Who is the CEO?" "Does the pricing page offer a free tier?" Each answer links to its sources.
+- **Checks, categories and scores.** True/false, category and score columns, each with a probability or confidence.
+- **Work email waterfall.** Tries Hunter, Prospeo, Apollo, QuickEnrich and ContactOut in your order and keeps the first hit.
+- **Emails and documents.** A personalized email draft or branded PDF for every row.
+- **Real formulas.** Excel-style functions run locally in the browser, with no API calls.
+- **Export.** CSV, Excel or JSON, with or without confidence and sources.
+- **MCP server.** Claude Code, Cursor and other MCP clients can read, edit and enrich your sheets.
 
 ## How it works
 
-```
-browser  --supabase-js (anon key, your session, RLS)-->  Postgres   tables, columns, rows, cells
-browser  --/api/looot/search, /api/looot/inspect------->  server  --LOOOT_TOKEN-->  api.looot.ai
-browser  --/api/tables/run (6 rows per request)-------->  server  --POST /v1/runs?wait=15, poll GET /v1/runs/{id}-->  api.looot.ai
-```
+1. **Find rows.** Describe what you want, import a CSV, or start blank.
+2. **Add AI columns.** Ask a question and reference other columns with `{{Website}}`. Enrichable picks the operation: web research, a page read, a company or person lookup, or an email search.
+3. **Review and export.** Open any cell to see its sources and confidence, rerun or edit it, filter what passes, and export.
 
-- `src/lib/mapping.ts` turns a row into an operation input from the column's `input_map`.
-- `src/lib/cost.ts` estimates cost. `src/lib/csv.ts` imports and exports CSV.
-- `src/lib/runner.ts` runs a column over rows with 3 in parallel, polls slow runs, and writes each cell.
-- `src/lib/looot.ts` is the REST client: search, inspect, run, get run, balance.
+[Context.dev](https://link.context.dev/enrichable/github/context) handles the web (search, scraping, company and people data). OpenAI does the reasoning. [TypeSafe](https://typesafe.ai) makes calibrated true/false and category calls when you connect it.
 
-## Live run
+## Self-host
 
-Run on 2026-10-14 against the production looot API. The table holds ten companies from looot's own market (Clay, Apollo.io, Apify, Firecrawl, Exa, Tavily, Bright Data, ZoomInfo, People Data Labs, Coresignal). Everything in the images comes from this run, so there is no "Demo data".
+### Deploy to Vercel
 
-- 6 enrichment columns, 10 rows each, 60 calls, $0.1705 charged (read from the run cost on each cell).
-- Industry, HQ city, Country, Employees and Founded use `dropleads-company-enrich` at $0.00145 per call. Tech stack uses `companyenrich-companies-enrich-get` at $0.0098 per call.
-- 3 extra probe calls ($0.0132) picked the operations before the grid run. Total for the whole session was $0.1837 over 63 calls.
-- All 60 cells finished with status `done`. Two cells came back empty (Founded for Firecrawl and Exa). The provider has no founding year for them, and the cell still shows the charge.
-- Industry is the same value for all ten ("information technology & services"). That is what the provider returns, so it is a weak column for this list.
-- Employees are the provider's own numbers and can disagree with other sources. Clay shows 610 here, while another operation reported the 1K-5K band.
-- Slow runs (a few Tech stack and Founded calls) were `pending` for a while before they settled, and the app polled them until they finished.
-- The Supabase side was a small local stand-in for the REST and auth endpoints, because the run used no Docker. The app code and the looot calls were the real ones.
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fcontext-dot-dev%2Fenrichable&products=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22neon%22%2C%22protocol%22%3A%22storage%22%7D%5D)
 
-One fix came out of this run. `dropleads-company-enrich` declares its inputs as arrays, and the input mapper sent a plain string, so the call would be refused. `coerceValue` now wraps a single value in a list when the operation declares an array input. A test covers it.
+1. Click the button and choose where to clone the repo.
+2. Create a Neon Postgres database in the setup flow.
+3. Deploy. The build creates the tables.
+4. Open `/app` on your deployment and add your API keys.
 
-## Development
+Using an existing database, or stuck? See the [deployment guide](docs/deploy.md).
+
+### Run locally
+
+You need Node.js 22 (see `.nvmrc`) and a [Neon](https://neon.tech) database.
 
 ```bash
-npm test          # vitest: input mapping, cost, CSV, run flow with mocked HTTP
-npm run typecheck
-npm run build
+git clone https://github.com/context-dot-dev/enrichable
+cd enrichable
+nvm use
+npm ci
+cp .env.example .env.local   # set DATABASE_URL
+npm run db:migrate
+npm run dev
 ```
 
-Tests make no network calls. Turn on the leak scanner hook once per clone with `git config core.hooksPath .githooks`.
+Open [localhost:3000/app](http://localhost:3000/app) and add your keys.
 
-## Limits in v0.1.0
+## API keys
 
-- The grid loads the whole table into the browser. It is fine for a few thousand rows.
-- No formulas, no per-cell editing UI beyond double-click on input cells, no waterfall across several operations in one column. A looot `job:` id already lets looot pick the provider for you.
-- Result fields are picked with a dot path such as `data.0.email`. If you leave it empty, the whole result is stored as JSON.
+Bring your own keys. Usage is billed to your provider accounts. Add them in the app under **Configuration → Connections**.
+
+| Provider | Used for | |
+| --- | --- | --- |
+| [Context.dev](https://link.context.dev/enrichable/api-keys) | Web search, scraping, company and people data | Required |
+| [OpenAI](https://platform.openai.com/api-keys) | AI columns, Find rows and column setup | Required |
+| [TypeSafe](https://typesafe.ai) | Calibrated true/false, category and score columns (falls back to OpenAI) | Optional |
+| [Hunter](https://hunter.io/api-keys), [Prospeo](https://app.prospeo.io/), [Apollo](https://developer.apollo.io/), [QuickEnrich](https://app.quickenrich.io/settings/api-key), [ContactOut](https://contactout.com/api) | Work emails in the [email waterfall](docs/email-enrichment.md) | Optional |
+
+Keys you enter stay in your browser and are only sent to your deployment's API routes. For a private team deployment, set the provider variables (`OPENAI_API_KEY`, `CONTEXT_DEV_API_KEY`, and so on) on the server together with `ENRICHABLE_PASSWORD`. [.env.example](.env.example) lists every option.
+
+## Good to know
+
+- **Storage.** Sheets live in your Neon database, cached in the browser with IndexedDB.
+- **Access.** Each browser gets a private workspace tied to a cookie. Self-hosted copies have no accounts, so export sheets to move them between browsers. To keep an instance private, restrict access at your host or network.
+- **Limits.** 10 sheets per workspace and 1,000 rows per sheet. Change them in [workspace.ts](src/lib/workspace.ts).
+- **Search engines.** Self-hosted copies are `noindex` unless you set `ENRICHABLE_ALLOW_INDEXING=true`.
+- **Analytics.** Off unless you set `NEXT_PUBLIC_DATABUDDY_CLIENT_ID`. It never sends sheet contents, prompts or keys.
+
+## Docs
+
+| Guide | Covers |
+| --- | --- |
+| [Usage](docs/usage.md) | Column operations, formulas, selection, undo and providers |
+| [MCP](docs/mcp.md) | Connecting Claude Code, Cursor or any MCP client |
+| [Deploy](docs/deploy.md) | Vercel and Neon setup, existing databases, troubleshooting |
+| [Email enrichment](docs/email-enrichment.md) | The email provider waterfall |
+| [Realtime](docs/realtime.md) | Live collaboration with Neon Realtime |
+| [Development](docs/development.md) | Architecture, tests and migrations |
+
+Built with Next.js 16, React 19, TypeScript, Tailwind CSS 4, Neon Postgres, Dexie, IronCalc, the Vercel AI SDK and the Model Context Protocol.
+
+## Contributing
+
+Bug reports and feature ideas are welcome. [Open an issue](https://github.com/context-dot-dev/enrichable/issues/new/choose). We build accepted issues ourselves and don't take external pull requests, but you're welcome to fork, customize and self-host. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Found a vulnerability? Please report it privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE). Bundled code, fonts and assets are listed in the [third-party notices](THIRD_PARTY_NOTICES.md).
+
+---
+
+<p align="center">
+  <sub>Made in NYC and SF by <a href="https://github.com/YahiaBakour">@YahiaBakour</a> and <a href="https://github.com/nikhilrado">@nikhilrado</a> with the <a href="https://link.context.dev/enrichable/github/context">Context.dev</a> team.</sub>
+</p>

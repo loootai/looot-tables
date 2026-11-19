@@ -1,0 +1,29 @@
+.column-composer-heading { gap: 8px; min-height: var(--populate-picker-height); padding-left: 12px; color: var(--color-fg-muted); font-size: 13px; }
+.column-composer-hint { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.column-composer .column-prompt .cm-editor,
+.column-composer .column-prompt .cm-editor.cm-focused,
+.column-composer .column-prompt .cm-editor:has(.column-prompt-plain:focus) { border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none; font-size: 17px; }
+.column-composer .column-prompt .cm-content { padding: 0; min-height: calc(var(--prompt-lines) * 1.6em); line-height: 1.6; }
+.column-composer .populate-send:focus-visible,
+.column-composer-options:focus-visible,
+.column-composer .populate-close:focus-visible,
+.column-composer-create:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+
+/* "Configure manually" tucks under the card like a drawer tab. */
+.column-composer-shelf { box-sizing: border-box; width: calc((100% + min(78%, 480px)) / 2); margin: -14px auto 0; padding: 16px 14px 3px; border: 1px solid var(--color-line-subtle); border-radius: 0 0 22px 22px; background: var(--color-neutral-5); }
+.column-composer-options { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 0 auto; padding: 3px 12px; border-radius: 8px; color: var(--color-fg-muted); font-size: 13px; transition: color 150ms; }
+.column-composer-options:hover:not(:disabled) { color: var(--color-fg); }
+.column-composer-options:disabled { opacity: .5; }
+
+/* The composer's one action: a labeled send button in the populate dialog's style. */
+.column-composer-create { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; height: 38px; padding-inline: 14px 12px; border-radius: 12px; background: var(--color-brand); color: white; font-size: 13px; font-weight: 500; white-space: nowrap; transition: background-color 150ms, opacity 150ms; }
+.column-composer-create:hover:not(:disabled) { background: var(--color-brand-hover); }
+.column-composer-create:disabled { opacity: .4; cursor: not-allowed; }
+.column-composer-create[aria-busy='true'] { opacity: .75; cursor: progress; }
+@media (max-width: 540px) {
+  .column-composer-shelf { width: calc(100% - 16px); }
+  .column-composer .populate-bottom { flex-wrap: wrap; }
+  .column-composer-hint { flex: 1 1 auto; }
+  .column-composer-create { margin-left: auto; }
+}
+@media (pointer: coarse) { .column-composer-create, .column-composer-options { min-height: 44px; } }
