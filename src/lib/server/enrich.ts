@@ -16,7 +16,7 @@ import { companyContextForQuery } from './company-context';
 import { CredentialError } from './credentials';
 import { afterSpend, classifyFailure, failure, inputError, Spend } from './enrich-failure';
 import { decideChoice, decideNoul, decideScore } from './jev';
-import { answerOf, companyEnrich, companyFieldValue, companySearch, extractFromPage, findEmail, findPage, findPhone, homepageUrl, isMiss, PageNotFound, pickValue, personLookup, readPage, readWebOutput, resolveUrl, searchCompanySuggestions, verifyEmail, webSearch, type PageText } from './looot-jobs';
+import { type EmailFound, answerOf, companyEnrich, companyFieldValue, companySearch, extractFromPage, findEmail, findPage, findPhone, homepageUrl, isMiss, PageNotFound, pickValue, personLookup, readPage, readWebOutput, resolveUrl, searchCompanySuggestions, verifyEmail, webSearch, type PageText } from './looot-jobs';
 import type { LoootClient, LoootResult } from './looot';
 import type { ProviderAccess } from './provider-access';
 
@@ -32,11 +32,11 @@ interface Run {
 
 /** Run one column operation for one row. Never throws: errors come back as { error }. `attempt` names this cell attempt;
     every looot run it makes derives its idempotency key from it. */
-export async function runOp(access: ProviderAccess, op: ColumnOp, row: Row, attempt?: string): Promise<EnrichResponse> {
+export async function runOp(access: ProviderAccess, op: ColumnOp, row: Row, attempt?: string, capUsd?: number): Promise<EnrichResponse> {
 	const started = Date.now();
 	// Everything this run asks of a provider, company research included, is recorded here by the clients themselves.
 	const spend = new Spend();
-	const run: Run = { access: access.withSpend(spend, attempt), sources: new Set(), companyContext: '' };
+	const run: Run = { access: access.withSpend(spend, attempt, capUsd), sources: new Set(), companyContext: '' };
 	/** What the cell keeps about this run's money: the USD looot charged and each run behind it. */
 	const spent = (): CellMeta => ({ ...(spend.costUsd ? { costUsd: Math.round(spend.costUsd * 1e6) / 1e6 } : {}), ...(run.access.calls.length ? { looot: [...run.access.calls] } : {}) });
 	try {
@@ -54,7 +54,7 @@ export async function runOp(access: ProviderAccess, op: ColumnOp, row: Row, atte
 	}
 }
 
-interface OpResult {
+export interface OpResult {
 	error?: string;
 	failure?: EnrichFailure;
 	value: CellValue;
@@ -359,6 +359,11 @@ async function runCompany({ access, sources }: Run, op: Extract<ColumnOp, { kind
 	if (!domain) throw inputError('No matching company domain found for this row', 'looot');
 	const result = await companyEnrich(client, domain);
 	sources.add(`https://${domain}`);
+	return companyAnswer(op, result, domain, input);
+}
+
+/** What a company.enrich answer puts in a company cell: the chosen field, and the whole answer for previews and unpacking. */
+export function companyAnswer(op: Extract<ColumnOp, { kind: 'company' }>, result: LoootResult, domain: string, input = domain): OpResult {
 	if (isMiss(result)) return { value: null, meta: { reasoning: 'No company data found for this domain.' } };
 	const answer = answerOf(result);
 	const value = companyFieldValue(answer, op.field);
@@ -403,7 +408,8 @@ async function runPerson({ access, sources }: Run, op: Extract<ColumnOp, { kind:
 
 const outcomeNote = (result: LoootResult, found: string, missing: string) => result.outcome === 'weak' ? `${found} (weak match)` : result.outcome === 'miss' ? missing : found;
 
-async function runEmailFind({ access }: Run, op: Extract<ColumnOp, { kind: 'email-enrichment' }>, row: Row): Promise<OpResult> {
+/** The person behind an email lookup, or the reason the row cannot run. Shared by one run and a batch row. */
+export function emailIdentity(op: Extract<ColumnOp, { kind: 'email-enrichment' }>, row: Row) {
 	const input = (value: string) => renderTemplate(value, row).trim();
 	const identity = { name: input(op.name), company: input(op.company), domain: toDomain(input(op.domain)), profileUrl: input(op.profileUrl) };
 	if (!identity.name || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(identity.domain)) throw inputError('Provide a person name and company domain for this row.', 'looot');
@@ -411,25 +417,57 @@ async function runEmailFind({ access }: Run, op: Extract<ColumnOp, { kind: 'emai
 		let profile: URL; try { profile = new URL(identity.profileUrl); } catch { throw inputError('Enter a valid LinkedIn profile URL.', 'looot'); }
 		if (profile.protocol !== 'https:' || !['linkedin.com', 'www.linkedin.com'].includes(profile.hostname) || !/^\/(in|pub)\//.test(profile.pathname)) throw inputError('Enter a valid LinkedIn profile URL.', 'looot');
 	}
-	const found = await findEmail(access.looot(), identity, { prefer: op.prefer });
+	return identity;
+}
+
+async function runEmailFind({ access }: Run, op: Extract<ColumnOp, { kind: 'email-enrichment' }>, row: Row): Promise<OpResult> {
+	const client = access.looot();
+	const found = await findEmail(client, emailIdentity(op, row), { prefer: op.prefer });
+	// Find + verify: a found address is checked in the same cell; a miss is never verified.
+	const verified = op.verify && found.email ? await verifyEmail(client, found.email, { prefer: op.prefer }) : undefined;
+	return emailFindAnswer(found, verified?.status);
+}
+
+const VERIFY_LABEL: Record<string, string> = { valid: 'Valid', invalid: 'Invalid', catch_all: 'Catch-all', risky: 'Risky', unknown: 'Unknown' };
+
+/** What an email lookup puts in the cell: the address, and with verify its checked status. */
+export function emailFindAnswer(found: EmailFound, verified?: string): OpResult {
+	if (!found.email) return { value: null, meta: { reasoning: 'No work email found' } };
 	const outcome = outcomeNote(found.result, 'Work email found', 'No work email found');
-	return { value: found.email, meta: { reasoning: found.email ? `${outcome}${found.status ? `. Provider status: ${found.status}` : ''}.` : 'No work email found', ...(found.status ? { verification: found.status } : {}) } };
+	if (verified) return { value: found.email, meta: { verification: verified, reasoning: `${outcome}. Checked: ${VERIFY_LABEL[verified] ?? verified}.` } };
+	return { value: found.email, meta: { reasoning: `${outcome}${found.status ? `. Provider status: ${found.status}` : ''}.`, ...(found.status ? { verification: found.status } : {}) } };
+}
+
+/** The address a verify column checks for this row, or the reason it cannot run. */
+export function verifyAddress(op: Extract<ColumnOp, { kind: 'email-verify' }>, row: Row): string {
+	const email = renderTemplate(op.email, row).trim();
+	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw inputError('Provide an email address to verify for this row.', 'looot');
+	return email;
 }
 
 async function runEmailVerify({ access }: Run, op: Extract<ColumnOp, { kind: 'email-verify' }>, row: Row): Promise<OpResult> {
-	const email = renderTemplate(op.email, row).trim();
-	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw inputError('Provide an email address to verify for this row.', 'looot');
-	const { status, result } = await verifyEmail(access.looot(), email, { prefer: op.prefer });
+	const { status, result } = await verifyEmail(access.looot(), verifyAddress(op, row), { prefer: op.prefer });
+	return emailVerifyAnswer(status, result);
+}
+
+export function emailVerifyAnswer(status: string, result: LoootResult): OpResult {
 	return { value: status, meta: { verification: status, reasoning: result.run.outcomeReason ? String(result.run.outcomeReason).slice(0, 200) : `Email status: ${status}` } };
 }
 
-async function runPhoneFind({ access }: Run, op: Extract<ColumnOp, { kind: 'phone-find' }>, row: Row): Promise<OpResult> {
+/** The person behind a phone lookup, or the reason the row cannot run. */
+export function phoneIdentity(op: Extract<ColumnOp, { kind: 'phone-find' }>, row: Row) {
 	const input = (value: string) => renderTemplate(value, row).trim();
 	const identity = { name: input(op.name), company: input(op.company), domain: toDomain(input(op.domain)), profileUrl: input(op.profileUrl) };
 	if (!identity.profileUrl && !identity.name) throw inputError('Provide a LinkedIn URL, or a name and company, for this row.', 'looot');
-	const { phone, result } = await findPhone(access.looot(), identity, { prefer: op.prefer });
-	return { value: phone, meta: { reasoning: phone ? outcomeNote(result, 'Phone number found', '') : 'No phone number found' } };
+	return identity;
 }
+
+async function runPhoneFind({ access }: Run, op: Extract<ColumnOp, { kind: 'phone-find' }>, row: Row): Promise<OpResult> {
+	const { phone, result } = await findPhone(access.looot(), phoneIdentity(op, row), { prefer: op.prefer });
+	return phoneAnswer(phone, result);
+}
+
+export const phoneAnswer = (phone: string | null, result: LoootResult): OpResult => ({ value: phone, meta: { reasoning: phone ? outcomeNote(result, 'Phone number found', '') : 'No phone number found' } });
 
 /** Any looot endpoint: the inputs come from the row through `{{Column}}` templates, the answer is kept whole or by path. */
 async function runLooot({ access }: Run, op: Extract<ColumnOp, { kind: 'looot' }>, row: Row): Promise<OpResult> {

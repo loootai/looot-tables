@@ -1,8 +1,8 @@
 import 'server-only';
 
 import { randomUUID } from 'node:crypto';
-import { Looot, LoootError, type FallbackOptions, type Prefer, type RouteAttempt, type Run, type RunOutcome } from './looot-api';
-import type { LoootCallMeta } from '../types';
+import { Looot, LoootError, type BatchAnswer, type BatchParams, type FallbackOptions, type Prefer, type RouteAttempt, type Run, type RunOutcome } from './looot-api';
+import type { LoootCallMeta, NextStep } from '../types';
 import { CredentialError } from './credentials';
 import { EnrichError, failure, retryUnbilled, type Spend } from './enrich-failure';
 
@@ -65,12 +65,16 @@ export class LoootClient {
 	readonly #spend: Spend;
 	readonly #calls: LoootCallMeta[];
 	readonly #attempt: string;
+	readonly #capUsd: number | undefined;
 	#sequence = 0;
 
-	constructor(options: { token: string; spend: Spend; calls?: LoootCallMeta[]; attempt?: string; baseUrl?: string; fetch?: typeof fetch }) {
+	/** `capUsd` is the most this client's runs may spend together: each job run is sent with the rest as
+	    fallback.maxCostUsd, and no run starts once it is used up. */
+	constructor(options: { token: string; spend: Spend; calls?: LoootCallMeta[]; attempt?: string; capUsd?: number; baseUrl?: string; fetch?: typeof fetch }) {
 		this.#spend = options.spend;
 		this.#calls = options.calls ?? [];
 		this.#attempt = options.attempt ?? randomUUID();
+		this.#capUsd = options.capUsd && options.capUsd > 0 ? options.capUsd : undefined;
 		// Only a 429 or a connection that never opened is resent, and the resend carries the same idempotency key.
 		this.#api = new Looot({ token: options.token, baseUrl: options.baseUrl ?? loootApiUrl(), fetch: retryUnbilled(options.fetch ?? ((input, init) => globalThis.fetch(input, init))), timeoutMs: 75_000 });
 	}
@@ -85,16 +89,53 @@ export class LoootClient {
 		return `lt-${this.#attempt}-${++this.#sequence}`;
 	}
 
+	/** What this client may still spend, or undefined without a cap. */
+	get remainingUsd(): number | undefined {
+		return this.#capUsd === undefined ? undefined : Math.max(0, Math.round((this.#capUsd - this.#spend.costUsd) * 1e6) / 1e6);
+	}
+
+	/** The cap for the next run: the caller's, never above what is left. Throws once nothing is left. */
+	#maxCost(requested?: number): number | undefined {
+		const remaining = this.remainingUsd;
+		if (remaining !== undefined && remaining <= 0) throw new EnrichError(`This cell reached its spend cap of $${this.#capUsd}. Nothing more was run for it.`, failure('spend_capped', 'looot'));
+		if (remaining === undefined) return requested || undefined;
+		return requested ? Math.min(requested, remaining) : remaining;
+	}
+
 	/** Run a job. looot picks the provider (in `prefer` order) and walks to the next one on a miss. */
-	job(job: string, input: Record<string, unknown>, options: RunOptions = {}): Promise<LoootResult> {
-		const fallback: FallbackOptions | boolean = options.fallback === false ? false : { ...(typeof options.fallback === 'object' ? options.fallback : {}), enabled: true, ...(options.prefer ? { prefer: options.prefer } : {}), ...(options.maxCostUsd ? { maxCostUsd: options.maxCostUsd } : {}) };
+	async job(job: string, input: Record<string, unknown>, options: RunOptions = {}): Promise<LoootResult> {
+		const maxCostUsd = this.#maxCost(options.maxCostUsd);
+		const fallback: FallbackOptions | boolean = options.fallback === false ? false : { ...(typeof options.fallback === 'object' ? options.fallback : {}), enabled: true, ...(options.prefer ? { prefer: options.prefer } : {}), ...(maxCostUsd ? { maxCostUsd } : {}) };
 		return this.#run(`job:${job}`, input, fallback, options.signal);
 	}
 
 	/** Run one named endpoint, with fallback to the job's other providers only when asked. */
-	endpoint(endpointId: string, input: Record<string, unknown>, options: RunOptions = {}): Promise<LoootResult> {
-		const fallback = options.fallback ? options.fallback : false;
+	async endpoint(endpointId: string, input: Record<string, unknown>, options: RunOptions = {}): Promise<LoootResult> {
+		const maxCostUsd = this.#maxCost(options.maxCostUsd);
+		const fallback = options.fallback ? { ...(typeof options.fallback === 'object' ? options.fallback : {}), enabled: true, ...(maxCostUsd ? { maxCostUsd } : {}) } : false;
 		return this.#run(endpointId, input, fallback, options.signal);
+	}
+
+	/** One call of a rows batch. The same `idempotencyKey` continues an incomplete batch: settled rows replay at no charge. */
+	async batch(params: Omit<BatchParams, 'wait'>, signal?: AbortSignal): Promise<BatchAnswer> {
+		signal?.throwIfAborted();
+		try {
+			const answer = await this.#api.batch({ ...params, wait: 50 });
+			return answer;
+		} catch (error) {
+			throw this.#httpFailure(error);
+		}
+	}
+
+	/** Free. The most a rows batch can cost, in USD, or null when looot's answer names no total. */
+	async quote(params: Omit<BatchParams, 'wait'>): Promise<number | null> {
+		try { return quotedUsd(await this.#api.quote(params)); }
+		catch (error) { throw this.#httpFailure(error); }
+	}
+
+	/** Free. Report a wrong result against its run. */
+	feedback(body: Parameters<Looot['feedback']>[0]) {
+		return this.#api.feedback(body);
 	}
 
 	async #run(endpointId: string, input: Record<string, unknown>, fallback: boolean | FallbackOptions, signal?: AbortSignal): Promise<LoootResult> {
@@ -142,8 +183,8 @@ export class LoootClient {
 	}
 
 	/** Free. Ranked catalog search. */
-	search(query: string, limit = 10) {
-		return this.#api.search({ q: query, limit });
+	search(query: string, limit = 10, filters: { capability?: string; prefer?: Prefer } = {}) {
+		return this.#api.search({ q: query, limit, ...filters });
 	}
 
 	/** Free. Input schema and price formula of one endpoint. */
@@ -155,6 +196,37 @@ export class LoootClient {
 	balance() {
 		return this.#api.balance();
 	}
+}
+
+/** A settled run as the operations read it, without recording spend (a batch records its own). */
+export function settledResult(run: Run, requested: string): LoootResult {
+	return { run, outcome: run.outcome ?? (run.status === 'completed' ? 'hit' : 'error'), costUsd: runCost(run), fields: normalizedFields(run), result: run.result, call: callMeta(run, requested) };
+}
+
+/** The total a quoteOnly answer names, in USD. The public docs say it is "the batch quote (the most it can cost)" without
+    naming the field, so the usual names are all read. */
+export function quotedUsd(answer: Record<string, unknown>): number | null {
+	const quote = (answer.quote && typeof answer.quote === 'object' ? answer.quote : answer) as Record<string, unknown>;
+	for (const key of ['maxCostUsd', 'maxUsd', 'estimatedMaxCost', 'estimatedMaxCostUsd', 'totalUsd']) if (typeof quote[key] === 'number' && Number.isFinite(quote[key])) return quote[key] as number;
+	for (const key of ['maxCostMicros', 'estimatedMaxCostMicros', 'totalMicros']) if (typeof quote[key] === 'number' && Number.isFinite(quote[key])) return (quote[key] as number) / 1e6;
+	return null;
+}
+
+/** Follow-up jobs a run suggests, trimmed to what the sheet keeps. Provider wording never comes along. */
+export function nextStepsOf(run: Run): NextStep[] {
+	if (!Array.isArray(run.nextSteps)) return [];
+	return run.nextSteps.slice(0, 3).flatMap((step) => {
+		const job = typeof step.job === 'string' ? step.job : typeof step.run?.endpointId === 'string' && step.run.endpointId.startsWith('job:') ? step.run.endpointId.slice(4) : '';
+		if (!/^[a-z0-9_.-]{3,80}$/i.test(job)) return [];
+		const input = step.run?.input ?? step.input ?? {};
+		return [{ ...(typeof (step.suggestionId ?? step.run?.suggestionId) === 'string' ? { suggestionId: String(step.suggestionId ?? step.run?.suggestionId) } : {}), job, title: typeof step.title === 'string' ? step.title.slice(0, 80) : job, priceUsd: typeof step.priceUsd === 'number' && Number.isFinite(step.priceUsd) ? step.priceUsd : null, input: typeof input === 'object' && input ? Object.fromEntries(Object.entries(input).slice(0, 12).filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value))) : {} }];
+	});
+}
+
+/** A copy of normalized fields small enough to keep on a cell. */
+function compactFields(fields: Record<string, unknown>): Record<string, unknown> | undefined {
+	const kept = Object.fromEntries(Object.entries(fields).slice(0, 40).filter(([, value]) => value !== null && value !== undefined && JSON.stringify(value).length <= 600));
+	return Object.keys(kept).length ? kept : undefined;
 }
 
 /** What a run cost in USD: the settled charge, else the route's total. */
@@ -170,7 +242,7 @@ export function normalizedFields(run: Run): Record<string, unknown> {
 }
 
 function attemptMeta(attempt: RouteAttempt): NonNullable<LoootCallMeta['attempts']>[number] {
-	return { provider: attempt.provider, endpointId: attempt.endpointId, outcome: attempt.outcome, costUsd: typeof attempt.chargedUsd === 'number' ? attempt.chargedUsd : 0, ...(attempt.reason ? { reason: String(attempt.reason).slice(0, 200) } : {}) };
+	return { provider: attempt.provider, endpointId: attempt.endpointId, outcome: attempt.outcome, costUsd: typeof attempt.chargedUsd === 'number' ? attempt.chargedUsd : 0, ...(typeof attempt.ms === 'number' ? { ms: Math.round(attempt.ms) } : {}), ...(attempt.reason ? { reason: String(attempt.reason).slice(0, 200) } : {}) };
 }
 
 /** The compact record of one run kept on the cell. Provider wording is data, so it is trimmed and never executed. */
@@ -180,6 +252,8 @@ export function callMeta(run: Run, requested: string): LoootCallMeta {
 	const raw = run as unknown as { servedProviderId?: unknown; servedEndpointId?: unknown };
 	const endpointId = (typeof raw.servedEndpointId === 'string' && raw.servedEndpointId) || run.route?.servedBy || run.endpointId || requested;
 	const provider = served?.provider ?? (typeof raw.servedProviderId === 'string' ? raw.servedProviderId : undefined);
+	const normalized = compactFields(normalizedFields(run));
+	const nextSteps = nextStepsOf(run);
 	return {
 		runId: run.runId,
 		job: requested.startsWith('job:') ? requested.slice(4) : undefined,
@@ -189,6 +263,9 @@ export function callMeta(run: Run, requested: string): LoootCallMeta {
 		costUsd: runCost(run),
 		...(attempts?.length ? { attempts } : {}),
 		...(run.route?.skipped?.length ? { skipped: run.route.skipped.length } : {}),
+		...(run.route?.capped ? { capped: true } : {}),
+		...(normalized ? { normalized } : {}),
+		...(nextSteps.length ? { nextSteps } : {}),
 	};
 }
 

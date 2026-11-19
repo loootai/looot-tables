@@ -55,9 +55,9 @@ const decision = () => 120_000;
 export const OPERATIONS: { readonly [K in OpKind]: Operation<K> } = {
 	'email-enrichment': {
 		label: 'Find email', short: 'Email', columnName: 'Work email',
-		description: 'Asks looot for a work email. looot tries its email providers one after another, in the order you pick, and stops at the first address.',
+		description: 'Asks looot for a work email. looot tries its email providers one after another, in the order you pick, and stops at the first address. With verify on, the same cell checks the address and shows Valid, Catch-all or Not found.',
 		references: ['name', 'company', 'domain', 'profileUrl'], rowContext: references, local: remote,
-		requires: () => [LOOOT], costUsd: () => 0.02, worstCaseMs: () => 200_000, bills: 'looot',
+		requires: () => [LOOOT], costUsd: (op) => 0.02 + (op.verify ? 0.003 : 0), worstCaseMs: () => 200_000, bills: 'looot',
 	},
 	'email-verify': {
 		label: 'Verify email', short: 'Verify', columnName: 'Email status',

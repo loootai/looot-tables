@@ -95,7 +95,7 @@ function toOp(flat: Flat, decider: 'jev' | 'openai'): ComposeColumnResponse['op'
 		case 'formula':
 			return { kind: 'formula', request: flat.text };
 		case 'email-enrichment':
-			return { kind: 'email-enrichment', name: flat.personName ?? '', domain: flat.domain ?? '', company: flat.personCompany ?? '', profileUrl: flat.personProfileUrl ?? '', prefer: flat.emailPrefer ?? 'balanced' };
+			return { kind: 'email-enrichment', name: flat.personName ?? '', domain: flat.domain ?? '', company: flat.personCompany ?? '', profileUrl: flat.personProfileUrl ?? '', prefer: flat.emailPrefer ?? 'balanced', verify: true };
 		case 'email-verify':
 			return { kind: 'email-verify', email: flat.personEmail ?? '', prefer: flat.emailPrefer ?? 'balanced' };
 		case 'phone-find':

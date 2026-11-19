@@ -139,7 +139,7 @@ export interface ProviderAccess {
 	readonly spend: Spend;
 	/** The same access, its clients recording into `spend`. `attempt` names one cell attempt: every looot run it makes
 	    derives its idempotency key from it, so a resend of the same attempt never pays twice. */
-	withSpend(spend: Spend, attempt?: string): ProviderAccess;
+	withSpend(spend: Spend, attempt?: string, capUsd?: number): ProviderAccess;
 	/** The raw key, or null. */
 	key(provider: Provider): string | null;
 	/** The key, or a credential_missing CredentialError naming the provider. */
@@ -183,7 +183,7 @@ export function providerAccess(grant: AccessGrant, adapters: AccessAdapters = {}
 		return key;
 	};
 	const guard: LanguageModelMiddleware = { specificationVersion: 'v4', wrapGenerate: async ({ doGenerate }) => { await checkEndpoint(); return doGenerate(); }, wrapStream: async ({ doStream }) => { await checkEndpoint(); return doStream(); } };
-	const build = (spend: Spend, attempt?: string): ProviderAccess => {
+	const build = (spend: Spend, attempt?: string, capUsd?: number): ProviderAccess => {
 		let looot: LoootClient | undefined;
 		return {
 			account: grant.account, model, classifierModel: grant.classifierModel,
@@ -195,7 +195,7 @@ export function providerAccess(grant: AccessGrant, adapters: AccessAdapters = {}
 				const built = (adapters.openai ?? openaiModel)(requireKey('openai'), requested ?? model, grant.openaiBaseUrl ?? null);
 				return wrapLanguageModel({ model: built, middleware: grant.openaiBaseUrl ? [spendMiddleware(spend), guard] : spendMiddleware(spend) });
 			},
-			looot: () => looot ??= new LoootClient({ token: requireKey('looot'), spend, attempt, fetch: adapters.looot }),
+			looot: () => looot ??= new LoootClient({ token: requireKey('looot'), spend, attempt, capUsd, fetch: adapters.looot }),
 			get calls() { return looot?.calls ?? []; },
 			typesafe: () => typesafeClient(requireKey('typesafe'), spend),
 			decider: (requested = 'jev') => grant.classifierModel || requested === 'openai' || grant.preferJev === false ? 'openai' : 'jev',

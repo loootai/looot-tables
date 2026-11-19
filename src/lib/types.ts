@@ -35,7 +35,7 @@ export const EmailDraftSchema = z.object({
 export type EmailDraft = z.infer<typeof EmailDraftSchema>;
 
 /** How looot orders the providers of a job: the cheapest first, the most reliable first, or a mix of both. */
-export const EMAIL_PREFERENCES = ['balanced', 'cheapest', 'reliable'] as const;
+export const EMAIL_PREFERENCES = ['balanced', 'cheapest', 'reliable', 'fastest'] as const;
 export type EmailPreference = typeof EMAIL_PREFERENCES[number];
 export const ColumnOpSchema = z.discriminatedUnion('kind', [
  z.object({
@@ -46,6 +46,8 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
   profileUrl: z.string().max(500).default(''),
   /** looot's job:people.email.find walks its providers in this order until one finds an email. */
   prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
+  /** Check the found address with job:people.email.verify in the same cell. New columns turn it on. */
+  verify: z.boolean().optional(),
  }),
  z.object({
   kind: z.literal('email-verify'),
@@ -204,10 +206,25 @@ export interface LoootCallMeta {
 	provider?: string;
 	outcome: 'hit' | 'weak' | 'miss' | 'error' | 'rejected' | 'skipped' | 'pending';
 	costUsd: number;
-	/** The providers a fallback route tried, in order. */
-	attempts?: Array<{ provider: string; endpointId?: string; outcome: string; costUsd: number; reason?: string }>;
+	/** The providers a fallback route tried, in order, with what each cost and how long it took. */
+	attempts?: Array<{ provider: string; endpointId?: string; outcome: string; costUsd: number; ms?: number; reason?: string }>;
 	/** How many providers the route skipped without calling. */
 	skipped?: number;
+	/** The route hit its maxCostUsd before a provider answered. */
+	capped?: boolean;
+	/** looot's own field map for the job (`normalized.fields`), kept so sibling columns can be unpacked at $0. */
+	normalized?: Record<string, unknown>;
+	/** Priced follow-up jobs looot suggested after a hit. They never run without a click. */
+	nextSteps?: NextStep[];
+}
+
+/** A follow-up job looot suggested after a hit: what it does, its price for this row's input, and the input it would use. */
+export interface NextStep {
+	suggestionId?: string;
+	job: string;
+	title: string;
+	priceUsd: number | null;
+	input: Record<string, unknown>;
 }
 
 export interface CellMeta {
@@ -353,12 +370,14 @@ export const EnrichRequestSchema = z.object({
 	/** Column name → current cell value for the row. */
 	row: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())])),
 	model: z.string().max(100).optional(),
-	/** One cell attempt. Each looot run of the attempt derives its idempotency key from it, so a resend of the same attempt never pays twice. */
+	/** One cell run. Each looot run of it derives its idempotency key from it, so a resend of the same run never pays twice. */
 	attempt: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional(),
+	/** The sheet cell this run fills: the server holds its spend against the sheet's cap and counts its column's misses. */
+	cell: z.object({ sheetId: z.string().min(1).max(128), rowId: z.string().min(1).max(128), columnId: z.string().min(1).max(128) }).optional(),
 });
 
 /** Why an enrichment failed. Set where the failure is understood; code branches on this, never on `error` text. */
-export const FAILURE_REASONS = ['rate_limited', 'credits_exhausted', 'credential_missing', 'credential_invalid', 'timeout', 'provider_error', 'input_invalid'] as const;
+export const FAILURE_REASONS = ['rate_limited', 'credits_exhausted', 'credential_missing', 'credential_invalid', 'timeout', 'provider_error', 'input_invalid', 'spend_capped', 'column_halted'] as const;
 export type FailureReason = (typeof FAILURE_REASONS)[number];
 export type FailureProvider = 'openai' | 'looot' | 'typesafe';
 export interface EnrichFailure {
