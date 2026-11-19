@@ -5,14 +5,15 @@ import { categoryColor, categoryColorStyle } from '@/lib/category-colors';
 import { isDocumentColumn } from '@/lib/document';
 import { documentClientDomain } from '@/lib/document-branding';
 import { DocumentPreview } from './document-preview';
-import { EmailWaterfallResult } from './email-waterfall-result';
+import { LoootCalls } from './looot-calls';
 import { EmailDraftAction } from './email-draft-action';
 import { isEmailColumn, parseEmailDraft } from '@/lib/email-draft';
 import { EmailDraftFields } from './email-draft-fields';
 import { cellFromInput, cellInput } from '@/lib/formula-input';
 import { useToast } from '@/components/ui/toast';
 import { formatValue, toUrl } from '@/lib/template';
-import { type Cell, type CellMeta, type Column, type EmailDraft, type EmailProvider, type Row, type Sheet } from '@/lib/types';
+import { type Cell, type CellMeta, type Column, type EmailDraft, type Row, type Sheet } from '@/lib/types';
+import { formatUsd } from '@/lib/endpoint-map';
 import { Button, IconButton } from '@/components/ui/button';
 import { Select, Textarea } from '@/components/ui/field';
 import { Copy, ExternalLink, Pencil, RefreshCw, X } from 'lucide-react';
@@ -27,7 +28,6 @@ import { organizationKind } from '@/lib/organization-logo';
 
 type SaveCell = (rowId: string, columnId: string, cell: Cell) => Promise<void>;
 
-const PROVIDER_NAMES: Record<EmailProvider, string> = { hunter: 'Hunter', prospeo: 'Prospeo', quickenrich: 'QuickEnrich', apollo: 'Apollo', contactout: 'ContactOut' };
 const subscribeNothing = () => () => {};
 const isBusy = (cell: Cell | undefined) => cell?.s === 'running' || cell?.s === 'queued';
 const panelWidth = (document: boolean, wide: boolean) => document ? 'w-[540px]' : wide ? 'w-[440px]' : 'w-[340px]';
@@ -57,7 +57,8 @@ export function CellPanel({ sheet, row, column, onClose, onRerun, onEditColumn, 
 				{!editing && organizationKind(column) === 'company' && <CompanyPreview row={row} column={column} columns={sheet.columns} />}
 				{cell?.f && <section className="flex flex-col gap-2"><h4 className="text-caption text-fg-subtle">Formula</h4><code className="break-all text-body-sm text-fg">{cell.f}</code></section>}
 				<ProbabilitySection meta={cell?.m} column={column} />
-				<WhySection meta={cell?.m} column={column} />
+				<WhySection meta={cell?.m} />
+				<LoootCalls calls={cell?.m?.looot} />
 				<SourcesSection meta={cell?.m} />
 				<UsageSection cell={cell} />
 			</div>
@@ -209,13 +210,12 @@ function ProbabilitySection({ meta, column }: { meta: CellMeta | undefined; colu
 	);
 }
 
-function WhySection({ meta, column }: { meta: CellMeta | undefined; column: Column }) {
-	if (!meta?.reasoning && !meta?.enrichment) return null;
+function WhySection({ meta }: { meta: CellMeta | undefined }) {
+	if (!meta?.reasoning) return null;
 	return (
 		<section className="flex flex-col gap-2">
 			<h4 className="text-caption text-fg-subtle">Why</h4>
-			{meta.reasoning && <p className="text-body-sm leading-relaxed text-fg-muted">{meta.reasoning}</p>}
-			{meta.enrichment && <EmailWaterfallResult enrichment={meta.enrichment} providers={column.op?.kind === 'email-enrichment' ? column.op.providers : []} />}
+			<p className="text-body-sm leading-relaxed text-fg-muted">{meta.reasoning}</p>
 		</section>
 	);
 }
@@ -248,24 +248,18 @@ function SourceLink({ source }: { source: string }) {
 	);
 }
 
-const plural = (count: number) => count === 1 ? '' : 's';
-
-/** Credits, provider usage, duration, and when the value was written. */
+/** What the cell cost in USD, how long it took, and when the value was written. */
 function UsageSection({ cell }: { cell: Cell | undefined }) {
 	const meta = cell?.m;
-	if (meta?.credits === undefined && !meta?.enrichment && !meta?.provider && meta?.durationMs === undefined) return null;
+	if (meta?.costUsd === undefined && meta?.durationMs === undefined) return null;
 	return (
 		<section className="flex flex-col gap-1 text-caption text-fg-subtle tabular">
-			{meta.credits !== undefined && <span>{meta.credits} Context.dev credit{plural(meta.credits)}</span>}
-			{meta.enrichment && <span>Included credit used: ${meta.enrichment.costUsd.toFixed(4)}</span>}
-			{meta.provider && !meta.enrichment && <span>{PROVIDER_NAMES[meta.provider]}{providerUsage(meta)}</span>}
+			{meta.costUsd !== undefined && <span>Cost {formatUsd(meta.costUsd)}</span>}
 			{meta.durationMs !== undefined && <span>{(meta.durationMs / 1000).toFixed(1)} s</span>}
 			{cell?.t && <LocalTime time={cell.t} />}
 		</section>
 	);
 }
-
-const providerUsage = ({ providerCredits, providerCreditUnit }: CellMeta) => providerCredits !== undefined ? ` · ${providerCredits} ${providerCreditUnit ?? 'credit'}${plural(providerCredits)}` : ' · usage billed by provider';
 
 // The viewer's locale and time zone only exist in the browser, so a server pass renders no text.
 function LocalTime({ time }: { time: number }) {
