@@ -25,7 +25,7 @@
   <a href="docs/mcp.md"><img src="https://img.shields.io/badge/MCP-server-2563eb?style=flat-square" alt="MCP server" /></a>
 </p>
 
-> **Built by [Context.dev](https://link.context.dev/enrichable/github/context)**, the web context API for software and AI agents. One API for search, scraping, and company and people data. Every lookup in Enrichable runs on it, so this repo doubles as a working reference for building your own research tools. [Get an API key](https://link.context.dev/enrichable/api-keys).
+> **looot tables is built on [Enrichable](https://github.com/context-dot-dev/enrichable) by Context.dev** (MIT, imported at commit 640e58e). Every outside lookup here runs on [looot](https://looot.ai) jobs through one looot token. Enrichable's code, tests and docs keep their MIT license and copyright; see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 **Enrichable is an open-source AI spreadsheet for data enrichment.** Describe the companies or people you want and it finds them. Then add a column with a plain-English question and it researches every row on the live web: pricing pages, CEOs, tech stacks, work emails, anything public. Every answer keeps its sources.
 
