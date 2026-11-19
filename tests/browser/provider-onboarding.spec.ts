@@ -4,12 +4,12 @@ import { memberCookie } from './authenticated-test';
 async function mockProviders(page: Page, available: Record<string, unknown>) {
  await page.route('**/api/organization-settings', route => route.fulfill({ json: { local: true } }));
  await page.route('**/api/sheets', (route) => route.fulfill({ json: [] }));
- await page.route('**/api/context/usage*', (route) => route.fulfill({ json: { credits: 1000, used: 0 } }));
+ await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { credits: 1000, used: 0 } }));
  await page.route('**/api/openai/usage*', (route) => route.fulfill({ json: { enabled: false } }));
  await page.route('**/api/keys/verify*', (route) => {
   if (route.request().method() === 'GET') return route.fulfill({ json: available });
   const headers = route.request().headers();
-  const context = Boolean(available.context || headers['x-context-key'] === 'ctxt_valid');
+  const context = Boolean(available.context || headers['x-looot-key'] === 'ctxt_valid');
   const exhausted = Boolean(available.trialExhausted && !headers['x-openai-key']);
   const openai = !exhausted && Boolean(available.openai || headers['x-openai-key'] === 'sk-valid');
   return route.fulfill({ json: { openai: { ok: openai, inference: openai, ...(exhausted ? { issue: 'billing', message: 'AI trial credit is exhausted. Add your own OpenAI key to continue.' } : {}) }, context: { ok: context }, typesafe: { configured: false, ok: false } } });

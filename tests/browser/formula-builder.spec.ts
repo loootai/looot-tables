@@ -36,7 +36,7 @@ test.beforeEach(async ({ context, baseURL }) => {
   }
  });
  await context.route('**/api/keys/verify', (route) => route.fulfill({ json: route.request().method() === 'GET' ? { openai: true, context: true, typesafe: false } : { openai: { ok: true, inference: true }, context: { ok: true, credits: 25000 }, typesafe: { ok: true, configured: false } } }));
- await context.route('**/api/context/usage*', (route) => route.fulfill({ json: { credits: 25000, used: 5000 } }));
+ await context.route('**/api/looot/balance*', (route) => route.fulfill({ json: { credits: 25000, used: 5000 } }));
 });
 
 test('opens AI from equals without saving the draft, generates and applies a formula', async ({ page }, testInfo) => {

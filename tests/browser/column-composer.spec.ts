@@ -9,7 +9,7 @@ for (const width of [1360, 390]) {
   let sheet: Sheet = { id: 'composer', name: 'Customer research', revision: 1, columns: [{ id: 'company', name: 'Company', type: 'source', width: 220, createdAt: 1 }], filters: [], sort: null, createdAt: 1, updatedAt: 1 };
   const rows: Row[] = Array.from({ length: 15 }, (_, order) => ({ id: `company-${order}`, sheetId: sheet.id, order, createdAt: 1, cells: { company: { v: order ? `Company ${order + 1}` : 'Acme', s: 'done' as const, t: 1 } } }));
   await page.route('**/api/organization-settings', route => route.fulfill({ json: { local: true } }));
-  await page.route('**/api/context/usage*', route => route.fulfill({ json: { credits: 25000, used: 0 } }));
+  await page.route('**/api/looot/balance*', route => route.fulfill({ json: { available: 5, reserved: 0 } }));
   await page.route('**/api/openai/usage*', route => route.fulfill({ json: { enabled: false } }));
   await page.route('**/api/keys/verify*', route => route.fulfill({ json: { openai: true, context: true, typesafe: false, passwordRequired: false } }));
   await page.route('**/api/enrich', route => { throw new Error(`Unexpected enrichment: ${route.request().url()}`); });

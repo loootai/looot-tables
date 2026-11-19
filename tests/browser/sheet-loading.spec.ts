@@ -7,7 +7,7 @@ async function workspace(page: Page, context: BrowserContext, baseURL: string) {
 	const sheet: Sheet = { id: 'sheet-loading', name: 'Existing sheet', columns: [{ id: 'value', name: 'Value', type: 'source', width: 180, createdAt: 1 }], filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	const rows: Row[] = [{ id: 'row', sheetId: sheet.id, order: 0, createdAt: 1, cells: { value: { v: 'Saved data', s: 'done', t: 1 } } }];
 	const state = { listed: false, status: 200, reads: 0 };
-	await page.route('**/api/context/usage*', (route) => route.fulfill({ json: { credits: 25000, used: 0 } }));
+	await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
 	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/sheets**', async (route) => {
 		if (new URL(route.request().url()).pathname === '/api/sheets') {

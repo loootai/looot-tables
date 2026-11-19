@@ -5,7 +5,7 @@ test('pasted keys are checked automatically, never block saving, and models live
 	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('browser-user'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 	await page.route('**/api/organization-settings', route => route.fulfill({ json: { local: true } }));
 	await page.route('**/api/sheets', route => route.fulfill({ json: [] }));
-	await page.route('**/api/context/usage*', route => route.fulfill({ json: { credits: 1000, used: 0 } }));
+	await page.route('**/api/looot/balance*', route => route.fulfill({ json: { credits: 1000, used: 0 } }));
 	await page.route('**/api/openai/usage*', route => route.fulfill({ json: { enabled: false } }));
 	const checks: Array<{ key: string; model: string; inference: boolean; only: string | null }> = [];
 	await page.route('**/api/keys/verify*', async route => {

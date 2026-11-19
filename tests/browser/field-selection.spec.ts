@@ -19,7 +19,7 @@ for (const rowCount of [3, 12]) test(`field selections run together from the cur
 	// From row 1 of a 3-row sheet, "the rest" is every row, so the menu offers it once as "all".
 	const runLabel = runCount === rowCount ? `Run on all ${rowCount} rows` : `Run on ${runCount} rows`;
 	let rows: Row[] = names.map((name, order) => ({ id: `r${order}`, sheetId: sheet.id, order, createdAt: 1, cells: { company: { v: name, s: 'done', t: 1 }, domain: { v: `${name.toLowerCase().replaceAll(' ', '')}.com`, s: 'done', t: 1 } } }));
-	await page.route('**/api/context/usage*', (route) => route.fulfill({ json: { credits: 25000, used: 0 } }));
+	await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
 	await page.route('**/api/sheets**', async (route) => {
 		const request = route.request();
 		if (request.method() === 'PATCH') {

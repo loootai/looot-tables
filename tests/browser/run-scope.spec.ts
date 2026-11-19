@@ -7,7 +7,7 @@ test('chip extensions and column setup share remembered run scope and run only t
  let sheet: Sheet = { id: 'run-scope', name: 'Scopes', columns: [{ id: 'site', name: 'Website', type: 'source', format: 'website', width: 220, createdAt: 1 }], filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
  let rows: Row[] = Array.from({ length: 15 }, (_, i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: { site: { v: `company${i}.com`, s: 'done', t: 1 } } }));
  const requests: string[] = [];
- await page.route('**/api/context/usage*', (route) => route.fulfill({ json: { credits: 25000, used: 0 } }));
+ await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
  await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: true, context: true, typesafe: false, passwordRequired: false } }));
  await page.route('**/api/compose-column', (route) => route.fulfill({ json: { name: 'Email draft', op: { kind: 'email-draft', mode: 'ai', prompt: 'Draft an introduction', to: '', cc: '', bcc: '', subject: '', body: '' } } }));
  await page.route('**/api/enrich', (route) => {

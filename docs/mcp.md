@@ -1,6 +1,6 @@
-# Enrichable MCP
+# looot tables MCP
 
-Enrichable exposes a stateless Streamable HTTP MCP endpoint at `/mcp`. An external agent plans the workflow and requests successive batches. Enrichable validates operations, executes bounded calls, and persists results in the same workspace as the browser app. There is no background worker or durable job queue.
+looot tables exposes a stateless Streamable HTTP MCP endpoint at `/mcp`. An external agent plans the workflow and requests successive batches. looot tables validates operations, executes bounded calls, and persists results in the same workspace as the browser app. There is no background worker or durable job queue.
 
 ## Setup
 
@@ -14,8 +14,8 @@ For clients that accept an `mcpServers` configuration:
 ```json
 {
   "mcpServers": {
-    "enrichable": {
-      "url": "https://www.enrichable.io/mcp",
+    "looot-tables": {
+      "url": "https://your-deployment.example/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_MCP_KEY",
         "x-openai-key": "YOUR_OPENAI_KEY",
@@ -30,13 +30,11 @@ Exact client configuration varies. This endpoint requires a client that supports
 
 Each organization has exactly one active key, with full sheet and enrichment access and no scopes. Any signed-in member of that workspace can retrieve/copy the key, create the initial key, or rotate it. Rotation is atomic and immediately invalidates the previous key for new requests; requests already authenticated may finish. Concurrent creation and stale rotation attempts return a conflict. In self-hosted deployments, the key belongs to the current browser workspace.
 
-The shared key grants access to Enrichable and its saved organization provider connections. Browser enrichment and MCP load the same organization vault and saved model/classifier defaults; additional provider headers are optional request-only overrides. Deployment provider keys and the sponsored OpenAI trial are not inherited by MCP. Sheet reads/writes and template columns require no provider credentials.
+The shared key grants access to looot tables and its saved organization provider connections. Browser enrichment and MCP load the same organization vault and saved model/classifier defaults; additional provider headers are optional request-only overrides. Deployment provider keys and the sponsored OpenAI trial are not inherited by MCP. Sheet reads/writes and template columns require no provider credentials.
 
 Migration `006_organization_settings.sql` adds organization preferences, encrypted provider records, and metadata-only audit events. Organization settings are keyed by verified identity issuer and organization ID. They are shared by every signed-in member and device, and can be managed in Configuration. Save new keys there; browsers receive only connection status and masked prefixes. Existing account-local keys/settings require explicit import, which refuses to overwrite existing organization configuration.
 
-The current Context.dev Enrichable sign-in grant lasts 14 days and does not support refresh tokens. Sign-in persists its verified API key and expiration in the organization vault. Expired keys are not used; Settings offers reconnection. Healthy connections from another member and manually connected keys are preserved on ordinary sign-in. Explicit disconnect persists across later sign-ins until a member reconnects deliberately. A manually connected organization Context.dev API key supports unattended MCP use without the sign-in grant’s 14-day limit. Logging out only clears that browser session; it does not disconnect the organization provider.
-
-Optional headers: `x-typesafe-key`, `x-hunter-key`, `x-prospeo-key`, `x-openai-model`, and `x-openai-base-url`. Base URL overrides use the same URL and DNS validation as browser enrichment. Overriding the saved OpenAI endpoint requires an explicit `x-openai-key`; a stored organization key is never forwarded to a different request-supplied endpoint.
+Optional headers: `x-looot-key`, `x-typesafe-key`, `x-openai-model`, and `x-openai-base-url`. Base URL overrides use the same URL and DNS validation as browser enrichment. Overriding the saved OpenAI endpoint requires an explicit `x-openai-key`; a stored organization key is never forwarded to a different request-supplied endpoint.
 
 ## People lists
 
@@ -65,9 +63,9 @@ A sheet saved by an older version is upgraded the first time an agent reads it, 
 
 ## Example workflow
 
-Prefer Enrichable’s specialized operations over implementing providers, scraping, or research yourself. Use company/person fields for supported facts, Hunter/Prospeo for contact data, scrape/search for web data, check/classify/score for decisions, email-draft for emails, and no-cost template for deterministic text. Reserve generic ai and deep-research answer for work specialized operations cannot handle. All operations use the same validation and execution paths as the browser app.
+Prefer looot tables’s specialized operations over implementing providers, scraping, or research yourself. Use company/person fields for supported facts, the email, verify and phone columns for contact data, scrape/search for web data, check/classify/score for decisions, email-draft for emails, and no-cost template for deterministic text. Reserve generic ai and deep-research answer for work specialized operations cannot handle. All operations use the same validation and execution paths as the browser app.
 
-For additional research beyond these operations, prefer the Context.dev MCP when available. Use people search and people enrichment to resolve identities, web search to find supporting sources, and web scrape or web answers to verify details. Write confirmed profile URLs or company domains back into the sheet, then rerun affected enrichments in dependency order to persist results and provenance. Never guess missing identities or URLs. If Context.dev MCP is unavailable, use Enrichable search/scrape/answer operations before another web research tool.
+For additional research beyond these operations, prefer the looot MCP when available. Use people search and people enrichment to resolve identities, web search to find supporting sources, and web scrape or web answers to verify details. Write confirmed profile URLs or company domains back into the sheet, then rerun affected enrichments in dependency order to persist results and provenance. Never guess missing identities or URLs. If the looot MCP is unavailable, use looot tables search/scrape/answer operations before another web research tool.
 
 A single `create_sheet` call can create the app’s Companies layout with an existing column configured for enrichment:
 
@@ -99,7 +97,7 @@ Readiness follows the same plan as the browser. Referenced enrichment cells must
 
 `idempotencyKey` identifies one batch within an organization. Repeat the same normalized arguments and key to retrieve its outcome without spending again. Reusing the key with different arguments returns a conflict. A deliberate rerun, including retrying previously blocked/failed/not-started cells, uses a new key. Attempt records currently remain in Postgres; they are not automatically expired.
 
-Outcomes include `done`, `error`, `blocked`, `skipped` (with `outdated`), `conflict`, and `not_started`. A provider failure's outcome carries `failure`, decided by the same rule as browser runs. `failure.retryable` is true only when no provider did work for the cell: the request never reached the provider (DNS failed or the connection was refused), the provider refused it before processing (429), or Enrichable refused it first (the credit ledger's rate limit, or company research that is still running or just failed). It is false for anything after a request was sent (a timeout, a server error, a dropped connection, a truncated answer), and once the cell's enrichment paid for any provider request, company research included: the provider may have done and billed the work, so resubmitting can pay twice. Enrichable sends each provider request once, resending only one that was rate limited or never connected. A saved cell's `m` property contains available provenance and provider metadata. Structured content and a JSON text representation are both returned for MCP clients.
+Outcomes include `done`, `error`, `blocked`, `skipped` (with `outdated`), `conflict`, and `not_started`. A provider failure's outcome carries `failure`, decided by the same rule as browser runs. `failure.retryable` is true only when no provider did work for the cell: the request never reached the provider (DNS failed or the connection was refused), the provider refused it before processing (429), or looot tables refused it first (the credit ledger's rate limit, or company research that is still running or just failed). It is false for anything after a request was sent (a timeout, a server error, a dropped connection, a truncated answer), and once the cell's enrichment paid for any provider request, company research included: the provider may have done and billed the work, so resubmitting can pay twice. looot tables sends each provider request once, resending only one that was rate limited or never connected. A saved cell's `m` property contains available provenance and provider metadata. Structured content and a JSON text representation are both returned for MCP clients.
 
 Results are committed against current inputs, column definitions, and the target cell. A concurrent edit produces `conflict` instead of overwriting newer work. Independent browser runs are not coordinated by the MCP batch lock and may still spend provider credits; avoid intentionally running the same cells from both interfaces at once.
 

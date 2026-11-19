@@ -8,7 +8,7 @@ for (const columnIndex of [0, 2]) {
   const columns: Sheet['columns'] = Array.from({ length: 3 }, (_, index) => ({ id: `draft-${index}`, name: `Email ${index + 1}`, type: 'source', format: 'email-draft', width: 300, createdAt: 1 }));
   const sheet: Sheet = { id: 'panel-visibility', name: 'Panel visibility', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
   const rows: Row[] = [{ id: 'r', sheetId: sheet.id, order: 0, createdAt: 1, cells: Object.fromEntries(columns.map((column) => [column.id, { v: JSON.stringify({ subject: 'Hello', body: 'Hi Alice' }), s: 'done', t: 1 }])) }];
-  await page.route('**/api/context/usage*', (route) => route.fulfill({ json: { credits: 25000, used: 0 } }));
+  await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
   await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
   await page.route('**/api/sheets**', (route) => route.fulfill({ json: new URL(route.request().url()).pathname === '/api/sheets' ? [{ sheet, rowCount: 1 }] : { sheet, rows, next: null } }));
   await page.goto(`/app/sheets/${sheet.id}`);

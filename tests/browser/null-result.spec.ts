@@ -6,7 +6,7 @@ test('completed nulls appear in the formula bar, stay null on blur, and differ f
  await context.addCookies([{ name: 'enrichable.session', value: memberCookie('null-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
  let sheet: Sheet = { id: 'null-test', name: 'Null results', columns: [{ id: 'result', name: 'Result', type: 'source', format: 'text', width: 240, createdAt: 1 }], filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
  let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: { result: { v: null, s: i === 0 ? 'done' : 'idle', t: 1 } } }));
- await page.route('**/api/context/usage*', (route) => route.fulfill({ json: { credits: 25000, used: 0 } }));
+ await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
  await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
  await page.route('**/api/sheets**', async (route) => {
   const request = route.request();

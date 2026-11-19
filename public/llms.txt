@@ -1,35 +1,10 @@
-# Enrichable
+# looot tables
 
-> Enrichable is a free, open-source (MIT) AI spreadsheet for data enrichment. Describe the companies or people you want and it finds them, then AI columns research every row with live web data and keep their sources. Built by Context.dev.
+> looot tables is a free, open-source (MIT) AI spreadsheet for data enrichment. Describe the companies or people you want and it finds them, then AI columns research every row with live web data, finding work emails and phones through looot. Built on Enrichable by Context.dev.
 
-- Website: https://www.enrichable.io
-- App: https://www.enrichable.io/app
-- Source code: https://github.com/context-dot-dev/enrichable
-- MCP endpoint: https://www.enrichable.io/mcp (Streamable HTTP, `Authorization: Bearer <organization key>`)
-
-## What it does
-
-- Builds lead lists from a prompt, for example "every solar company in the US with 50+ employees". Rows are deduplicated by domain.
-- Adds AI columns that answer a plain-English question for every row (web research, page reads, company and person data) and cite their sources.
-- Runs true/false checks, categories and scores with a probability or confidence on each call.
-- Finds work emails with a waterfall across Hunter, Prospeo, Apollo, QuickEnrich and ContactOut.
-- Drafts personalized emails and branded PDFs per row.
-- Calculates Excel-style formulas locally with IronCalc (WebAssembly), with no API calls.
-- Exports CSV, Excel (.xlsx) and JSON.
-- Exposes an MCP server so Claude Code, Cursor and other MCP clients can read sheets, add columns and run enrichment.
-
-## Facts
-
-- License: MIT. Free to use and self-host.
-- Data providers: Context.dev API (web search, scraping, company and people data), OpenAI (reasoning), TypeSafe (optional calibrated classification), optional email providers.
-- Self-hosting: Vercel plus Neon Postgres, or locally with Node.js 22. Requires a Context.dev API key and an OpenAI API key.
-- Limits: 10 sheets per workspace and 1,000 rows per sheet by default; self-hosted copies can change them.
-- Stack: Next.js 16, React 19, TypeScript, Tailwind CSS 4, Neon Postgres, IndexedDB, Vercel AI SDK, Model Context Protocol.
-
-## Docs
-
-- [README](https://github.com/context-dot-dev/enrichable#readme): overview, self-hosting and API keys
-- [Usage](https://github.com/context-dot-dev/enrichable/blob/main/docs/usage.md): column operations, formulas and providers
-- [MCP](https://github.com/context-dot-dev/enrichable/blob/main/docs/mcp.md): agent setup, keys and tools
-- [Deploy](https://github.com/context-dot-dev/enrichable/blob/main/docs/deploy.md): Vercel and Neon setup
-- [Email enrichment](https://github.com/context-dot-dev/enrichable/blob/main/docs/email-enrichment.md): the email provider waterfall
+- Source: https://github.com/loootai/looot-tables
+- Data: every search, page read, company and people lookup, email and phone runs as a looot job (https://looot.ai) on the caller's own balance.
+- Reasoning: OpenAI. Optional calibrated decisions: TypeSafe.
+- Self-hosting: Node.js 22, a Postgres database, a looot token and an OpenAI key.
+- Limits: 10 sheets per workspace and 1,000 rows per sheet by default.
+- Credit: looot tables is built on Enrichable (https://github.com/context-dot-dev/enrichable), MIT, by Context.dev.

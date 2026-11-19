@@ -32,7 +32,7 @@ async function workspace(page: Page, options: { connected?: boolean; seeded?: bo
 		const request = route.request(), url = new URL(request.url());
 		if (url.pathname.startsWith('/api/auth/')) return route.continue();
 		if (url.pathname === '/api/keys/verify') return route.fulfill({ json: { openai: options.connected !== false, context: options.connected !== false, typesafe: false, passwordRequired: false } });
-		if (url.pathname === '/api/context/usage') return route.fulfill({ json: { credits: 25000, used: 0 } });
+		if (url.pathname === '/api/context/usage') return route.fulfill({ json: { available: 5, reserved: 0 } });
 		if (url.pathname === '/api/mcp-key') return route.fulfill({ json: { key: null } });
 		if (url.pathname === '/api/logos/resolve') return route.fulfill({ json: { domain: null } });
 		if (url.pathname === '/api/populate') return route.fulfill({ contentType: 'application/x-ndjson', body: [{ type: 'rows', rows: [{ Company: 'Orbit', Domain: 'orbit.example' }], key: 'Domain' }, { type: 'done', total: 1 }].map((event) => JSON.stringify(event)).join('\n') + '\n' });

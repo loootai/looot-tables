@@ -21,7 +21,7 @@ export function proxy(request: NextRequest) {
 		response.headers.set('Cache-Control', 'private, no-store');
 		return response;
 	}
-	if (!account) return api ? NextResponse.json({ error: selfHosted ? 'Open the app to initialize your workspace.' : 'Sign in with Context.dev to continue.' }, { status: 401 }) : NextResponse.redirect(new URL(`/login?returnTo=${encodeURIComponent(safeReturnTo(request.nextUrl.pathname + request.nextUrl.search))}`, request.url));
+	if (!account) return api ? NextResponse.json({ error: selfHosted ? 'Open the app to initialize your workspace.' : 'Sign in to continue.' }, { status: 401 }) : NextResponse.redirect(new URL(`/login?returnTo=${encodeURIComponent(safeReturnTo(request.nextUrl.pathname + request.nextUrl.search))}`, request.url));
 	if (api && (request.headers.get('x-enrichable-account') !== account.partition || request.headers.get('x-enrichable-session') !== account.sessionId)) return NextResponse.json({ error: 'Your account changed. Reload to continue.' }, { status: 409 });
 	// NextURL normalizes loopback IPs to localhost. Preserve the incoming Host
 	// when checking browser origins (also supports custom self-hosted domains).

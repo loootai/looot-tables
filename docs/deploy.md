@@ -5,9 +5,9 @@ The README's **Deploy with Vercel** button opens a guided setup with Neon Postgr
 1. Click the button and choose where to clone the repository.
 2. Create a Neon Postgres database in the setup flow. Keep the default database-variable names; the app uses `DATABASE_URL`.
 3. Confirm the plan and deploy. Neon supplies the connection variables. Vercel runs `npm run db:migrate` before `npm run build`, so the app's tables are ready when the deployment goes live.
-4. Open `/app` on the deployed site and enter your own OpenAI and Context.dev keys. Add optional enrichment keys in Configuration.
+4. Open `/app` on the deployed site and enter your looot token and OpenAI key. TypeSafe is optional.
 
-Self-hosted deployments use API keys. Context.dev organization sign-in is reserved for the official service. Neon Auth is not required. Realtime and MCP access are optional; see [Realtime](realtime.md) and [MCP setup](mcp.md).
+Deployments use API keys. Neon Auth is not required. Realtime and MCP access are optional; see [Realtime](realtime.md) and [MCP setup](mcp.md).
 
 ## Existing database or project
 

@@ -7,7 +7,7 @@ test('email drafts show collapsed recipients and persist field edits', async ({ 
  const initial = { to: 'alice@example.com', cc: 'team@example.com', bcc: 'private@example.com', subject: 'Hello Alice', body: 'Hi Alice,\nLet’s talk.' };
  let sheet: Sheet = { id: 'email-test', name: 'Emails', columns: [{ id: 'draft', name: 'Email draft', type: 'source', format: 'email-draft', width: 240, createdAt: 1 }], filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
  let rows: Row[] = [{ id: 'r', sheetId: sheet.id, order: 0, createdAt: 1, cells: { draft: { v: JSON.stringify(initial), s: 'done', t: 1 } } }];
- await page.route('**/api/context/usage*', (route) => route.fulfill({ json: { credits: 25000, used: 0 } }));
+ await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
  await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
  await page.route('**/api/sheets**', async (route) => {
   const request = route.request();

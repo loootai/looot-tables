@@ -8,12 +8,12 @@ For bugs and proposals, [open an issue](../CONTRIBUTING.md). This guide is for m
 nvm use
 npm ci
 cp .env.example .env.local
-# Set DATABASE_URL to a dedicated Neon development database/branch.
+# Set DATABASE_URL to a dedicated development database: Neon, or any Postgres, for example a local one.
 npm run db:migrate
 npm run dev
 ```
 
-Use Node.js 22.23.4 as recorded in `.nvmrc`. If you manage Node without nvm, install that version and skip `nvm use`. Visit `/app` and enter your provider keys. Self-hosted deployments use API keys; Context.dev sign-in is reserved for the official hosted service. Do not configure OAuth or a session secret for self-hosting. Basic browser operation does not require an encryption root. MCP key creation/retrieval requires `ENRICHABLE_MCP_ENCRYPTION_SECRET`; see [MCP setup](mcp.md). Use the [README](../README.md) for deployment behavior and optional password-protected server keys.
+Use Node.js 22.23.4 as recorded in `.nvmrc`. If you manage Node without nvm, install that version and skip `nvm use`. Visit `/app` and enter your provider keys. Deployments use API keys. Do not configure OAuth or a session secret. Basic browser operation does not require an encryption root. MCP key creation/retrieval requires `ENRICHABLE_MCP_ENCRYPTION_SECRET`; see [MCP setup](mcp.md). Use the [README](../README.md) for deployment behavior and optional password-protected server keys.
 
 ## Architecture and common changes
 
@@ -26,10 +26,9 @@ Use Node.js 22.23.4 as recorded in `.nvmrc`. If you manage Node without nvm, ins
 | Grid and editing | `src/components/sheet/`: virtualized grid, editors, filters, import/export; `src/lib/sheet-commands.ts` holds the sheet's intent-level actions (run, stop, add and edit columns, delete, fill) behind the grid's props; `sheet-view.ts` keeps each viewer's filters and sort in their browser |
 | Browser persistence | `src/lib/db.ts`, `sheet-remote.ts`, `sheet-cloud.ts`, `sheet-history.ts`: the IndexedDB cache commits every change through the `SheetRemote` seam and redoes it on a revision conflict; `sheet-cloud.ts` is its `/api/sheets` adapter (paging pinned to a revision, read retries, URLs); undo. Tests connect `tests/support/memory-remote.ts`, an in-memory workspace held to the real `/api/sheets` handlers (driven through `cloudSheets`) by `tests/server/sheet-remote-contract.test.ts` |
 | Execution | `src/lib/enrichment-plan.ts` plans one cell for the browser runner and MCP alike (readiness, the record it sends, whether a saved result is complete, how results are stored and rechecked); `enrichment-freshness.ts` defines a run's inputs, from which its fingerprint and dependencies come; `runner.ts`, `cell-lifecycle.ts`, `populate-runner.ts`: concurrency, cancellation, halts on fatal failures, discovery; `tab-owner.ts` claims the owner a tab saves in its running cells (a Web Lock, so a duplicated tab is a new owner); `server-clock.ts` is the server time, learned from API responses, that running cells are stamped and expired on |
-| Provider operations | `src/lib/server/enrich.ts`, `compose.ts`, `populate.ts`: validated provider calls; `enrich-failure.ts` classifies failures into structured reasons and holds the one retry rule for billable providers: the transport resend (`retryUnbilled`), and the per-enrichment spend tracker (`Spend`, recorded by `trackedFetch` and the OpenAI `spendMiddleware`) that decides whether a failure is still retryable and fills the cell's Context.dev credits. Operations never count their own spend; `runOp` gives each enrichment a fresh tracker |
-| Included credit | `src/lib/server/credit-ledger.ts`: one ledger per credit kind with reserve → call → settle (`meteredCall`) and lease expiry |
-| Provider access | `src/lib/server/provider-access.ts`: which key, model, and endpoint a caller may use (browser and MCP policies), SDK clients (OpenAI, Context.dev, TypeSafe, and `fetch` for the email providers and included enrichment) wired to the access's spend tracker (`withSpend` gives an enrichment its own), endpoint guard, redaction |
-| Database | `src/lib/server/database.ts`: `withDatabase` (Neon: HTTP reads, a pooled WebSocket for transactions; `apiRoute` and `/mcp` open one per request; other callers, such as provider access, the credit ledger, company context and the sign-in callback, open their own) and `Database` (`read`, `transaction` with the workspace create-and-lock, read-only snapshots, a rollback that keeps the original error). Tests use the PGlite adapter in `tests/support/database.ts`: every migration applied once per process, cloned per test |
+| Provider operations | `src/lib/server/enrich.ts`, `compose.ts`, `populate.ts`: validated provider calls; `enrich-failure.ts` classifies failures into structured reasons and holds the one retry rule for billable providers: the transport resend (`retryUnbilled`), and the per-enrichment spend tracker (`Spend`, recorded by `trackedFetch` and the OpenAI `spendMiddleware`) that decides whether a failure is still retryable. `looot.ts` is the one place that talks to looot: it sends each run with a fresh idempotency key, reads status, outcome and error from the run body, records the cost into the tracker, and keeps each run on the cell; `looot-jobs.ts` turns each job's answer into the shapes the operations use. Operations never count their own spend; `runOp` gives each enrichment a fresh tracker |
+| Provider access | `src/lib/server/provider-access.ts`: which key, model, and endpoint a caller may use (browser and MCP policies), clients (OpenAI, looot, TypeSafe) wired to the access's spend tracker (`withSpend` gives an enrichment its own), endpoint guard, redaction |
+| Database | `src/lib/server/database.ts`: `withDatabase` (Neon: HTTP reads, a pooled WebSocket for transactions. Any other Postgres: one small `pg` pool. `apiRoute` and `/mcp` open one per request; other callers, such as company context, open their own) and `Database` (`read`, `transaction` with the workspace create-and-lock, read-only snapshots, a rollback that keeps the original error). Tests use the PGlite adapter in `tests/support/database.ts`: every migration applied once per process, cloned per test |
 | API routes | `src/lib/server/api-route.ts`: `apiRoute` gives signed-in routes `{ account, database }`; `failureOf` maps their errors and MCP's (our status-bearing errors keep their status, `parseInput` failures are 400, anything else is logged with a request id and answered 503). Provider routes (`routeInput` in `provider-access.ts`) map provider and credential failures themselves, using `failureOf` only for storage or configuration failures while resolving access |
 | Storage and isolation | `src/lib/server/workspace-store.ts`: workspace-scoped SQL, quotas, revisions |
 | Organization credentials | `src/lib/server/organization-store.ts`: encrypted provider vault and shared settings |
@@ -64,7 +63,7 @@ npm run test:self-hosted
 npm run test:browser
 ```
 
-Use a dedicated migrated Neon development database for browser tests. The self-hosted suite starts its own server on port 3107 without OAuth. It covers API-key onboarding, persistence, browser isolation, and agent access; live Realtime checks require a separately configured Neon Realtime branch and otherwise skip. The main browser suite uses its local identity fixture. Review `playwright*.config.ts` before running. Traces and screenshots can contain sheet data; keep them out of Git.
+Use a dedicated migrated development database for browser tests. The self-hosted suite starts its own server on port 3107 without OAuth. It covers API-key onboarding, persistence, browser isolation, and agent access; live Realtime checks require a separately configured Neon Realtime branch and otherwise skip. The main browser suite uses its local identity fixture. Review `playwright*.config.ts` before running. Traces and screenshots can contain sheet data; keep them out of Git.
 
 `scripts/mock-openai.mjs` provides an OpenAI-compatible fixture server on `http://localhost:4545/v1` for manual local testing. It is synthetic, not a live-model quality check. Use test keys and synthetic rows.
 
@@ -76,6 +75,3 @@ Verify new SQL with PGlite tests and a separate Neon development branch before d
 
 Vercel uses `vercel.json` to run migrations before the production build. A migration error stops deployment. Ordinary `npm run build` does not connect to or migrate a database. See [deployment setup](deploy.md) for the guided Neon flow and existing projects.
 
-## Hosted development
-
-Context.dev sign-in is not a configuration option for self-hosted instances. Official-site maintainers can use the [loopback-only developer session](hosted.md#local-developer-sign-in) and OAuth setup described in [official-site operations](hosted.md). Do not copy the separate Context.dev webapp or its secrets into this repository.

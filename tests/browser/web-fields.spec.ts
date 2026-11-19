@@ -11,7 +11,7 @@ test('Website and Webpage dropdowns create bound operations without favicons', a
 	let sheet: Sheet = { id: 'web-field-test', name: 'Web operations', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	let rows: Row[] = [{ id: 'r1', sheetId: sheet.id, order: 0, createdAt: 1, cells: { domain: { v: 'example.com', s: 'done', t: 1 }, article: { v: 'https://example.com/docs?lang=en', s: 'done', t: 1 } } }];
 	const requests: Array<{ op: { kind: string; mode: string; page: { type: string; column: string } } }> = [];
-	await page.route('**/api/context/usage*', (route) => route.fulfill({ json: { credits: 25000, used: 0 } }));
+	await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
 	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: true, context: true, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/enrich', async (route) => {
 		const request = route.request().postDataJSON(); requests.push(request);

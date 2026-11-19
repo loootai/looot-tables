@@ -13,7 +13,7 @@ test('organization keys stay on server, work on a second device/member, and reje
   await context.addCookies([{name:'enrichable.session',value:memberCookie(user),url:baseURL!,httpOnly:true,sameSite:'Lax'}]);
   await context.route('**/api/sheets',route=>route.fulfill({json:[]}));
   await context.route('**/api/mcp-key',route=>route.fulfill({json:{key:null}}));
-  await context.route('**/api/context/usage*',route=>route.fulfill({json:{credits:100,used:0}}));
+  await context.route('**/api/looot/balance*',route=>route.fulfill({json:{available:5,reserved:0}}));
   await context.route('**/api/openai/usage*',route=>route.fulfill({json:{enabled:false}}));
   await context.route('**/api/organization-settings',async route=>{
    const request=route.request();
@@ -30,7 +30,7 @@ test('organization keys stay on server, work on a second device/member, and reje
   await context.route('**/api/keys/verify*',route=>{
    const headers=route.request().headers();
    const openai=Boolean(keys.openai||headers['x-openai-key']);
-   const ctxt=Boolean(keys.context||headers['x-context-key']);
+   const ctxt=Boolean(keys.context||headers['x-looot-key']);
    return route.fulfill({json:route.request().method()==='GET'?{openai,context:ctxt,contextConnected:ctxt,typesafe:false,passwordRequired:false}:{openai:{ok:openai,inference:openai},context:{ok:ctxt},typesafe:{configured:false,ok:false}}});
   });
   return context.newPage();

@@ -3,7 +3,7 @@ import { test } from './authenticated-test';
 
 async function companySheet(page: Page, enriched = false) {
 	await page.addInitScript(() => {
-		if (!localStorage.getItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396')) localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', contextKey: 'test-context', logolinkKey: 'brandLL_test' }));
+		if (!localStorage.getItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396')) localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot', logolinkKey: 'brandLL_test' }));
 	});
 	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: true, context: true, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/logos/resolve', (route) => route.fulfill({ json: { domain: null } }));
@@ -146,7 +146,7 @@ test('cancels obsolete lookups, hides stale results, and permits manual values a
 test('validates the minimum search length on the server', async ({ page, baseURL }) => {
  const session = await page.request.get('/api/auth/session').then((response) => response.json());
 	for (const query of ['', 'ab', '  ab  ', 'x'.repeat(201), 123]) {
-		const response = await page.request.post('/api/companies/search', { headers: { 'x-context-key': 'test-context', 'x-enrichable-account': session.partition, 'x-enrichable-session': session.sessionId, origin: baseURL! }, data: { query } });
+		const response = await page.request.post('/api/companies/search', { headers: { 'x-looot-key': 'test-looot', 'x-enrichable-account': session.partition, 'x-enrichable-session': session.sessionId, origin: baseURL! }, data: { query } });
 		expect(response.status()).toBe(400);
 	}
 });

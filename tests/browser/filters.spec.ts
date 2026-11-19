@@ -9,7 +9,7 @@ test(`${company ? 'Company' : 'Category'} filters apply as they are chosen and s
 	const columns: Sheet['columns'] = [company ? 'Company' : 'Category'].map((name, i) => ({ id: `c${i}`, name, type: 'source', ...(company ? {} : { format: 'category' as const, categoryOptions: ['Customer', 'Prospect'] }), width: 180, createdAt: 1 }));
 	let sheet: Sheet = { id: 'format-test', name: 'Formats', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: Object.fromEntries(columns.map((column) => [column.id, { v: i === 0 ? 'Customer' : 'Prospect', s: 'done', t: 1 }])) }));
-	await page.route('**/api/context/usage*', (route) => route.fulfill({ json: { credits: 25000, used: 0 } }));
+	await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
 	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/sheets**', async (route) => {
 		const request = route.request();

@@ -2,9 +2,9 @@
 
 ## Report a vulnerability
 
-Please use [GitHub private vulnerability reporting](https://github.com/context-dot-dev/enrichable/security/advisories/new) for vulnerabilities in Enrichable. Include the affected commit, reproduction steps using synthetic data, likely impact, and any suggested mitigation. Do not put vulnerabilities or credentials in public issues or pull requests.
+Please use [GitHub private vulnerability reporting](https://github.com/context-dot-dev/enrichable/security/advisories/new) for vulnerabilities in looot tables. Include the affected commit, reproduction steps using synthetic data, likely impact, and any suggested mitigation. Do not put vulnerabilities or credentials in public issues or pull requests.
 
-If the private reporting form is unavailable, email [support@looot.ai](mailto:support@looot.ai) with the subject "Enrichable security report" to request a private security channel before sharing details. Do not send secrets or production data, or put exploit details in a public issue.
+If the private reporting form is unavailable, email [support@looot.ai](mailto:support@looot.ai) with the subject "looot tables security report" to request a private security channel before sharing details. Do not send secrets or production data, or put exploit details in a public issue.
 
 Security fixes target the latest code on `main`; older snapshots do not have a separate backport commitment. This project does not currently promise a response deadline or operate a bug bounty program.
 
@@ -27,6 +27,5 @@ Requests for AI and web enrichment send the relevant prompts, row values, or URL
 - Use HTTPS for remotely hosted instances. Restrict network or hosting access if the instance is private: the deployment password protects server-supplied provider keys, not the entire application or database provisioning of anonymous workspaces.
 - Keep `ENRICHABLE_MCP_ENCRYPTION_SECRET` stable and backed up. All servers sharing a database need the same value; changing it requires re-encrypting saved secrets first.
 - Rotate MCP keys and revoke provider credentials when exposed. Rotating the hosted session secret invalidates existing signed sessions; logout alone does not revoke a copied cookie or organization provider credentials.
-- Review the [hosted operations guide](docs/hosted.md) before enabling funded allowances or OAuth.
 
 See [MCP access and rotation](docs/mcp.md) for key scope, member access, expiration, and execution limits.

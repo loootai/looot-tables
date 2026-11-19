@@ -40,7 +40,7 @@ test('agent access retrieves and copies a shared key after reload and preserves 
 	await page.getByRole('button', { name: 'Copy MCP config', exact: true }).click();
 	await expect(page.getByText('MCP config copied. Replace the two provider key placeholders before using it.', { exact: true })).toBeVisible();
 	const config = JSON.parse(await page.evaluate(() => navigator.clipboard.readText())).mcpServers.enrichable;
-	expect(config.headers).toEqual({ Authorization: `Bearer ${first}`, 'x-openai-key': 'YOUR_OPENAI_API_KEY', 'x-context-key': 'YOUR_CONTEXT_DEV_API_KEY' });
+	expect(config.headers).toEqual({ Authorization: `Bearer ${first}`, 'x-openai-key': 'YOUR_OPENAI_API_KEY', 'x-looot-key': 'YOUR_CONTEXT_DEV_API_KEY' });
 	expect(config.url).toMatch(/\/mcp$/);
 	await page.getByRole('button', { name: 'Show key', exact: true }).click();
 	await expect(page.getByText(first, { exact: true })).toBeVisible();

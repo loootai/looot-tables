@@ -8,7 +8,7 @@ test('header clicks cycle sorting before and immediately after dragging', async 
 	const columns: Sheet['columns'] = ['Cost', 'Selected', 'Weight'].map((name, i) => ({ id: `c${i}`, name, type: 'source', width: 180, createdAt: 1 }));
 	let sheet: Sheet = { id: 'format-test', name: 'Formats', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: Object.fromEntries(columns.map((column, c) => [column.id, { v: c === 0 ? 1234.5 + i : c === 1 ? 'false' : 12.5 + i, s: 'done', t: 1 }])) }));
-	await page.route('**/api/context/usage*', (route) => route.fulfill({ json: { credits: 25000, used: 0 } }));
+	await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));
 	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, context: false, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/sheets**', async (route) => {
 		const request = route.request();

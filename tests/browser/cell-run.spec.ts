@@ -2,7 +2,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './authenticated-test';
 
 async function researchSheet(page: Page, requests: Route[], concurrency = 1) {
-	await page.addInitScript((concurrency) => localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', contextKey: 'test-context', concurrency })), concurrency);
+	await page.addInitScript((concurrency) => localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot', concurrency })), concurrency);
 	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: true, context: true, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/enrich', (route) => { requests.push(route); });
 	await page.goto('/app');

@@ -1,42 +1,34 @@
 <p align="center">
-  <a href="https://www.enrichable.io"><img src=".github/assets/banner.png" alt="Enrichable: a spreadsheet that enriches itself from the internet" width="100%" /></a>
+  <img src=".github/assets/banner.png" alt="looot tables: a spreadsheet that enriches itself from the internet" width="100%" />
 </p>
 
 <p align="center">
-  <a href="https://link.context.dev/enrichable/github/context">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/powered-by-context-dark.png" />
-      <img src=".github/assets/powered-by-context-light.png" height="44" alt="Powered by Context.dev" />
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://www.enrichable.io"><strong>Website</strong></a> ·
+  <a href="https://looot.ai"><strong>looot</strong></a> ·
   <a href="#self-host">Self-host</a> ·
   <a href="docs/usage.md">Docs</a> ·
   <a href="docs/mcp.md">MCP</a> ·
-  <a href="https://github.com/context-dot-dev/enrichable/issues/new/choose">Report an issue</a>
+  <a href="https://github.com/loootai/looot-tables/issues/new">Report an issue</a>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2563eb?style=flat-square" alt="MIT license" /></a>
-  <a href="https://github.com/context-dot-dev/enrichable/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/context-dot-dev/enrichable/ci.yml?branch=main&style=flat-square&label=CI" alt="CI status" /></a>
   <a href="docs/mcp.md"><img src="https://img.shields.io/badge/MCP-server-2563eb?style=flat-square" alt="MCP server" /></a>
 </p>
 
 > **looot tables is built on [Enrichable](https://github.com/context-dot-dev/enrichable) by Context.dev** (MIT, imported at commit 640e58e). Every outside lookup here runs on [looot](https://looot.ai) jobs through one looot token. Enrichable's code, tests and docs keep their MIT license and copyright; see [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-**Enrichable is an open-source AI spreadsheet for data enrichment.** Describe the companies or people you want and it finds them. Then add a column with a plain-English question and it researches every row on the live web: pricing pages, CEOs, tech stacks, work emails, anything public. Every answer keeps its sources.
+**looot tables is an open-source AI spreadsheet for data enrichment.** Describe the companies or people you want and it finds them. Then add a column with a plain-English question and it researches every row on the live web: pricing pages, CEOs, tech stacks, work emails, anything public. Every answer keeps its sources.
 
-Use it free at [enrichable.io](https://www.enrichable.io), or run your own copy with your own API keys.
+Every outside lookup (web search, page reads, company and people data, emails, phones) runs as a [looot](https://looot.ai) job on your own looot balance. There is one looot token, no shared token and no included credit: a run is never billed to anyone but you.
 
 ## Features
 
-- **Lead lists from a prompt.** "Every solar company in the US with 50+ employees." Rows stream in, deduplicated by domain.
+- **Lead lists from a prompt.** "VP of Sales at Series B fintech companies in New York." The agent finds companies, then people at each one. Rows stream in, deduplicated.
 - **AI research columns.** "Who is the CEO?" "Does the pricing page offer a free tier?" Each answer links to its sources.
 - **Checks, categories and scores.** True/false, category and score columns, each with a probability or confidence.
-- **Work email waterfall.** Tries Hunter, Prospeo, Apollo, QuickEnrich and ContactOut in your order and keeps the first hit.
+- **Work emails, checks and phones.** One column asks looot for a work email. looot tries its email providers one after another and stops at the first address. You pick the order (balanced, cheapest or most reliable), not a list of providers. Verify and phone columns work the same way.
+- **Any looot endpoint.** Search the looot catalog in plain words, map the endpoint's inputs from your columns with `{{Column}}` templates, and see the estimated cost for the rows you pick before it runs.
+- **Provider, cost and attempts per cell.** Open a cell to see which provider answered, the price in USD, how the run ended (hit, weak, miss, error) and every provider a fallback route tried.
 - **Emails and documents.** A personalized email draft or branded PDF for every row.
 - **Real formulas.** Excel-style functions run locally in the browser, with no API calls.
 - **Export.** CSV, Excel or JSON, with or without confidence and sources.
@@ -45,31 +37,18 @@ Use it free at [enrichable.io](https://www.enrichable.io), or run your own copy 
 ## How it works
 
 1. **Find rows.** Describe what you want, import a CSV, or start blank.
-2. **Add AI columns.** Ask a question and reference other columns with `{{Website}}`. Enrichable picks the operation: web research, a page read, a company or person lookup, or an email search.
-3. **Review and export.** Open any cell to see its sources and confidence, rerun or edit it, filter what passes, and export.
+2. **Add columns.** Ask a question and reference other columns with `{{Website}}`. looot tables picks the operation: web research, a page read, a company or person lookup, an email or phone search, or any looot endpoint you choose.
+3. **Review and export.** Open any cell to see its sources, confidence, provider and cost, rerun or edit it, filter what passes, and export.
 
-[Context.dev](https://link.context.dev/enrichable/github/context) handles the web (search, scraping, company and people data). OpenAI does the reasoning. [TypeSafe](https://typesafe.ai) makes calibrated true/false and category calls when you connect it.
+[looot](https://looot.ai) handles the data (search, scraping, company and people data, emails, phones). OpenAI does the reasoning. [TypeSafe](https://typesafe.ai) makes calibrated true/false and category calls when you connect it.
 
 ## Self-host
 
-### Deploy to Vercel
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fcontext-dot-dev%2Fenrichable&products=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22neon%22%2C%22protocol%22%3A%22storage%22%7D%5D)
-
-1. Click the button and choose where to clone the repo.
-2. Create a Neon Postgres database in the setup flow.
-3. Deploy. The build creates the tables.
-4. Open `/app` on your deployment and add your API keys.
-
-Using an existing database, or stuck? See the [deployment guide](docs/deploy.md).
-
-### Run locally
-
-You need Node.js 22 (see `.nvmrc`) and a [Neon](https://neon.tech) database.
+You need Node.js 22, a Postgres database, a [looot](https://looot.ai) token with a funded balance, and an OpenAI API key.
 
 ```bash
-git clone https://github.com/context-dot-dev/enrichable
-cd enrichable
+git clone https://github.com/loootai/looot-tables
+cd looot-tables
 nvm use
 npm ci
 cp .env.example .env.local   # set DATABASE_URL
@@ -77,27 +56,32 @@ npm run db:migrate
 npm run dev
 ```
 
-Open [localhost:3000/app](http://localhost:3000/app) and add your keys.
+Open [localhost:3000/app](http://localhost:3000/app) and add your keys. `DATABASE_URL` can be a Neon database or any Postgres: the app uses Neon's driver for `*.neon.tech` hosts and the normal Postgres driver for everything else. Set `DATABASE_DRIVER=neon` or `postgres` to force one.
+
+### Deploy to Vercel
+
+Create a Postgres database, add `DATABASE_URL` to the project, and deploy. The build creates the tables. Then open `/app` on your deployment and add your keys. See the [deployment guide](docs/deploy.md).
 
 ## API keys
 
-Bring your own keys. Usage is billed to your provider accounts. Add them in the app under **Configuration → Connections**.
+Bring your own keys. Usage is billed to your own accounts. Add them in the app under **Configuration → Connections**.
 
 | Provider | Used for | |
 | --- | --- | --- |
-| [Context.dev](https://link.context.dev/enrichable/api-keys) | Web search, scraping, company and people data | Required |
+| [looot](https://looot.ai) | Web search, page reads, company and people data, emails, phones, any catalog endpoint | Required |
 | [OpenAI](https://platform.openai.com/api-keys) | AI columns, Find rows and column setup | Required |
 | [TypeSafe](https://typesafe.ai) | Calibrated true/false, category and score columns (falls back to OpenAI) | Optional |
-| [Hunter](https://hunter.io/api-keys), [Prospeo](https://app.prospeo.io/), [Apollo](https://developer.apollo.io/), [QuickEnrich](https://app.quickenrich.io/settings/api-key), [ContactOut](https://contactout.com/api) | Work emails in the [email waterfall](docs/email-enrichment.md) | Optional |
 
-Keys you enter stay in your browser and are only sent to your deployment's API routes. For a private team deployment, set the provider variables (`OPENAI_API_KEY`, `CONTEXT_DEV_API_KEY`, and so on) on the server together with `ENRICHABLE_PASSWORD`. [.env.example](.env.example) lists every option.
+Keys you enter stay in your browser and are only sent to your deployment's API routes. For a private team deployment, set `LOOOT_TOKEN`, `OPENAI_API_KEY` and the rest on the server together with `ENRICHABLE_PASSWORD`. [.env.example](.env.example) lists every option. Set `LOOOT_API_URL` only to reach looot through a proxy.
+
+Every run sends a fresh idempotency key for each cell attempt, so a resend of the same attempt never pays twice.
 
 ## Good to know
 
-- **Storage.** Sheets live in your Neon database, cached in the browser with IndexedDB.
+- **Storage.** Sheets live in your Postgres database, cached in the browser with IndexedDB.
 - **Access.** Each browser gets a private workspace tied to a cookie. Self-hosted copies have no accounts, so export sheets to move them between browsers. To keep an instance private, restrict access at your host or network.
 - **Limits.** 10 sheets per workspace and 1,000 rows per sheet. Change them in [workspace.ts](src/lib/workspace.ts).
-- **Search engines.** Self-hosted copies are `noindex` unless you set `ENRICHABLE_ALLOW_INDEXING=true`.
+- **Search engines.** Copies are `noindex` unless you set `ENRICHABLE_ALLOW_INDEXING=true`.
 - **Analytics.** Off unless you set `NEXT_PUBLIC_DATABUDDY_CLIENT_ID`. It never sends sheet contents, prompts or keys.
 
 ## Docs
@@ -107,15 +91,15 @@ Keys you enter stay in your browser and are only sent to your deployment's API r
 | [Usage](docs/usage.md) | Column operations, formulas, selection, undo and providers |
 | [MCP](docs/mcp.md) | Connecting Claude Code, Cursor or any MCP client |
 | [Deploy](docs/deploy.md) | Vercel and Neon setup, existing databases, troubleshooting |
-| [Email enrichment](docs/email-enrichment.md) | The email provider waterfall |
+| [Email and phone](docs/email-enrichment.md) | The email, verify and phone columns, and how looot walks its providers |
 | [Realtime](docs/realtime.md) | Live collaboration with Neon Realtime |
 | [Development](docs/development.md) | Architecture, tests and migrations |
 
-Built with Next.js 16, React 19, TypeScript, Tailwind CSS 4, Neon Postgres, Dexie, IronCalc, the Vercel AI SDK and the Model Context Protocol.
+Built with Next.js 16, React 19, TypeScript, Tailwind CSS 4, Postgres, Dexie, IronCalc, the Vercel AI SDK and the Model Context Protocol.
 
 ## Contributing
 
-Bug reports and feature ideas are welcome. [Open an issue](https://github.com/context-dot-dev/enrichable/issues/new/choose). We build accepted issues ourselves and don't take external pull requests, but you're welcome to fork, customize and self-host. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Bug reports and feature ideas are welcome. [Open an issue](https://github.com/loootai/looot-tables/issues/new). See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Found a vulnerability? Please report it privately as described in [SECURITY.md](SECURITY.md).
 
@@ -126,5 +110,5 @@ Found a vulnerability? Please report it privately as described in [SECURITY.md](
 ---
 
 <p align="center">
-  <sub>Made in NYC and SF by <a href="https://github.com/YahiaBakour">@YahiaBakour</a> and <a href="https://github.com/nikhilrado">@nikhilrado</a> with the <a href="https://link.context.dev/enrichable/github/context">Context.dev</a> team.</sub>
+  <sub>looot tables is built on <a href="https://github.com/context-dot-dev/enrichable">Enrichable</a>, made by <a href="https://github.com/YahiaBakour">@YahiaBakour</a> and <a href="https://github.com/nikhilrado">@nikhilrado</a> with the <a href="https://link.context.dev/enrichable/github/context">Context.dev</a> team (MIT).</sub>
 </p>
