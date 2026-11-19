@@ -39,6 +39,11 @@ export interface Operation<K extends OpKind = OpKind> {
 }
 
 const LOOOT: ProviderNeed = ['looot'];
+const MOLTSETS: ProviderNeed = ['moltsets'];
+/** A contact column needs looot, unless it is set to use only the MoltSets plan. */
+const contactNeeds = (source?: string): ProviderNeed[] => source === 'moltsets' ? [MOLTSETS] : [LOOOT];
+/** A MoltSets-only column costs no dollars. */
+const contactCost = (source: string | undefined, usd: number) => source === 'moltsets' ? 0 : usd;
 const OPENAI: ProviderNeed = ['openai'];
 const DECIDER: ProviderNeed = ['typesafe', 'openai'];
 const pageNeeds = (page?: PageSource): ProviderNeed[] => page ? [LOOOT] : [];
@@ -55,9 +60,9 @@ const decision = () => 120_000;
 export const OPERATIONS: { readonly [K in OpKind]: Operation<K> } = {
 	'email-enrichment': {
 		label: 'Find email', short: 'Email', columnName: 'Work email',
-		description: 'Asks looot for a work email. looot tries its email providers one after another, in the order you pick, and stops at the first address.',
+		description: 'Finds a work email. Tries your MoltSets plan first when a MoltSets key is connected, then looot, which tries its email providers one after another and stops at the first address.',
 		references: ['name', 'company', 'domain', 'profileUrl'], rowContext: references, local: remote,
-		requires: () => [LOOOT], costUsd: () => 0.02, worstCaseMs: () => 200_000, bills: 'looot',
+		requires: (op) => contactNeeds(op.source), costUsd: (op) => contactCost(op.source, 0.02), worstCaseMs: () => 200_000, bills: 'looot',
 	},
 	'email-verify': {
 		label: 'Verify email', short: 'Verify', columnName: 'Email status',
@@ -67,9 +72,9 @@ export const OPERATIONS: { readonly [K in OpKind]: Operation<K> } = {
 	},
 	'phone-find': {
 		label: 'Find phone', short: 'Phone', columnName: 'Phone',
-		description: 'Asks looot for a phone number from a LinkedIn URL, or a name and company. looot walks its phone providers until one answers.',
+		description: 'Finds a mobile number from a LinkedIn URL, or a name and company. Tries your MoltSets plan first when a MoltSets key is connected, then looot, which walks its phone providers until one answers.',
 		references: ['name', 'company', 'domain', 'profileUrl'], rowContext: references, local: remote,
-		requires: () => [LOOOT], costUsd: () => 0.03, worstCaseMs: () => 200_000, bills: 'looot',
+		requires: (op) => contactNeeds(op.source), costUsd: (op) => contactCost(op.source, 0.03), worstCaseMs: () => 200_000, bills: 'looot',
 	},
 	looot: {
 		label: 'Any looot endpoint', short: 'looot', columnName: 'looot result',
@@ -134,7 +139,7 @@ export const OPERATIONS: { readonly [K in OpKind]: Operation<K> } = {
 		label: 'Person data', short: 'Person', columnName: 'Person info',
 		description: 'Title, employer, education and profiles for a person, from their LinkedIn URL or name and company.',
 		references: ['name', 'company', 'email', 'profileUrl'], rowContext: references, local: remote,
-		requires: () => [LOOOT], costUsd: () => 0.016, worstCaseMs: typical, bills: 'looot',
+		requires: (op) => contactNeeds(op.source), costUsd: (op) => contactCost(op.source, 0.016), worstCaseMs: typical, bills: 'looot',
 	},
 	answer: {
 		label: 'Deep research', short: 'Research', columnName: 'Research',

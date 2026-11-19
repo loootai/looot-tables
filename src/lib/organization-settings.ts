@@ -2,9 +2,9 @@ import { z } from 'zod';
 import { DEFAULT_MODEL } from './types';
 import { logoDomain } from './organization-logo';
 
-export const PROVIDERS = ['openai', 'looot', 'typesafe'] as const;
+export const PROVIDERS = ['openai', 'looot', 'typesafe', 'moltsets'] as const;
 export type Provider = typeof PROVIDERS[number];
-export const providerField = { openai: 'openaiKey', looot: 'loootKey', typesafe: 'typesafeKey' } as const;
+export const providerField = { openai: 'openaiKey', looot: 'loootKey', typesafe: 'typesafeKey', moltsets: 'moltsetsKey' } as const;
 export const MODEL_ID = /^[a-z0-9.\-_:/]+$/i;
 /** Classifier setting that selects the Decisions API (TypeSafe Jev) rather than naming a model. */
 export const DECISIONS_CLASSIFIER = 'decisions';

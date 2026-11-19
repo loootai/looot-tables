@@ -19,7 +19,7 @@ export class ApiError extends Error {
 	}
 }
 
-const FAILURE_PROVIDERS: readonly FailureProvider[] = ['openai', 'looot', 'typesafe'];
+const FAILURE_PROVIDERS: readonly FailureProvider[] = ['openai', 'looot', 'typesafe', 'moltsets'];
 
 /** Accept only a well-formed failure from the response body. */
 export function parseFailure(value: unknown): EnrichFailure | undefined {
@@ -84,6 +84,7 @@ export interface ServerKeys {
 	openai: boolean;
 	looot: boolean;
 	typesafe: boolean;
+	moltsets: boolean;
 	passwordRequired: boolean;
 }
 

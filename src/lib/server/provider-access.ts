@@ -8,6 +8,7 @@ import { DECISIONS_CLASSIFIER, MODEL_ID, PROVIDERS, type OrganizationPreferences
 import { DEFAULT_MODEL, type Decider, type FailureProvider, type LoootCallMeta } from '../types';
 import { readSession, SESSION_COOKIE } from './auth';
 import { LoootClient } from './looot';
+import { MoltSetsClient } from './moltsets';
 import { failureOf, newTrace } from './api-route';
 import { clean, CredentialError, ensureSafeEndpoint, jsonError, redactError, safeBaseUrl } from './credentials';
 import { classifyFailure, failure, Spend, spendMiddleware } from './enrich-failure';
@@ -40,6 +41,7 @@ const PROVIDER_INFO: Record<Provider, { env: string; label: string; failure: Fai
 	openai: { env: 'OPENAI_API_KEY', label: 'OpenAI', failure: 'openai' },
 	looot: { env: 'LOOOT_TOKEN', label: 'looot', failure: 'looot' },
 	typesafe: { env: 'TYPESAFE_API_KEY', label: 'TypeSafe', failure: 'typesafe' },
+	moltsets: { env: 'MOLTSETS_API_KEY', label: 'MoltSets', failure: 'moltsets' },
 };
 const OPENAI_API = 'https://api.openai.com/v1';
 
@@ -149,6 +151,8 @@ export interface ProviderAccess {
 	/** The looot client of this access: every outside lookup is one looot run on the caller's own token. Memoized, so
 	    its calls accumulate for the cell panel. */
 	looot(): LoootClient;
+	/** The MoltSets client of this access, on the caller's own MoltSets plan. A MoltSets call costs no dollars. */
+	moltsets(): MoltSetsClient;
 	/** Every looot run this access made so far, in order. */
 	readonly calls: readonly LoootCallMeta[];
 	/** A TypeSafe client. */
@@ -169,6 +173,8 @@ export interface AccessAdapters {
 	openai?: typeof openaiModel;
 	/** The fetch looot requests go through; the global one by default. */
 	looot?: typeof fetch;
+	/** The fetch MoltSets requests go through; the global one by default. */
+	moltsets?: typeof fetch;
 	lookup?: (host: string) => Promise<Array<{ address: string }>>;
 }
 
@@ -196,6 +202,7 @@ export function providerAccess(grant: AccessGrant, adapters: AccessAdapters = {}
 				return wrapLanguageModel({ model: built, middleware: grant.openaiBaseUrl ? [spendMiddleware(spend), guard] : spendMiddleware(spend) });
 			},
 			looot: () => looot ??= new LoootClient({ token: requireKey('looot'), spend, attempt, fetch: adapters.looot }),
+			moltsets: () => new MoltSetsClient({ key: requireKey('moltsets'), fetch: adapters.moltsets }),
 			get calls() { return looot?.calls ?? []; },
 			typesafe: () => typesafeClient(requireKey('typesafe'), spend),
 			decider: (requested = 'jev') => grant.classifierModel || requested === 'openai' || grant.preferJev === false ? 'openai' : 'jev',

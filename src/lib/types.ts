@@ -37,6 +37,11 @@ export type EmailDraft = z.infer<typeof EmailDraftSchema>;
 /** How looot orders the providers of a job: the cheapest first, the most reliable first, or a mix of both. */
 export const EMAIL_PREFERENCES = ['balanced', 'cheapest', 'reliable'] as const;
 export type EmailPreference = typeof EMAIL_PREFERENCES[number];
+/** Where a contact column looks first. Unset means `moltsets-first`: MoltSets when a MoltSets key exists, then looot.
+    Left unset by default so columns saved before this setting keep their fingerprint. */
+export const CONTACT_SOURCES = ['moltsets-first', 'looot', 'moltsets'] as const;
+export type ContactSource = typeof CONTACT_SOURCES[number];
+const contactSource = z.enum(CONTACT_SOURCES).optional();
 export const ColumnOpSchema = z.discriminatedUnion('kind', [
  z.object({
   kind: z.literal('email-enrichment'),
@@ -46,6 +51,7 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
   profileUrl: z.string().max(500).default(''),
   /** looot's job:people.email.find walks its providers in this order until one finds an email. */
   prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
+  source: contactSource,
  }),
  z.object({
   kind: z.literal('email-verify'),
@@ -59,6 +65,7 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
   domain: z.string().max(500).default(''),
   profileUrl: z.string().max(500).default(''),
   prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
+  source: contactSource,
  }).refine((op) => Boolean(op.profileUrl.trim() || op.name.trim()), { message: 'Provide a LinkedIn URL, or a name and company.' }),
  /** Any looot endpoint: a catalog endpoint with its inputs mapped from `{{Column}}` templates. */
  z.object({
@@ -150,6 +157,7 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
 		company: z.string().max(300).optional(),
 		email: z.string().max(300).optional(),
 		profileUrl: z.string().max(500).optional(),
+		source: contactSource,
 		field: z.enum(['title', 'company', 'company_domain', 'location', 'bio', 'linkedin', 'email', 'skills', 'schools', 'degrees', 'experience', 'years_at_company', 'full_name']),
 	}),
 	/** Deep research: OpenAI searches the web and reads pages through looot, with a larger step budget. */
@@ -210,6 +218,23 @@ export interface LoootCallMeta {
 	skipped?: number;
 }
 
+/** The MoltSets lookup behind a cell: always the first attempt, always $0 because the MoltSets plan covers it. */
+export interface MoltSetsCallMeta {
+	/** The MoltSets API tool that was called. */
+	tool: string;
+	/** hit: an answer. miss: not_found, uncharged. exhausted: the plan's window or tokens are spent. error: the call failed. skipped: not tried. */
+	outcome: 'hit' | 'miss' | 'exhausted' | 'error' | 'skipped';
+	/** Send-safety grade of an email, A to F. */
+	riskScore?: 'A' | 'B' | 'C' | 'D' | 'F';
+	/** When MoltSets last validated the address or number (ISO date). */
+	lastValidatedAt?: string;
+	reason?: string;
+	/** Seconds until the window opens again, when MoltSets said. */
+	retryAfterSeconds?: number;
+	/** Enrichment records left in the current 5 hour window after this call. */
+	recordsLeft5h?: number;
+}
+
 export interface CellMeta {
 	inputFingerprint?: string;
 	/** Photo returned for this exact person name by enrichment. */
@@ -229,6 +254,8 @@ export interface CellMeta {
 	costUsd?: number;
 	/** The looot runs behind this cell, in order: which provider answered, the outcome, the price and any fallback attempts. */
 	looot?: LoootCallMeta[];
+	/** The MoltSets lookup that ran before looot, when a MoltSets key was used. */
+	moltsets?: MoltSetsCallMeta;
 	/** The email status a verify column keeps next to its value: valid, invalid, catch_all, risky or unknown. */
 	verification?: string;
 	durationMs?: number;
@@ -360,7 +387,7 @@ export const EnrichRequestSchema = z.object({
 /** Why an enrichment failed. Set where the failure is understood; code branches on this, never on `error` text. */
 export const FAILURE_REASONS = ['rate_limited', 'credits_exhausted', 'credential_missing', 'credential_invalid', 'timeout', 'provider_error', 'input_invalid'] as const;
 export type FailureReason = (typeof FAILURE_REASONS)[number];
-export type FailureProvider = 'openai' | 'looot' | 'typesafe';
+export type FailureProvider = 'openai' | 'looot' | 'typesafe' | 'moltsets';
 export interface EnrichFailure {
 	reason: FailureReason;
 	/** The same request may succeed if repeated later without user action. */
@@ -398,6 +425,7 @@ export interface KeyVerification {
 	openai: { ok: boolean; message?: string; issue?: 'key' | 'billing' | 'model' | 'rate-limit' | 'connection'; inference?: boolean };
 	looot: { ok: boolean; message?: string; balanceUsd?: number; issue?: 'key' | 'balance' };
 	typesafe: { ok: boolean; message?: string; configured: boolean };
+	moltsets?: { ok: boolean; message?: string; configured: boolean; issue?: 'key' | 'plan' };
 }
 
 export const DEFAULT_MODEL = 'gpt-6-luna';

@@ -74,7 +74,7 @@ test('self-hosted deployments use manual keys, ignore inherited OAuth credential
  assert.equal(credentials.keys.looot, 'my-looot');
  assert.equal('trialAccount' in credentials, false, 'no run is billed to a shared token on someone else’s behalf');
  const availability = await serverKeyAvailability(request);
- assert.deepEqual(availability, { openai: false, looot: false, typesafe: false, passwordRequired: false });
+ assert.deepEqual(availability, { openai: false, looot: false, typesafe: false, moltsets: false, passwordRequired: false });
 });
 
 test('production OAuth is restricted to official domains and cannot accept a self-hosted cookie', t => {

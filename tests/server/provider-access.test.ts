@@ -37,7 +37,7 @@ test('key precedence per policy: request, vault, unlocked server', () => {
 });
 
 test('the looot token is its own provider, and a request header carries it', () => {
-	assert.deepEqual([...PROVIDERS], ['openai', 'looot', 'typesafe']);
+	assert.deepEqual([...PROVIDERS], ['openai', 'looot', 'typesafe', 'moltsets']);
 	const grant = resolveGrant(BROWSER_POLICY, { headers: new Headers({ 'x-looot-key': 'cs_ms_request' }) });
 	assert.equal(grant.keys.looot, 'cs_ms_request');
 	assert.equal(providerAccess(grant).looot().calls.length, 0, 'a client starts with no runs');
@@ -128,7 +128,7 @@ test('redaction covers every provider in the list', () => {
 });
 
 test('availability reports every provider in the list from server-side sources only', async (t) => {
-	const env: Record<Provider, string> = { openai: 'OPENAI_API_KEY', looot: 'LOOOT_TOKEN', typesafe: 'TYPESAFE_API_KEY' };
+	const env: Record<Provider, string> = { openai: 'OPENAI_API_KEY', looot: 'LOOOT_TOKEN', typesafe: 'TYPESAFE_API_KEY', moltsets: 'MOLTSETS_API_KEY' };
 	setEnv(t, { ENRICHABLE_PASSWORD: '', ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'true', ...Object.fromEntries(PROVIDERS.map((provider) => [env[provider], `server-${provider}`])) });
 	const request = () => new Request('http://localhost/api/keys/verify', { headers: { 'x-looot-key': 'request-only' } });
 	const open = await serverKeyAvailability(request());
