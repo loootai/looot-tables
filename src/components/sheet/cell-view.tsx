@@ -14,7 +14,8 @@ import { formatValue, toUrl } from '@/lib/template';
 import { formatColumnNumber, isCheckboxColumn, webColumnKind, webColumnUrl } from '@/lib/column-format';
 import { columnRole, roleColumn } from '@/lib/column-roles';
 import { fundingLabel } from '@/lib/funding';
-import type { Cell, CellValue, Column, Row } from '@/lib/types';
+import type { Cell, CellValue, Column, MoltSetsCallMeta, Row } from '@/lib/types';
+import { riskTitle, riskTone } from '@/lib/moltsets-risk';
 import { keyedItems } from '@/lib/detail-value';
 import clsx from 'clsx';
 import { AlertCircle, Check, ExternalLink, FileText, X } from 'lucide-react';
@@ -134,7 +135,7 @@ function EntityValue({ cell, column, row, columns, value, remainingRows, totalRo
 	if (entity === 'person') return <PersonValue {...menu} cell={cell} columns={columns} text={text} />;
 	if (organization) return <AdaptiveEntityGroup><OrganizationChip name={text} kind={organization} domain={domain}>{entity && <EntityMenu {...menu} kind={entity} />}</OrganizationChip></AdaptiveEntityGroup>;
 	if (entity) return <AdaptiveEntityGroup><Pill tone="muted" title={text}><EntityLabel name={text} /><EntityMenu {...menu} kind={entity} /></Pill></AdaptiveEntityGroup>;
-	return <TextValue column={column} text={text} />;
+	return <TextValue column={column} text={text} moltsets={cell.m?.moltsets} />;
 }
 
 /** The organization's domain: from its saved match, else the row's website (or school website) column. */
@@ -193,8 +194,16 @@ function personPhoto(cell: Cell, column: Column, row: Row | undefined, columns: 
 	return column.type === 'source' && typeof photo === 'string' ? photo : null;
 }
 
-function TextValue({ column, text }: { column: Column; text: string }) {
-	if (columnRole(column) === 'email' && EMAIL_ADDRESS.test(text)) return <a href={`mailto:${text}`} onClick={event => event.stopPropagation()} className="truncate text-fg-muted hover:text-brand">{text}</a>;
+const RISK_CLASS = { good: 'bg-success-soft text-success', caution: 'bg-warning-soft text-warning', bad: 'bg-danger-soft text-danger', none: 'bg-neutral-5 text-fg-subtle' } as const;
+
+/** The MoltSets send-safety grade of an email it found: A and B green, C amber, D red, F grey. */
+function RiskBadge({ meta }: { meta?: MoltSetsCallMeta }) {
+	if (meta?.outcome !== 'hit' || !meta.riskScore) return null;
+	return <span data-risk-score={meta.riskScore} data-risk-tone={riskTone(meta.riskScore)} title={riskTitle(meta.riskScore, meta.lastValidatedAt)} className={clsx('inline-flex h-[18px] shrink-0 items-center rounded px-1.5 text-caption font-medium', RISK_CLASS[riskTone(meta.riskScore)])}>{meta.riskScore}</span>;
+}
+
+function TextValue({ column, text, moltsets }: { column: Column; text: string; moltsets?: MoltSetsCallMeta }) {
+	if (columnRole(column) === 'email' && EMAIL_ADDRESS.test(text)) return <span className="flex min-w-0 items-center gap-1.5"><a href={`mailto:${text}`} onClick={event => event.stopPropagation()} className="truncate text-fg-muted hover:text-brand">{text}</a><RiskBadge meta={moltsets} /></span>;
 	const url = isLinkColumn(column) || /^https?:\/\//i.test(text) ? toUrl(text) : null;
 	if (!url) return <span className="truncate">{text}</span>;
 	return (

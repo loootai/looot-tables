@@ -5,7 +5,9 @@ import { GripVertical, Plus, X } from 'lucide-react';
 import { clampNumber, fromListRows, parseCommaList, parseListLines, toListRows, type ListItem, type ListRow } from '@/lib/list-input';
 import { keyHeaders } from '@/lib/keys';
 import { formatUsd, suggestInputMap } from '@/lib/endpoint-map';
-import { type Column, type ColumnOp, type EmailPreference, type OpKind, OUTPUT_TYPES, type PageSource } from '@/lib/types';
+import { type Column, type ColumnOp, type ContactSource, type EmailPreference, type OpKind, OUTPUT_TYPES, type PageSource } from '@/lib/types';
+import { useSettings } from '@/components/app/settings-context';
+import { isReady } from '@/components/app/providers';
 import { Button, IconButton } from '@/components/ui/button';
 import { Field, Input, Select, Switch } from '@/components/ui/field';
 import { HelpTooltip } from '@/components/ui/help-tooltip';
@@ -201,6 +203,7 @@ function PersonFields({ op, set, columns }: FieldsProps<'person'>) {
 			<PromptField label="Profile URL" columns={columns} value={op.profileUrl ?? ''} onChange={text('profileUrl')} placeholder="{{LinkedIn}}" />
 		</div>
 		<Field label="Field">{(id) => <Select id={id} value={op.field} onValueChange={(value) => set({ field: value as OpOf<'person'>['field'] })}>{PERSON_FIELDS.map((field) => <option key={field.value} value={field.value}>{field.label}</option>)}</Select>}</Field>
+		<SourceField value={op.source} onChange={(source) => set({ source })} help="MoltSets looks a person up by email or LinkedIn URL and answers name, title, company, location and LinkedIn URL. looot answers the other fields and any miss." />
 	</>;
 }
 
@@ -222,11 +225,28 @@ function PreferField({ value, onChange }: { value: EmailPreference; onChange: (v
 	return <Field label="Provider order" help="looot tries the job's providers one after another and stops at the first answer. You pay only for the attempts that ran.">{(id) => <Select id={id} value={value} onValueChange={(next) => onChange(next as EmailPreference)}>{PREFER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>}</Field>;
 }
 
+const SOURCE_OPTIONS: Array<{ value: ContactSource; label: string }> = [
+	{ value: 'moltsets-first', label: 'MoltSets then looot' },
+	{ value: 'looot', label: 'looot only' },
+	{ value: 'moltsets', label: 'MoltSets only' },
+];
+
+/** Which source a contact column asks first. An unset source is the default, so picking it clears the field. */
+function SourceField({ value, onChange, help }: { value?: ContactSource; onChange: (value: ContactSource | undefined) => void; help?: string }) {
+	const { connections } = useSettings();
+	const connected = isReady(connections.moltsets);
+	return <Field label="Source" help={help ?? 'MoltSets answers from your flat-fee plan, so a hit costs no dollars. looot answers a miss, or everything when you pick looot only.'}>{(id) => <>
+		<Select id={id} value={value ?? 'moltsets-first'} onValueChange={(next) => onChange(next === 'moltsets-first' ? undefined : next as ContactSource)}>{SOURCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>
+		{!connected && value !== 'looot' && <p className="mt-1 text-caption text-fg-subtle">No MoltSets key is connected, so this column runs on looot. Add the key in Configuration to use your plan first.</p>}
+	</>}</Field>;
+}
+
 function FindEmailFields({ op, set, columns }: FieldsProps<'email-enrichment'>) {
 	return <>
 		<div className="grid gap-3 sm:grid-cols-2">
 			{FIND_EMAIL_INPUTS.map((input) => <PromptField key={input.key} label={input.label} columns={columns} value={op[input.key]} onChange={(value) => set({ [input.key]: value })} placeholder={input.placeholder} />)}
 		</div>
+		<SourceField value={op.source} onChange={(source) => set({ source })} />
 		<PreferField value={op.prefer} onChange={(prefer) => set({ prefer })} />
 	</>;
 }
@@ -246,6 +266,7 @@ function FindPhoneFields({ op, set, columns }: FieldsProps<'phone-find'>) {
 			<PromptField label="Company (optional)" columns={columns} value={op.company} onChange={(company) => set({ company })} placeholder="{{Company}}" />
 			<PromptField label="Company domain (optional)" columns={columns} value={op.domain} onChange={(domain) => set({ domain })} placeholder="{{Company website}}" />
 		</div>
+		<SourceField value={op.source} onChange={(source) => set({ source })} help="MoltSets finds a mobile from a LinkedIn URL, or a name and company. It draws from the phone tokens of your MoltSets plan. looot answers a miss." />
 		<PreferField value={op.prefer} onChange={(prefer) => set({ prefer })} />
 		<p className="text-caption text-fg-subtle">Phone lookups cost more than emails. Check the estimate before you run a column.</p>
 	</>;

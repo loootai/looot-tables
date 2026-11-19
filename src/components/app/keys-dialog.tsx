@@ -92,6 +92,7 @@ export function KeysDialog({ onClose }: { onClose: () => void }) {
 	const { settings, update, trialLimitMessage, selfHosted, connections, workspaceName } = workspace;
 	const [loootKey, setLoootKey] = useState('');
 	const [openaiKey, setOpenaiKey] = useState('');
+	const [moltsetsKey, setMoltsetsKey] = useState('');
 	const [password, setPassword] = useState(settings.accessPassword);
 	const [saving, setSaving] = useState(false);
 	const [saveError, setSaveError] = useState('');
@@ -102,6 +103,7 @@ export function KeysDialog({ onClose }: { onClose: () => void }) {
 		const patch: Partial<Settings> = {};
 		if (loootKey.trim()) patch.loootKey = loootKey.trim();
 		if (openaiKey.trim()) patch.openaiKey = openaiKey.trim();
+		if (moltsetsKey.trim()) patch.moltsetsKey = moltsetsKey.trim();
 		if (needs.showPassword && password.trim() !== settings.accessPassword) patch.accessPassword = password.trim();
 		try {
 			await update(patch);
@@ -126,6 +128,9 @@ export function KeysDialog({ onClose }: { onClose: () => void }) {
 				</ProviderCard>
 				<ProviderCard provider="openai" status={needs.askOpenAI ? undefined : <ConnectedBadge />}>
 					{needs.askOpenAI && <VerifiedKeyField provider="openai" required={!needs.usePassword || Boolean(trialLimitMessage)} value={openaiKey} onChange={setOpenaiKey} autoFocus={!needs.askLooot} />}
+				</ProviderCard>
+				<ProviderCard provider="moltsets" status={isReady(connections.moltsets) ? <ConnectedBadge /> : undefined}>
+					{!isReady(connections.moltsets) && <VerifiedKeyField provider="moltsets" value={moltsetsKey} onChange={setMoltsetsKey} help="Optional. Emails, mobiles and profiles are tried on your MoltSets plan first, then on looot." />}
 				</ProviderCard>
 				{needs.showPassword && <Field label="Deployment password" help="Use the keys this deployment provides instead of your own.">{(id) => <Input id={id} type="password" autoComplete="off" value={password} onChange={(event) => setPassword(event.target.value)} />}</Field>}
 				<p className="text-caption text-fg-subtle">One looot token covers search, pages, company and people data, emails and phones. TypeSafe is optional and lives in Configuration → Connections.</p>

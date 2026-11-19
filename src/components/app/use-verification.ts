@@ -34,5 +34,6 @@ export function providerCheck(result: KeyVerification | undefined, provider: Pro
 	if (provider === 'openai') return result.openai;
 	if (provider === 'looot') return result.looot;
 	if (provider === 'typesafe') return result.typesafe.configured ? result.typesafe : undefined;
+	if (provider === 'moltsets') return result.moltsets?.configured ? result.moltsets : undefined;
 	return undefined;
 }
