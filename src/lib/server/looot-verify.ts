@@ -1,5 +1,5 @@
 import 'server-only';
-import { LOOOT_API } from './looot';
+import { loootApiUrl } from './looot';
 
 export interface LoootCheck {
 	ok: boolean;
@@ -11,7 +11,7 @@ export interface LoootCheck {
 /** Checks a looot token by reading the balance, which is free. Never stores or logs the token. */
 export async function verifyLoootToken(token: string, fetchImpl: typeof fetch = fetch): Promise<LoootCheck> {
 	try {
-		const response = await fetchImpl(`${LOOOT_API}/v1/balance`, { headers: { authorization: `Bearer ${token}`, accept: 'application/json' }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15_000) });
+		const response = await fetchImpl(`${loootApiUrl()}/v1/balance`, { headers: { authorization: `Bearer ${token}`, accept: 'application/json' }, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15_000) });
 		if (response.status === 401 || response.status === 403) return { ok: false, issue: 'key', message: 'looot rejected this token. Create a new one at looot.ai and paste it here.' };
 		if (!response.ok) return { ok: false, message: `looot could not check this token (${response.status}). Try again.` };
 		const data = await response.json().catch(() => null) as { available?: unknown } | null;

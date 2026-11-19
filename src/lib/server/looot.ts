@@ -12,6 +12,9 @@ import { EnrichError, failure, retryUnbilled, type Spend } from './enrich-failur
 
 export const LOOOT_API = 'https://api.looot.ai';
 
+/** The looot API this deployment talks to: the hosted one, or LOOOT_API_URL for a proxy or a local stand-in. Server-side only. */
+export const loootApiUrl = () => process.env.LOOOT_API_URL?.trim().replace(/\/+$/, '') || LOOOT_API;
+
 /** The looot jobs this app runs. Each id was checked against the live catalog overview. */
 export const JOBS = {
 	webSearch: 'web.search',
@@ -69,7 +72,7 @@ export class LoootClient {
 		this.#calls = options.calls ?? [];
 		this.#attempt = options.attempt ?? randomUUID();
 		// Only a 429 or a connection that never opened is resent, and the resend carries the same idempotency key.
-		this.#api = new Looot({ token: options.token, baseUrl: options.baseUrl ?? LOOOT_API, fetch: retryUnbilled(options.fetch ?? ((input, init) => globalThis.fetch(input, init))), timeoutMs: 75_000 });
+		this.#api = new Looot({ token: options.token, baseUrl: options.baseUrl ?? loootApiUrl(), fetch: retryUnbilled(options.fetch ?? ((input, init) => globalThis.fetch(input, init))), timeoutMs: 75_000 });
 	}
 
 	/** Every call this client made, in order. */

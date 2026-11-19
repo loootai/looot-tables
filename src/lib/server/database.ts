@@ -1,11 +1,13 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { neon, neonConfig, Pool, type NeonQueryFunction } from '@neondatabase/serverless';
+import { Pool as PostgresPool } from 'pg';
 import WebSocket from 'ws';
 import { lookup } from 'node:dns';
 import type { LookupFunction } from 'node:net';
 import { Agent, fetch as databaseFetch } from 'undici';
 import type { Account } from '../auth-identity';
+import { usesNeonDriver } from '../database-driver';
 import { WorkspaceError } from '../workspace';
 
 // Keep database networking independent of the process-wide fetch/DNS defaults.
@@ -78,13 +80,29 @@ function databaseUrl() {
 	return process.env.DATABASE_URL;
 }
 
-/** Neon for the length of `run`: reads over HTTP, transactions over a WebSocket pool opened on first use and closed after. */
+/** The database for the length of `run`. Neon: reads over HTTP, transactions over a WebSocket pool opened on first use and
+    closed after. Plain Postgres: one small pool for both. */
 export async function withDatabase<T>(run: (database: Database) => Promise<T>): Promise<T> {
+	if (!usesNeonDriver(databaseUrl())) return withPostgres(run);
 	let pool: Pool | undefined, http: NeonQueryFunction<false, false> | undefined;
 	try {
 		return await run(createDatabase({
 			connect: async () => (pool ??= new Pool({ connectionString: databaseUrl(), max: 3, connectionTimeoutMillis: 10_000 })).connect(),
 			read: async (text, values) => ({ rows: await (http ??= neon(databaseUrl())).query(text, values) }),
+		}));
+	} finally { await pool?.end().catch(() => {}); }
+}
+
+async function withPostgres<T>(run: (database: Database) => Promise<T>): Promise<T> {
+	let pool: PostgresPool | undefined;
+	const open = () => pool ??= new PostgresPool({ connectionString: databaseUrl(), max: 3, connectionTimeoutMillis: 10_000 });
+	try {
+		return await run(createDatabase({
+			connect: async () => {
+				const client = await open().connect();
+				return { query: async (text, values) => ({ rows: (await client.query(text, values)).rows as Rows }), release: (error) => client.release(error) };
+			},
+			read: async (text, values) => ({ rows: (await open().query(text, values)).rows as Rows }),
 		}));
 	} finally { await pool?.end().catch(() => {}); }
 }
