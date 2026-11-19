@@ -120,7 +120,7 @@ test('explicit company domains win over missing sign-in context without using an
  assert.equal(explicitCompanyDomain(query), 'context.dev');
  assert.equal(explicitCompanyDomain('Compare them with our company (https://www.context.dev/about)'), 'context.dev');
  assert.equal(explicitCompanyDomain('My company is context.dev.'), 'context.dev');
- assert.equal(explicitCompanyDomain('Worth talking to for my company? Attendee: jane@other.com'), null);
+ assert.equal(explicitCompanyDomain('Worth talking to for my company? Attendee: jane@example.com'), null);
  assert.equal(explicitCompanyDomain('Research {{My company context.dev}}'), null);
 });
 

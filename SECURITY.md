@@ -4,7 +4,7 @@
 
 Please use [GitHub private vulnerability reporting](https://github.com/context-dot-dev/enrichable/security/advisories/new) for vulnerabilities in Enrichable. Include the affected commit, reproduction steps using synthetic data, likely impact, and any suggested mitigation. Do not put vulnerabilities or credentials in public issues or pull requests.
 
-If the private reporting form is unavailable, email [support@context.dev](mailto:support@context.dev) with the subject "Enrichable security report" to request a private security channel before sharing details. Do not send secrets or production data, or put exploit details in a public issue.
+If the private reporting form is unavailable, email [support@looot.ai](mailto:support@looot.ai) with the subject "Enrichable security report" to request a private security channel before sharing details. Do not send secrets or production data, or put exploit details in a public issue.
 
 Security fixes target the latest code on `main`; older snapshots do not have a separate backport commitment. This project does not currently promise a response deadline or operate a bug bounty program.
 

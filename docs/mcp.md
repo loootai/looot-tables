@@ -17,7 +17,7 @@ For clients that accept an `mcpServers` configuration:
     "enrichable": {
       "url": "https://www.enrichable.io/mcp",
       "headers": {
-        "Authorization": "Bearer enr_mcp_YOUR_ORGANIZATION_KEY",
+        "Authorization": "Bearer YOUR_MCP_KEY",
         "x-openai-key": "YOUR_OPENAI_KEY",
         "x-context-key": "YOUR_CONTEXT_KEY"
       }

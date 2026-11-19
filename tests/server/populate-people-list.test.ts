@@ -77,7 +77,7 @@ test('an API failure keeps the supplied person and continues with the next perso
 });
 
 test('identity clues are passed together and former employers are not presented as current', () => {
- const input = { ...person('Ada Lovelace', 'engines.example'), companyName: 'Engines', city: 'London', school: 'School', email: 'ada@engines.example' };
+ const input = { ...person('Ada Lovelace', 'engines.example'), companyName: 'Engines', city: 'London', school: 'School', email: 'ada@example.com' };
  assert.deepEqual(personEnrichmentInput(input)?.company, { name: 'Engines', domain: 'engines.example' });
  assert.deepEqual(personEnrichmentInput(input)?.location, { city: 'London' });
  const row = listedPersonRow(input, { request_id: 'test', match: { status: 'candidate', score: 0.9, person: { current_role_status: 'none', experience: [{ title: 'Engineer', organization: { name: 'Former employer' } }], education: [], skills: [], social_urls: [], website_urls: [] } } });

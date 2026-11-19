@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
 	const returnTo = form.get('returnTo');
 	const account = accountFromIdentity({
 		issuer: DEV_ISSUER,
-		user: { id: 'local-developer', email: 'developer@enrichable.localhost', email_verified: true, name: 'Developer' },
+		user: { id: 'local-developer', email: 'developer@example.com', email_verified: true, name: 'Developer' },
 		organization: { id: 'local-development', name: 'Local development' },
 	});
 	const response = NextResponse.redirect(safeRedirectUrl(typeof returnTo === 'string' ? returnTo : null, config.origin), 303);

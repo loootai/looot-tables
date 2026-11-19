@@ -15,7 +15,7 @@ export function selfHostedAccount(token?: string): (Account & { sessionId: strin
 	const id = createHash('sha256').update(token).digest('hex');
 	return {
 		issuer: SELF_HOSTED_ISSUER,
-		user: { id, email: 'local@enrichable.localhost', email_verified: true, name: 'Your workspace' },
+		user: { id, email: 'local@example.com', email_verified: true, name: 'Your workspace' },
 		organization: { id, name: 'Self-hosted' },
 		partition: createHash('sha256').update(`self-hosted:${id}`).digest('hex'),
 		sessionId: createHash('sha256').update(`session:${id}`).digest('hex'),

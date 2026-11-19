@@ -25,7 +25,7 @@ async function workspace(page: Page, options: { connected?: boolean; seeded?: bo
 				{ id: 'draft', name: 'Email draft', type: 'enriched', format: 'email-draft', width: 300, createdAt: 1, op: { kind: 'email-draft', mode: 'ai', prompt: 'Write an introduction to {{Company}}', to: '', cc: '', bcc: '', subject: '', body: '' } },
 			], filters: [], sort: null, revision: 1, createdAt: 1, updatedAt: 1,
 		};
-		const rows: Row[] = [{ id: 'mobile-row', sheetId: sheet.id, order: 0, createdAt: 1, cells: { name: { v: 'Acme', s: 'done', t: 1 }, domain: { v: 'acme.example', s: 'done', t: 1 }, draft: { v: JSON.stringify({ to: 'hello@acme.example', cc: '', bcc: '', subject: 'A mobile-friendly introduction', body: 'Hello Acme,\n\nHere is a long email draft to read comfortably on a phone.' }), s: 'done', t: 1 } } }];
+		const rows: Row[] = [{ id: 'mobile-row', sheetId: sheet.id, order: 0, createdAt: 1, cells: { name: { v: 'Acme', s: 'done', t: 1 }, domain: { v: 'acme.example', s: 'done', t: 1 }, draft: { v: JSON.stringify({ to: 'hello@example.com', cc: '', bcc: '', subject: 'A mobile-friendly introduction', body: 'Hello Acme,\n\nHere is a long email draft to read comfortably on a phone.' }), s: 'done', t: 1 } } }];
 		sheets.set(sheet.id, { sheet, rows });
 	}
 	await page.route('**/api/**', async (route) => {
@@ -36,7 +36,7 @@ async function workspace(page: Page, options: { connected?: boolean; seeded?: bo
 		if (url.pathname === '/api/mcp-key') return route.fulfill({ json: { key: null } });
 		if (url.pathname === '/api/logos/resolve') return route.fulfill({ json: { domain: null } });
 		if (url.pathname === '/api/populate') return route.fulfill({ contentType: 'application/x-ndjson', body: [{ type: 'rows', rows: [{ Company: 'Orbit', Domain: 'orbit.example' }], key: 'Domain' }, { type: 'done', total: 1 }].map((event) => JSON.stringify(event)).join('\n') + '\n' });
-		if (url.pathname === '/api/enrich') return route.fulfill({ json: { value: JSON.stringify({ to: 'hello@orbit.example', cc: '', bcc: '', subject: 'A simulated enriched value', body: 'Hello Orbit' }) } });
+		if (url.pathname === '/api/enrich') return route.fulfill({ json: { value: JSON.stringify({ to: 'hello@example.org', cc: '', bcc: '', subject: 'A simulated enriched value', body: 'Hello Orbit' }) } });
 		if (url.pathname === '/api/sheets') {
 			if (request.method() === 'POST') {
 				const value = request.postDataJSON() as { sheet: Sheet; rows: Row[] };

@@ -45,9 +45,9 @@ test('toCsv escapes and includes meta columns when asked', () => {
 });
 
 test('csvToRecords keeps duplicate headers as distinct columns', () => {
-	const { headers, records } = csvToRecords([['Name', 'Email', 'Name'], ['Acme', 'a@x.com', 'Bob']]);
+	const { headers, records } = csvToRecords([['Name', 'Email', 'Name'], ['Acme', 'a@example.com', 'Bob']]);
 	assert.deepEqual(headers, ['Name', 'Email', 'Name 2']);
-	assert.deepEqual(records, [{ Name: 'Acme', Email: 'a@x.com', 'Name 2': 'Bob' }]);
+	assert.deepEqual(records, [{ Name: 'Acme', Email: 'a@example.com', 'Name 2': 'Bob' }]);
 });
 
 

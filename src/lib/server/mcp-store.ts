@@ -54,7 +54,7 @@ export class McpStore {
 		if (!match) throw new WorkspaceError('An organization MCP API key is required.', 401);
 		const entry = (await this.database.read('SELECT w.issuer, w.organization_id, w.name FROM enrichable.mcp_keys k JOIN enrichable.workspaces w ON w.id=k.workspace_id WHERE k.key_hash=$1', [hashMcpSecret(match[1])])).rows[0];
 		if (!entry) throw new WorkspaceError('Invalid organization MCP API key.', 401);
-		return { issuer: String(entry.issuer), organization: { id: String(entry.organization_id), name: String(entry.name) }, user: { id: 'mcp', email: 'mcp@enrichable.localhost', email_verified: true }, partition: 'mcp' };
+		return { issuer: String(entry.issuer), organization: { id: String(entry.organization_id), name: String(entry.name) }, user: { id: 'mcp', email: 'mcp@example.com', email_verified: true }, partition: 'mcp' };
 	}
 	async claim(actor: Account, id: string, requestHash: string, now = Date.now()): Promise<{ claimed: boolean; status: McpAttemptStatus | 'busy'; result?: Record<string, unknown> }> {
 		return this.database.transaction(async (sql, workspace) => {

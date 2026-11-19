@@ -31,11 +31,11 @@ test('storage diagnostics redact secrets and omit driver SQL, parameters and row
 			else process.env[key] = value;
 		}
 	});
-	process.env.DATABASE_URL = 'postgresql://test:db-secret@db.example/test';
+	process.env.DATABASE_URL = 'postgresql://test:db-secret@example.com/test';
 	process.env.CONTEXT_DEV_API_KEY = 'context-test-secret';
 	const error = Object.assign(new Error(`Failed ${process.env.DATABASE_URL} context-test-secret https://user:pass@example.com/query?token=hidden Bearer auth-secret password=hidden-password`), {
 		code: '08006', query: 'INSERT private customer data', parameters: ['customer@example.com'], detail: 'private row contents',
-		cause: new Error('wss://user:pass@db.example/socket?secret=value'),
+		cause: new Error('wss://user:pass@example.com/socket?secret=value'),
 	});
 	const details = storageErrorDetails(error);
 	const serialized = JSON.stringify(details);

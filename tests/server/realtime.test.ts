@@ -14,7 +14,7 @@ const sheet: Sheet = { id: 'sheet', name: 'Live sheet', columns: [{ id: 'value',
 
 test('live query capabilities fix workspace and sheet scope, expire quickly, and never reveal branch credentials', async (t) => {
 	const bytes = randomBytes(32);
-	const env = { NEON_REALTIME_URL: 'wss://example.neon.tech/', NEON_REALTIME_SECRET: `nrt_live_1${bytes.toString('base64url')}`, DATABASE_URL: 'postgresql://user:password@example.neon.tech/neondb', ENRICHABLE_REALTIME_ENABLED: 'true' };
+	const env = { NEON_REALTIME_URL: 'wss://example.neon.tech/', NEON_REALTIME_SECRET: `nrt_live_1${bytes.toString('base64url')}`, DATABASE_URL: 'postgresql://user:password@example.com/neondb', ENRICHABLE_REALTIME_ENABLED: 'true' };
 	const previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
 	Object.assign(process.env, env);
 	t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });

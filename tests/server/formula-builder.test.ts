@@ -67,7 +67,7 @@ test('fallback composer excludes formulas and retains the original request', asy
 
 test('formula and column handlers redact provider errors containing server keys', async (t) => {
 	const { POST: compose } = await import('../../src/app/api/compose-column/route');
-	const values = { NODE_ENV: 'production', ENRICHABLE_APP_URL: 'https://self-hosted.example', ENRICHABLE_DEV_AUTH: '', ENRICHABLE_PASSWORD: 'test-password', OPENAI_API_KEY: 'sk-demonstration-not-real', OPENAI_BASE_URL: '' };
+	const values = { NODE_ENV: 'production', ENRICHABLE_APP_URL: 'https://self-hosted.example', ENRICHABLE_DEV_AUTH: '', ENRICHABLE_PASSWORD: 'test-password', OPENAI_API_KEY: 'not-a-real-key', OPENAI_BASE_URL: '' };
 	const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
 	Object.assign(process.env, values);
 	delete process.env.OPENAI_BASE_URL;
