@@ -1,6 +1,6 @@
 'use client';
 
-import { notifyContextRequest } from './context-credits';
+import { notifyLoootRequest } from './looot-requests';
 import { notifyTrialLimit } from './ai-trial';
 import { ApiError, parseFailure, readError } from './api';
 import { keyHeaders } from './keys';
@@ -28,7 +28,7 @@ async function* ndjsonLines(body: ReadableStream<Uint8Array>) {
  */
 export async function streamPopulate(request: PopulateRequest, onEvent: (event: PopulateEvent) => void | Promise<void>, signal?: AbortSignal): Promise<{ completed: boolean }> {
 	// Discovery can perform several Context requests between streamed row events.
-	const timer = setInterval(notifyContextRequest, 2_000);
+	const timer = setInterval(notifyLoootRequest, 2_000);
 	let completed = false;
 	const handle = async (line: string) => {
 		if (!line.trim()) return;
@@ -52,6 +52,6 @@ export async function streamPopulate(request: PopulateRequest, onEvent: (event: 
 		return { completed };
 	} finally {
 		clearInterval(timer);
-		notifyContextRequest();
+		notifyLoootRequest();
 	}
 }

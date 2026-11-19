@@ -12,15 +12,9 @@ import { providerField, type OrganizationSettings, type Provider } from './organ
 export interface Settings {
 	companyDomain?: string;
 	openaiKey: string;
-	contextKey: string;
+	/** The looot token. One token runs every lookup: search, scraping, company and people data, emails and phones. */
+	loootKey: string;
 	typesafeKey: string;
-	hunterKey: string;
-	quickenrichKey: string;
-	apolloKey: string;
-	contactoutKey: string;
-	prospeoKey: string;
-	/** Public client ID for Context.dev Logo Link image delivery. */
-	logolinkKey: string;
 	/** Optional: the deployment's ENRICHABLE_PASSWORD, when the host set server-side keys. */
 	accessPassword: string;
 	model: string;
@@ -37,8 +31,8 @@ const STORAGE_KEY = 'enrichable.settings.v1';
 const listeners = new Set<() => void>();
 const publish = () => { for (const listener of listeners) listener(); };
 
-export const DEFAULT_SETTINGS: Settings = { openaiKey: '', contextKey: '', typesafeKey: '', hunterKey: '', quickenrichKey: '', apolloKey: '', contactoutKey: '', prospeoKey: '', logolinkKey: '', accessPassword: '', model: DEFAULT_MODEL, classifierModel: 'decisions', openaiBaseUrl: '', concurrency: 4, preferJev: true };
-const publicFields = ['model', 'classifierModel', 'openaiBaseUrl', 'concurrency', 'preferJev', 'logolinkKey', 'companyDomain'] as const;
+export const DEFAULT_SETTINGS: Settings = { openaiKey: '', loootKey: '', typesafeKey: '', accessPassword: '', model: DEFAULT_MODEL, classifierModel: 'decisions', openaiBaseUrl: '', concurrency: 4, preferJev: true };
+const publicFields = ['model', 'classifierModel', 'openaiBaseUrl', 'concurrency', 'preferJev', 'companyDomain'] as const;
 
 // Browser-local adapter.
 let cached: Settings | null = null;
@@ -105,13 +99,8 @@ export function subscribeSettings(listener: () => void) {
 export function keyHeaders(settings: Settings = loadSettings()): Record<string, string> {
 	const headers: Record<string, string> = { 'content-type': 'application/json', ...accountHeaders() };
 	if (settings.openaiKey) headers['x-openai-key'] = settings.openaiKey;
-	if (settings.contextKey) headers['x-context-key'] = settings.contextKey;
+	if (settings.loootKey) headers['x-looot-key'] = settings.loootKey;
 	if (settings.typesafeKey) headers['x-typesafe-key'] = settings.typesafeKey;
-	if (settings.hunterKey) headers['x-hunter-key'] = settings.hunterKey;
-	if (settings.quickenrichKey) headers['x-quickenrich-key'] = settings.quickenrichKey;
-	if (settings.apolloKey) headers['x-apollo-key'] = settings.apolloKey;
-	if (settings.contactoutKey) headers['x-contactout-key'] = settings.contactoutKey;
-	if (settings.prospeoKey) headers['x-prospeo-key'] = settings.prospeoKey;
 	if (settings.accessPassword) headers['x-enrichable-password'] = settings.accessPassword;
 	if (settings.model) headers['x-openai-model'] = settings.model;
 	if (settings.classifierModel) headers['x-classifier-model'] = settings.classifierModel;

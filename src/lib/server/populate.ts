@@ -1,4 +1,3 @@
-import { lookupPerson } from './person-lookup';
 import { profileUrl } from '../profile-photo';
 import { planPeopleInput, populatePeopleList } from './populate-people-list';
 import { companyContextForQuery } from './company-context';
@@ -10,19 +9,16 @@ import { generateText, isStepCount, type StopCondition, tool, type ToolSet } fro
 import { z } from 'zod';
 import { foundRowKey, foundRowKeyField } from '../found-rows';
 import type { CellValue, FoundRow, PopulateEvent, PopulateRequest } from '../types';
-import { companySearch, webSearchCountries } from './context';
+import { companySearch, peopleSearch, webSearchCountries, type CompanyHit } from './looot-jobs';
 import type { ProviderAccess } from './provider-access';
 import { createPopulateSearchQueue } from './populate-search-queue';
-import { mapConcurrent } from './map-concurrent';
 import { classifyFailure } from './enrich-failure';
 
-/* The populate agent: OpenAI plans and paginates Context.dev searches; results stream straight to the sheet.
+/* The populate agent: OpenAI plans and paginates looot searches; results stream straight to the sheet.
    The model only sees compact summaries (counts, cursors, a few names), never the full records, so a 1,000-row
    list costs a few thousand tokens of orchestration rather than copying every record through the model. */
 
 const MAX_STEPS = 60;
-/** Profile photos are a per-row extra lookup; a few in flight keeps a page of results fast without bursting Context.dev. */
-const PHOTO_CONCURRENCY = 4;
 
 export function populateStream(access: ProviderAccess, request: PopulateRequest): ReadableStream<Uint8Array> {
 	const encoder = new TextEncoder();
@@ -69,7 +65,7 @@ async function runPopulate(access: ProviderAccess, request: PopulateRequest, emi
 		}
 	}
 	const companyContext = await companyContextForQuery(access, request.query);
-	const client = access.context();
+	const client = access.looot();
 	const seen = new Set((request.existingKeys ?? []).map(foundRowKey).filter(Boolean));
 	const state = { added: 0, emptyStreak: 0, calls: 0 };
 	const target = request.target;
@@ -103,7 +99,7 @@ async function runPopulate(access: ProviderAccess, request: PopulateRequest, emi
 			}),
 			execute: async ({ query, employees_min, employees_max, cursor }) => searchInOrder(async () => {
 				if (state.added >= target) return summarise(0, [], null, 0);
-				const result = await companySearch(client, { query, filters: { countries, employees_min, employees_max }, cursor });
+				const result = await companySearch(client, { query, filters: { countries, employees_min, employees_max }, cursor }, signal);
 				const rows: FoundRow[] = [];
 				for (const hit of result.results) {
 					const key = foundRowKey(hit.domain || hit.name);
@@ -117,50 +113,52 @@ async function runPopulate(access: ProviderAccess, request: PopulateRequest, emi
 		});
 	}
 	if (request.entity === 'people') {
+		tools.findCompanies = tool({
+			description: 'Find companies matching a description (industry, location, size, stage). Nothing is added to the sheet: use it to get company domains, then call searchPeople for each domain. Pass next_cursor for the next page of the same query.',
+			inputSchema: z.object({ query: z.string().max(400), cursor: z.string().max(64).optional() }),
+			execute: async ({ query, cursor }) => searchInOrder(async () => {
+				const result = await companySearch(client, { query, filters: { countries }, cursor }, signal);
+				state.calls += 1;
+				emit({ type: 'status', message: `Found ${result.results.length} companies for "${query.slice(0, 60)}"` });
+				return { companies: result.results.slice(0, 25).map((hit) => ({ name: hit.name, domain: hit.domain, description: hit.description?.slice(0, 140), employees: hit.employees?.count ?? hit.employees?.max, stage: hit.funding?.stage, headquarters: hit.headquarters })), next_cursor: result.next_cursor };
+			}),
+		});
 		tools.searchPeople = tool({
-			description: 'Find people matching a description of role, employer, industry, location, skills, or background. Results are added to the sheet automatically. Pass next_cursor to continue the same query.',
+			description: 'Find people at one company by job title. Pass the company domain (best) or name. Matches are added to the sheet automatically; only people whose title fits job_title are kept. Pass next_cursor for the next page of the same query.',
 			inputSchema: z.object({
-				query: z.string().max(2000),
-				mode: z.enum(['fast', 'ultra']).default('fast').describe('ultra judges each candidate against every criterion; slower and 5x the cost. Use it only for multi-criteria queries.'),
-				years_of_experience_min: z.number().int().min(0).optional(),
-				years_of_experience_max: z.number().int().min(0).optional(),
+				job_title: z.string().max(120).optional().describe('The role, for example "VP of Sales". Titles are matched on every word, with VP read as Vice President.'),
+				domain: z.string().max(253).optional().describe('The company website domain, for example acme.com.'),
+				company: z.string().max(200).optional(),
+				location: z.string().max(120).optional(),
+				limit: z.number().int().min(1).max(50).default(10),
 				cursor: z.string().optional(),
 			}),
-			execute: async ({ query, mode, years_of_experience_min, years_of_experience_max, cursor }) => searchInOrder(async () => {
+			execute: async ({ job_title, domain, company, location, limit, cursor }) => searchInOrder(async () => {
 				if (state.added >= target) return summarise(0, [], null, 0);
-				const response = await client.people.search({ query, mode, filters: { countries, years_of_experience_min, years_of_experience_max }, cursor }, { signal });
-				const hits: Array<{ hit: (typeof response.results)[number]; linkedin?: string }> = [];
+				if (!domain && !company && !job_title) return { error: 'Pass a domain, a company or a job_title.' };
+				const response = await peopleSearch(client, { jobTitle: job_title, domain, company, location, limit, cursor }, signal);
+				const rows: FoundRow[] = [];
 				for (const hit of response.results) {
-					if (hits.length >= target - state.added) break;
-					const linkedin = hit.profiles.find((url) => url.includes('linkedin.com')) ?? hit.profiles[0];
-					const key = foundRowKey(linkedin || `${hit.name}|${hit.role.company?.name ?? ''}`);
+					if (rows.length >= target - state.added) break;
+					const key = foundRowKey(hit.linkedin || `${hit.name}|${hit.company ?? ''}`);
 					if (!key || seen.has(key)) continue;
 					seen.add(key);
-					hits.push({ hit, linkedin });
+					rows.push({
+						Name: hit.name,
+						'Profile photo': profileUrl(hit.avatarUrl),
+						Title: hit.title,
+						Company: hit.company ?? company ?? null,
+						'Company domain': hit.companyDomain ?? (domain ? domain.replace(/^www\./, '') : null),
+						Location: hit.location,
+						LinkedIn: hit.linkedin,
+						Schools: hit.schools,
+						Skills: hit.skills.slice(0, 15),
+						'Years of experience': hit.yearsOfExperience,
+						Summary: hit.bio,
+					});
 				}
-				const photo = async (hit: (typeof response.results)[number]) => {
-					const profiles = hit.profiles.flatMap((url) => { const safe = profileUrl(url); return safe ? [safe] : []; });
-					if (!profiles.length) return null;
-					try {
-						const enriched = await lookupPerson(client, { social_urls: profiles, timeoutOpts: { milliseconds: 60_000, behavior: 'return-partial' } }, hit.name ?? '', { signal });
-						return enriched.match.status === 'candidate' ? profileUrl(enriched.match.person?.avatar_url) : null;
-					} catch { signal.throwIfAborted(); return null; /* Keep the search result if photo enrichment is unavailable. */ }
-				};
-				const rows: FoundRow[] = await mapConcurrent(hits, PHOTO_CONCURRENCY, async ({ hit, linkedin }) => ({
-					Name: hit.name,
-					'Profile photo': await photo(hit),
-					Title: hit.role.title,
-					Company: hit.role.company?.name ?? null,
-					'Company domain': hit.role.company?.domain ?? null,
-					Location: [hit.location.city, hit.location.region, hit.location.country_code].filter(Boolean).join(', ') || null,
-					LinkedIn: linkedin ?? null,
-					Schools: hit.schools,
-					Skills: hit.skills.slice(0, 15),
-					'Years of experience': hit.years_of_experience,
-					Summary: hit.description,
-				}));
 				const accepted = push(rows);
-				return summarise(accepted.length, accepted.map((row) => String(row.Name ?? '')), response.next_cursor ?? null, response.results.length);
+				return { ...summarise(accepted.length, accepted.map((row) => String(row.Name ?? '')), response.next_cursor, response.returned), title_matches: response.results.length };
 			}),
 		});
 	}
@@ -190,7 +188,7 @@ async function runPopulate(access: ProviderAccess, request: PopulateRequest, emi
 	emit({ type: 'status', message: `Searching for ${request.entity}…` });
 	const entityGuide = {
 		companies: 'Write queries the way a market analyst would describe the segment (industry + geography + size + business model). To reach large targets, split the market into sub-segments (sub-industries, states or regions, company sizes, customer types) and run each as its own query; always follow next_cursor until it is null before moving on.',
-		people: 'Describe the role, seniority, employer type, industry, location and background. Split large targets by geography, seniority, or employer segment. Use fast mode unless the query has several hard criteria.',
+		people: 'People are found per company. Call findCompanies for the employer segment (industry, place, funding stage), then call searchPeople with each company domain and the requested job_title, one company at a time, until the target is reached. Use the next page of findCompanies for more employers.',
 		websites: 'Use many distinct search phrasings, site: operators for directories, and synonyms. Each query returns at most 50 results, so vary queries to reach the target.',
 	}[request.entity];
 	const result = await generateText({
@@ -214,7 +212,7 @@ async function runPopulate(access: ProviderAccess, request: PopulateRequest, emi
 	emit({ type: 'done', total: state.added, message: summary && summary.length < 400 ? summary : undefined });
 }
 
-function companyRow(hit: Awaited<ReturnType<typeof companySearch>>['results'][number]): FoundRow {
+function companyRow(hit: CompanyHit): FoundRow {
 	const hq = [hit.headquarters?.city, hit.headquarters?.region, hit.headquarters?.country_code].filter(Boolean).join(', ');
 	const employees: CellValue = hit.employees?.count ?? hit.employees?.max ?? hit.employees?.min ?? null;
 	return {

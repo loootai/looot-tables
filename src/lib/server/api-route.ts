@@ -5,7 +5,6 @@ import { unstable_rethrow } from 'next/dist/client/components/unstable-rethrow';
 import type { Account } from '../auth-identity';
 import { WorkspaceError } from '../workspace';
 import { currentAccount } from './auth';
-import { CreditBudgetError } from './credit-ledger';
 import { CredentialError } from './credentials';
 import { withDatabase, type Database } from './database';
 import { logWorkspaceError } from './workspace-logging';
@@ -15,7 +14,7 @@ export type RouteContext = { account: Account; database: Database };
 type ContextSource = <T>(run: (context: RouteContext) => Promise<T>) => Promise<T>;
 export type RequestTrace = { operation: string; requestId: string; started: number; phase?: string };
 
-export const UNAVAILABLE = 'Enrichable could not complete this request. Try again in a moment.';
+export const UNAVAILABLE = 'looot tables could not complete this request. Try again in a moment.';
 
 /** What a caller is told about `error`. Our errors carry a status and a message written for the caller (400 means the
     caller's input failed to parse; see parseInput). Anything else is logged under the request id and answered 503 without
@@ -23,7 +22,7 @@ export const UNAVAILABLE = 'Enrichable could not complete this request. Try agai
 export function failureOf(error: unknown, trace: RequestTrace): { status: number; error: string } {
 	// Next.js signals redirects, not-found and request-time bailouts (e.g. during prerendering) by throwing; let them through.
 	unstable_rethrow(error);
-	if (error instanceof WorkspaceError || error instanceof CredentialError || error instanceof CreditBudgetError) return { status: error.status, error: error.message };
+	if (error instanceof WorkspaceError || error instanceof CredentialError) return { status: error.status, error: error.message };
 	logWorkspaceError(error, { requestId: trace.requestId, operation: trace.operation, phase: trace.phase ?? 'request', durationMs: Math.round(performance.now() - trace.started) });
 	return { status: 503, error: UNAVAILABLE };
 }

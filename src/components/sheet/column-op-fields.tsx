@@ -1,16 +1,16 @@
 'use client';
 
-import Link from 'next/link';
 import { useId, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { GripVertical, Plus, X } from 'lucide-react';
 import { clampNumber, fromListRows, parseCommaList, parseListLines, toListRows, type ListItem, type ListRow } from '@/lib/list-input';
-import { type Column, type ColumnOp, type OpKind, OUTPUT_TYPES, type PageSource, PROSPEO_FIELDS } from '@/lib/types';
+import { keyHeaders } from '@/lib/keys';
+import { formatUsd, suggestInputMap } from '@/lib/endpoint-map';
+import { type Column, type ColumnOp, type EmailPreference, type OpKind, OUTPUT_TYPES, type PageSource } from '@/lib/types';
 import { Button, IconButton } from '@/components/ui/button';
 import { Field, Input, Select, Switch } from '@/components/ui/field';
 import { HelpTooltip } from '@/components/ui/help-tooltip';
 import { Sortable, SortableItem, SortableItemHandle } from '@/components/ui/sortable';
 import { ColumnPrompt } from './column-prompt';
-import { EmailWaterfallPicker } from './email-waterfall-picker';
 
 type OpOf<K extends OpKind> = Extract<ColumnOp, { kind: K }>;
 interface Shared { columns: Column[]; domainColumn?: string; jevAvailable: boolean }
@@ -59,14 +59,11 @@ const PERSON_FIELDS: Array<{ value: OpOf<'person'>['field']; label: string }> = 
 	{ value: 'years_at_company', label: 'Years at current company' },
 	{ value: 'full_name', label: 'Full name' },
 ];
-const PROSPEO_LABELS: Record<(typeof PROSPEO_FIELDS)[number], string> = { email: 'Email', mobile: 'Mobile number', full_name: 'Full name', title: 'Title', company: 'Company', company_domain: 'Company domain', linkedin: 'LinkedIn URL', location: 'Location' };
 const SCRAPE_MODES: Array<{ value: OpOf<'scrape'>['mode']; label: string }> = [
 	{ value: 'highlights', label: 'Passages relevant to a query' },
 	{ value: 'extract', label: 'Extracted fields' },
 	{ value: 'markdown', label: 'Markdown' },
 	{ value: 'links', label: 'Links on the page' },
-	{ value: 'map', label: 'Discover site URLs (up to 100)' },
-	{ value: 'html', label: 'HTML' },
 	{ value: 'images', label: 'Image URLs' },
 	{ value: 'emails', label: 'Email addresses' },
 	{ value: 'phone-numbers', label: 'Phone numbers' },
@@ -88,8 +85,9 @@ export function OpFields({ op, onChange, ...shared }: Shared & { op: ColumnOp; o
 		case 'company': return <CompanyFields op={op} set={set} {...shared} />;
 		case 'person': return <PersonFields op={op} set={set} {...shared} />;
 		case 'email-enrichment': return <FindEmailFields op={op} set={set} {...shared} />;
-		case 'hunter': return <HunterFields op={op} set={set} {...shared} />;
-		case 'prospeo': return <ProspeoFields op={op} set={set} {...shared} />;
+		case 'email-verify': return <VerifyEmailFields op={op} set={set} {...shared} />;
+		case 'phone-find': return <FindPhoneFields op={op} set={set} {...shared} />;
+		case 'looot': return <LoootFields op={op} set={set} {...shared} />;
 		case 'answer': return <ResearchFields op={op} set={set} {...shared} />;
 		case 'template': return <Field label="Template" help="Combine columns; no API calls. e.g. https://{{Website}}/pricing">{(id) => <ColumnPrompt id={id} rows={1} columns={shared.columns} value={op.template} onChange={(template) => set({ template })} placeholder="{{Name}} <{{Email}}>" />}</Field>;
 	}
@@ -123,7 +121,7 @@ function AskFields({ op, set, columns, domainColumn }: FieldsProps<'ai'>) {
 		<PromptField label="Question" help="Type / to insert a column, cell or range; otherwise the whole row is sent. Use $ to lock coordinates, e.g. $A$1." columns={columns} rows={3} value={op.prompt} onChange={(prompt) => set({ prompt })} placeholder="Who is the CEO of {{Company}}?" />
 		<div className="grid gap-4 sm:grid-cols-2">
 			<OutputField value={op.output} onChange={(output) => set({ output })} />
-			<Field label="Research">{(id) => <Select id={id} value={op.research} onValueChange={(value) => set({ research: value as 'none' | 'web' })}><option value="web">Search and read the web (Context.dev)</option><option value="none">Row only, no web</option></Select>}</Field>
+			<Field label="Research">{(id) => <Select id={id} value={op.research} onValueChange={(value) => set({ research: value as 'none' | 'web' })}><option value="web">Search and read the web (looot)</option><option value="none">Row only, no web</option></Select>}</Field>
 		</div>
 		<PageField label="Read a page first" page={op.page} optional columns={columns} domainColumn={domainColumn} onChange={(page) => set({ page })} />
 	</>;
@@ -213,52 +211,130 @@ const FIND_EMAIL_INPUTS = [
 	{ key: 'profileUrl', label: 'LinkedIn URL (optional)', placeholder: '{{LinkedIn}}' },
 ] as const;
 
+const PREFER_OPTIONS: Array<{ value: EmailPreference; label: string }> = [
+	{ value: 'balanced', label: 'Balanced: price and track record' },
+	{ value: 'cheapest', label: 'Cheapest provider first' },
+	{ value: 'reliable', label: 'Most reliable provider first' },
+];
+
+/** looot walks the providers of a job in this order and stops at the first answer. */
+function PreferField({ value, onChange }: { value: EmailPreference; onChange: (value: EmailPreference) => void }) {
+	return <Field label="Provider order" help="looot tries the job's providers one after another and stops at the first answer. You pay only for the attempts that ran.">{(id) => <Select id={id} value={value} onValueChange={(next) => onChange(next as EmailPreference)}>{PREFER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>}</Field>;
+}
+
 function FindEmailFields({ op, set, columns }: FieldsProps<'email-enrichment'>) {
 	return <>
 		<div className="grid gap-3 sm:grid-cols-2">
 			{FIND_EMAIL_INPUTS.map((input) => <PromptField key={input.key} label={input.label} columns={columns} value={op[input.key]} onChange={(value) => set({ [input.key]: value })} placeholder={input.placeholder} />)}
 		</div>
-		<EmailWaterfallPicker value={op.providers} onChange={(providers) => set({ providers })} />
+		<PreferField value={op.prefer} onChange={(prefer) => set({ prefer })} />
 	</>;
 }
 
-function ProviderNote({ provider }: { provider: 'Hunter' | 'Prospeo' }) {
-	return <p className="text-caption text-fg-subtle">Uses your {provider} key. Connect {provider} in <Link href="/app/settings" target="_blank" className="text-brand underline-offset-4 hover:underline">Configuration → Connections</Link>. Type / to insert a column.</p>;
-}
-
-function HunterFields({ op, set, columns }: FieldsProps<'hunter'>) {
+function VerifyEmailFields({ op, set, columns }: FieldsProps<'email-verify'>) {
 	return <>
-		<ProviderNote provider="Hunter" />
-		{/* Finding is covered by the Work email waterfall; older columns that find with Hunter keep the choice. */}
-		{op.action === 'find' && <Field label="Action">{(id) => <Select id={id} value={op.action} onValueChange={(value) => set({ action: value as 'find' | 'verify' })}><option value="find">Find work email</option><option value="verify">Verify email (returns status)</option></Select>}</Field>}
-		{op.action === 'find' ? <div className="grid gap-4 sm:grid-cols-2">
-			<PromptField label="Full name" columns={columns} value={op.name ?? ''} onChange={(name) => set({ name })} placeholder="{{Name}}" />
-			<PromptField label="Company domain" columns={columns} value={op.domain ?? ''} onChange={(domain) => set({ domain })} placeholder="{{Company website}}" />
-		</div> : <PromptField label="Email to verify" columns={columns} value={op.email ?? ''} onChange={(email) => set({ email })} placeholder="{{Email}}" />}
+		<PromptField label="Email to verify" columns={columns} value={op.email} onChange={(email) => set({ email })} placeholder="{{Work email}}" />
+		<PreferField value={op.prefer} onChange={(prefer) => set({ prefer })} />
 	</>;
 }
 
-function ProspeoFields({ op, set, columns }: FieldsProps<'prospeo'>) {
+function FindPhoneFields({ op, set, columns }: FieldsProps<'phone-find'>) {
 	return <>
-		<ProviderNote provider="Prospeo" />
-		<Field label="Look up">{(id) => <Select id={id} value={op.field} onValueChange={(value) => set({ field: value as OpOf<'prospeo'>['field'] })}>{PROSPEO_FIELDS.map((field) => <option key={field} value={field}>{PROSPEO_LABELS[field]}</option>)}</Select>}</Field>
-		<div className="grid gap-4 sm:grid-cols-2">
-			<PromptField label="Full name" columns={columns} value={op.name ?? ''} onChange={(name) => set({ name })} placeholder="{{Name}}" />
-			<PromptField label="Company domain" columns={columns} value={op.domain ?? ''} onChange={(domain) => set({ domain })} placeholder="{{Company website}}" />
-			<PromptField label="Email" columns={columns} value={op.email ?? ''} onChange={(email) => set({ email })} placeholder="{{Email}}" />
-			<PromptField label="LinkedIn URL" help="Provide a LinkedIn URL, an email, or a full name and company domain." columns={columns} value={op.profileUrl ?? ''} onChange={(profileUrl) => set({ profileUrl })} placeholder="{{LinkedIn}}" />
+		<div className="grid gap-3 sm:grid-cols-2">
+			<PromptField label="LinkedIn URL" help="Best match. Without it, give a name and a company." columns={columns} value={op.profileUrl} onChange={(profileUrl) => set({ profileUrl })} placeholder="{{LinkedIn}}" />
+			<PromptField label="Person name" columns={columns} value={op.name} onChange={(name) => set({ name })} placeholder="{{Name}}" />
+			<PromptField label="Company (optional)" columns={columns} value={op.company} onChange={(company) => set({ company })} placeholder="{{Company}}" />
+			<PromptField label="Company domain (optional)" columns={columns} value={op.domain} onChange={(domain) => set({ domain })} placeholder="{{Company website}}" />
 		</div>
-		<div className="flex items-center justify-between gap-3"><span className="text-body-sm">Only return people with a verified email</span><Switch checked={op.onlyVerifiedEmail} onChange={(onlyVerifiedEmail) => set({ onlyVerifiedEmail })} label="Only verified email" /></div>
-		{op.field === 'mobile' && <p className="rounded-lg border border-warning-line bg-warning-soft px-3 py-2 text-caption text-warning-strong">Mobile lookup can cost 10 Prospeo credits per number found. Turn off the verified email requirement to include people who only have a mobile.</p>}
+		<PreferField value={op.prefer} onChange={(prefer) => set({ prefer })} />
+		<p className="text-caption text-fg-subtle">Phone lookups cost more than emails. Check the estimate before you run a column.</p>
+	</>;
+}
+
+interface CatalogHit { endpointId: string; provider: string | null; name: string; category: string | null; job: string | null; runnable: boolean; priceUsd: number | null }
+interface Inspected { endpointId: string; priceUsd: number | null; inputs: Array<{ name: string; type: string; description: string; required: boolean }> }
+
+async function loootJson<T>(url: string): Promise<T> {
+	const response = await fetch(url, { headers: keyHeaders(), cache: 'no-store' });
+	const data = await response.json().catch(() => null) as (T & { error?: string }) | null;
+	if (!response.ok || !data) throw new Error(data?.error ?? `looot answered ${response.status}`);
+	return data;
+}
+
+/** Any looot endpoint: search the catalog in plain words, inspect the pick, map its inputs from columns with
+    `{{Column}}` templates, and see the price per row. The run asks to confirm the estimated cost before it spends. */
+function LoootFields({ op, set, columns }: FieldsProps<'looot'>) {
+	const [query, setQuery] = useState('');
+	const [hits, setHits] = useState<CatalogHit[]>([]);
+	const [descriptions, setDescriptions] = useState<Record<string, string>>({});
+	const [busy, setBusy] = useState<'search' | 'inspect' | null>(null);
+	const [error, setError] = useState('');
+	const [newInput, setNewInput] = useState('');
+	const columnNames = columns.map((column) => column.name);
+	const job = op.endpointId.startsWith('job:');
+
+	async function search() {
+		if (!query.trim()) return;
+		setBusy('search'); setError('');
+		try { setHits((await loootJson<{ results: CatalogHit[] }>(`/api/looot/search?q=${encodeURIComponent(query.trim())}`)).results); }
+		catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not search looot.'); }
+		finally { setBusy(null); }
+	}
+
+	async function pick(hit: CatalogHit) {
+		setBusy('inspect'); setError('');
+		try {
+			const detail = await loootJson<Inspected>(`/api/looot/inspect?id=${encodeURIComponent(hit.endpointId)}`);
+			setDescriptions(Object.fromEntries(detail.inputs.map((input) => [input.name, `${input.type}${input.required ? ', required' : ''}${input.description ? `: ${input.description}` : ''}`])));
+			set({
+				endpointId: hit.endpointId,
+				inputs: suggestInputMap(detail.inputs.map((input) => input.name), columnNames),
+				inputTypes: Object.fromEntries(detail.inputs.map((input) => [input.name, input.type])),
+				unitCostUsd: detail.priceUsd ?? hit.priceUsd,
+			});
+		} catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not inspect this endpoint.'); }
+		finally { setBusy(null); }
+	}
+
+	const names = Object.keys(op.inputs);
+	return <>
+		<Field label="Find an endpoint" help="Describe what you want in plain words, for example work email from name and company. Searching is free.">
+			{(id) => <div className="flex gap-2"><Input id={id} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void search(); } }} placeholder="Find LinkedIn posts for a profile" /><Button size="sm" loading={busy === 'search'} disabled={!query.trim()} onClick={() => void search()}>Search looot</Button></div>}
+		</Field>
+		{error && <p role="alert" className="text-body-sm text-danger">{error}</p>}
+		{hits.length > 0 && <ul aria-label="looot endpoints" className="flex max-h-56 flex-col gap-1 overflow-auto rounded-lg border border-line-subtle p-1">
+			{hits.map((hit) => <li key={hit.endpointId}><button type="button" disabled={!hit.runnable || busy === 'inspect'} onClick={() => void pick(hit)} aria-pressed={op.endpointId === hit.endpointId} className="flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left text-body-sm hover:bg-tint/[0.05] disabled:opacity-50 aria-pressed:bg-tint/[0.08]">
+				<span className="text-fg">{hit.name}</span>
+				<span className="text-caption text-fg-subtle">{hit.provider ?? 'provider'} · {hit.endpointId} · {formatUsd(hit.priceUsd)} per call{hit.runnable ? '' : ' · needs your own account'}</span>
+			</button></li>)}
+		</ul>}
+		<Field label="Endpoint" help="The picked endpoint id. Type job:<job id>, for example job:people.email.find, to let looot pick the provider and walk to the next on a miss. Use that job's input names then.">
+			{(id) => <Input id={id} value={op.endpointId} onChange={(event) => set({ endpointId: event.target.value.trim() })} placeholder="Pick one above, or paste an endpoint id" />}
+		</Field>
+		{op.endpointId && <>
+			<div className="flex flex-col gap-3">
+				{names.map((name) => <div key={name} className="flex flex-col gap-1">
+					<span className="text-caption text-fg-muted" title={descriptions[name]}>{name}{op.inputTypes[name] ? <span className="ml-1.5 rounded bg-neutral-5 px-1 text-fg-subtle">{op.inputTypes[name]}</span> : null}{descriptions[name]?.includes('required') ? ' *' : ''}</span>
+					<ColumnPrompt id={`looot-input-${name}`} rows={1} columns={columns} value={op.inputs[name]} onChange={(value) => set({ inputs: { ...op.inputs, [name]: value } })} placeholder="{{Column}} or fixed text" />
+				</div>)}
+				<div className="flex items-end gap-2">
+					<Field label="Add an input" help="An input the endpoint takes that is not listed.">{(id) => <Input id={id} value={newInput} onChange={(event) => setNewInput(event.target.value)} placeholder="input name" />}</Field>
+					<Button size="sm" disabled={!newInput.trim() || newInput.trim() in op.inputs} onClick={() => { set({ inputs: { ...op.inputs, [newInput.trim()]: '' } }); setNewInput(''); }}>Add</Button>
+				</div>
+			</div>
+			<Field label="Keep this field of the answer (optional)" help="A dot path into the answer, for example data.0.email. Empty keeps the whole answer.">{(id) => <Input id={id} value={op.path} onChange={(event) => set({ path: event.target.value })} placeholder="email" />}</Field>
+			{job && <PreferField value={op.prefer} onChange={(prefer) => set({ prefer })} />}
+			<p role="status" className="rounded-lg border border-line-subtle bg-neutral-5/60 px-3 py-2 text-caption text-fg-muted">{op.unitCostUsd !== null ? `About ${formatUsd(op.unitCostUsd)} per row. The run shows the total for the rows you pick and asks before it spends.` : 'The price of this endpoint is not known yet. Pick it from the search above to see it.'}</p>
+		</>}
 	</>;
 }
 
 function ResearchFields({ op, set, columns }: FieldsProps<'answer'>) {
 	return <>
-		<PromptField label="Research task" help="Context.dev researches this across the web and returns a sourced answer." columns={columns} rows={3} value={op.task} onChange={(task) => set({ task })} placeholder="What is {{Company}}'s most recent funding round, amount and lead investor?" />
+		<PromptField label="Research task" help="AI searches the web and reads pages through looot, then returns a sourced answer." columns={columns} rows={3} value={op.task} onChange={(task) => set({ task })} placeholder="What is {{Company}}'s most recent funding round, amount and lead investor?" />
 		<div className="grid gap-4 sm:grid-cols-2">
 			<OutputField value={op.output} onChange={(output) => set({ output })} />
-			<Field label="Depth">{(id) => <Select id={id} value={op.mode} onValueChange={(value) => set({ mode: value as 'fast' | 'ultra' })}><option value="fast">Fast · about 10 credits per row</option><option value="ultra">Ultra · about 100 credits per row</option></Select>}</Field>
+			<Field label="Depth">{(id) => <Select id={id} value={op.mode} onValueChange={(value) => set({ mode: value as 'fast' | 'ultra' })}><option value="fast">Fast · about 1 cent per row</option><option value="ultra">Ultra · about 3 cents per row</option></Select>}</Field>
 		</div>
 	</>;
 }

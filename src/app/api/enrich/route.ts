@@ -8,6 +8,6 @@ export const maxDuration = 300;
 export async function POST(request: Request) {
 	const prepared = await routeInput(request, EnrichRequestSchema);
 	if (prepared instanceof Response) return prepared;
-	const result = await runOp(prepared.access, prepared.input.op, prepared.input.row);
+	const result = await runOp(prepared.access, prepared.input.op, prepared.input.row, prepared.input.attempt);
 	return new Response(JSON.stringify(result), { status: 200, headers: NO_STORE_HEADERS });
 }

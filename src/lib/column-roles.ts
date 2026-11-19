@@ -44,9 +44,9 @@ function declaredRole(op: ColumnOp | undefined): ColumnRole | null | undefined {
 		case 'email-draft': return 'email-draft';
 		case 'ai': case 'answer': return op.output === 'document' ? 'document' : undefined;
 		case 'company': return op.field === 'title' ? 'company' : null;
-		case 'person': case 'prospeo': return BY_FIELD[op.field] ?? null;
+		case 'person': return BY_FIELD[op.field] ?? null;
 		case 'email-enrichment': return 'email';
-		case 'hunter': return op.action === 'find' ? 'email' : null;
+		case 'email-verify': return null;
 		case 'scrape': return op.mode === 'url' ? 'webpage' : undefined;
 		default: return undefined;
 	}

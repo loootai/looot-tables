@@ -1,6 +1,6 @@
 'use client';
 
-import { contextRequest } from './context-credits';
+import { loootRequest } from './looot-requests';
 import { notifyTrialLimit } from './ai-trial';
 import { keyHeaders, loadSettings, type Settings } from './keys';
 import type { Provider } from './organization-settings';
@@ -19,7 +19,7 @@ export class ApiError extends Error {
 	}
 }
 
-const FAILURE_PROVIDERS: readonly FailureProvider[] = ['openai', 'context', 'typesafe', 'email'];
+const FAILURE_PROVIDERS: readonly FailureProvider[] = ['openai', 'looot', 'typesafe'];
 
 /** Accept only a well-formed failure from the response body. */
 export function parseFailure(value: unknown): EnrichFailure | undefined {
@@ -40,15 +40,15 @@ export async function readError(response: Response): Promise<ApiError> {
 	return new ApiError(message, response.status, failure);
 }
 
-export async function enrichCell(op: ColumnOp, row: Record<string, CellValue>, signal?: AbortSignal): Promise<EnrichResponse> {
+export async function enrichCell(op: ColumnOp, row: Record<string, CellValue>, signal?: AbortSignal, attempt?: string): Promise<EnrichResponse> {
 	const settings = loadSettings();
 	const deadline = new AbortController();
 	const timer = setTimeout(() => deadline.abort(), ENRICHMENT_REQUEST_MS);
 	try {
-		const response = await contextRequest('/api/enrich', {
+		const response = await loootRequest('/api/enrich', {
 			method: 'POST',
 			headers: { ...keyHeaders(), 'x-prefer-jev': settings.preferJev ? 'true' : 'false' },
-			body: JSON.stringify({ op, row }),
+			body: JSON.stringify({ op, row, ...(attempt ? { attempt } : {}) }),
 			signal: signal ? AbortSignal.any([signal, deadline.signal]) : deadline.signal,
 		});
 		if (!response.ok) throw await readError(response);
@@ -81,15 +81,9 @@ export async function verifyKeys(options: { settings?: Settings; signal?: AbortS
 }
 
 export interface ServerKeys {
- enrichmentTrial?: boolean;
-	openaiTrial?: { model: string };
-	typesafeTrial?: boolean;
-	contextConnected?: boolean;
 	openai: boolean;
-	context: boolean;
+	looot: boolean;
 	typesafe: boolean;
-	hunter?: boolean;
-	prospeo?: boolean;
 	passwordRequired: boolean;
 }
 

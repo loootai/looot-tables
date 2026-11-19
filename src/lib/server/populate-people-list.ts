@@ -1,9 +1,8 @@
 import 'server-only';
-import { lookupPerson } from './person-lookup';
+import { personLookup, type PersonHit } from './looot-jobs';
 
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
-import type { PersonEnrichParams, PersonEnrichResponse } from 'context.dev/resources/people';
 import type { FoundRow, PopulateEvent, PopulateRequest } from '../types';
 import { profileUrl } from '../profile-photo';
 import { MAX_ROWS } from '../workspace';
@@ -36,47 +35,40 @@ Extract only identity clues supplied in the request. Preserve the full name, and
 	return output;
 }
 
-export function personEnrichmentInput(person: ListedPerson): PersonEnrichParams | null {
-	const company = { ...(person.companyName ? { name: person.companyName } : {}), ...(person.companyDomain ? { domain: person.companyDomain } : {}) };
-	const location = { ...(person.city ? { city: person.city } : {}), ...(person.region ? { region: person.region } : {}), ...(person.country ? { country: person.country } : {}) };
-	const name = person.firstName && person.lastName ? { first: person.firstName, last: person.lastName } : undefined;
-	if (!person.email && !person.profileUrls.length && !(name && (Object.keys(company).length || Object.keys(location).length || person.school))) return null;
+/** What to look a listed person up by, or null when the supplied clues are too thin to identify anyone. */
+export interface PersonLookupInput { name?: string; company?: string; companyDomain?: string; email?: string; profileUrl?: string }
+
+export function personEnrichmentInput(person: ListedPerson): PersonLookupInput | null {
+	const name = person.name ?? [person.firstName, person.lastName].filter(Boolean).join(' ');
+	const linkedin = person.profileUrls.find((url) => /linkedin\.com\//i.test(url));
+	if (!person.email && !linkedin && !(name && (person.companyName || person.companyDomain))) return null;
 	return {
 		...(name ? { name } : {}),
 		...(person.email ? { email: person.email } : {}),
-		...(person.profileUrls.length ? { social_urls: person.profileUrls } : {}),
-		...(Object.keys(company).length ? { company } : {}),
-		...(Object.keys(location).length ? { location } : {}),
-		...(person.school ? { education: [{ institution: { name: person.school } }] } : {}),
-		timeoutOpts: { milliseconds: 60_000, behavior: 'return-partial' },
+		...(linkedin ? { profileUrl: linkedin } : {}),
+		...(person.companyName ? { company: person.companyName } : {}),
+		...(person.companyDomain ? { companyDomain: person.companyDomain } : {}),
 	};
 }
 
-export function listedPersonRow(input: ListedPerson, response?: PersonEnrichResponse): FoundRow {
-	const match = response?.match;
-	const person = match?.status === 'candidate' ? match.person : null;
-	// Never present a former employer as the person's current company.
-	const role = person?.current_role_status === 'present' ? person.current_role : undefined;
+export function listedPersonRow(input: ListedPerson, found?: PersonHit | null): FoundRow {
 	return {
-		Name: input.name ?? person?.name?.full ?? ([person?.name?.first, person?.name?.last].filter(Boolean).join(' ') || input.email || input.profileUrls[0] || 'Unknown person'),
-		'Profile photo': profileUrl(person?.avatar_url),
-		Title: role?.title ?? null,
-		Company: role?.organization.name ?? null,
-		'Company domain': role?.organization.domain ?? null,
+		Name: input.name ?? found?.name ?? (input.email || input.profileUrls[0] || 'Unknown person'),
+		'Profile photo': profileUrl(found?.avatarUrl),
+		Title: found?.title ?? null,
+		Company: found?.company ?? null,
+		'Company domain': found?.companyDomain ?? null,
 		'Supplied company': input.companyName,
 		'Supplied company domain': input.companyDomain,
-		LinkedIn: person?.social_urls.find((url) => url.includes('linkedin.com/')) ?? input.profileUrls.find((url) => url.includes('linkedin.com/')) ?? null,
-		Email: person?.email ?? input.email,
-		Location: person?.location?.display ?? ([person?.location?.city, person?.location?.region, person?.location?.country].filter(Boolean).join(', ') || null),
-		Schools: person?.education.map((entry) => entry.institution.name) ?? [],
-		Skills: person?.skills ?? [],
-		Summary: person?.bio ?? null,
-		'Profile URLs': person?.social_urls ?? input.profileUrls,
-		Websites: person?.website_urls ?? [],
-		Experience: person?.experience.map((entry) => `${entry.title} at ${entry.organization.name}`) ?? [],
-		'Current role status': person?.current_role_status ?? null,
-		'Enrichment status': person ? (response?.partial ? 'Partial match' : 'Candidate found') : 'No match',
-		'Match score': match?.score ?? null,
+		LinkedIn: found?.linkedin ?? input.profileUrls.find((url) => url.includes('linkedin.com/')) ?? null,
+		Email: found?.email ?? input.email,
+		Location: found?.location ?? null,
+		Schools: found?.schools ?? [],
+		Skills: found?.skills ?? [],
+		Summary: found?.bio ?? null,
+		'Profile URLs': input.profileUrls,
+		Experience: found?.experience ?? [],
+		'Enrichment status': found ? 'Candidate found' : 'No match',
 	};
 }
 
@@ -84,7 +76,7 @@ export function listedPersonRow(input: ListedPerson, response?: PersonEnrichResp
 const LOOKUP_CONCURRENCY = 4;
 
 export async function populatePeopleList(access: ProviderAccess, request: PopulateRequest, people: ListedPerson[], emit: (event: PopulateEvent) => void, signal: AbortSignal) {
-	const client = access.context();
+	const client = access.looot();
 	const seen = new Set((request.existingKeys ?? []).map(foundRowKey));
 	const capacity = request.availableRows ?? MAX_ROWS;
 	const identities = new Set<string>();
@@ -98,7 +90,8 @@ export async function populatePeopleList(access: ProviderAccess, request: Popula
 	let failed = 0;
 	const lookup = async (person: ListedPerson) => {
 		try {
-			return listedPersonRow(person, await lookupPerson(client, personEnrichmentInput(person), person.name ?? '', { signal }));
+			const lookup = personEnrichmentInput(person);
+				return listedPersonRow(person, lookup ? (await personLookup(client, lookup, { signal })).person : null);
 		} catch (error) {
 			signal.throwIfAborted();
 			failed++;

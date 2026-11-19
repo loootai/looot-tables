@@ -1,4 +1,4 @@
-import { defaultEmailWaterfall } from '@/lib/email-waterfall';
+import { defaultEmailFind } from '@/lib/email-defaults';
 import { columnsEntity, roleColumn } from '@/lib/column-roles';
 import { instructionText, OPERATIONS } from '@/lib/operations';
 import type { Column, ColumnOp, EntityKind, FormulaSuggestion, OpKind, Sheet } from '@/lib/types';
@@ -6,18 +6,19 @@ import type { Column, ColumnOp, EntityKind, FormulaSuggestion, OpKind, Sheet } f
 export type EditorKind = OpKind | 'formula';
 export type EditorOp = ColumnOp | FormulaSuggestion;
 export interface OperationChoice { kind: EditorKind; label: string; description: string; name: string }
-export interface OperationGroup { id: 'ai' | 'decide' | 'web' | 'data' | 'email' | 'formula'; label: string; choices: OperationChoice[] }
+export interface OperationGroup { id: 'ai' | 'decide' | 'web' | 'data' | 'email' | 'looot' | 'formula'; label: string; choices: OperationChoice[] }
 
 /** A catalog operation as the picker shows it; `label` shortens the catalog label where the group already says what it is. */
 const choice = (kind: OpKind, label = OPERATIONS[kind].label): OperationChoice => ({ kind, label, name: OPERATIONS[kind].columnName, description: OPERATIONS[kind].description });
 
-/** Six top-level choices; every operation kind stays reachable (Hunter and Prospeo live under Find email). */
+/** Seven top-level choices; every operation kind stays reachable. */
 export const OPERATION_GROUPS: OperationGroup[] = [
 	{ id: 'ai', label: 'AI answer', choices: [choice('ai'), choice('answer'), choice('email-draft')] },
 	{ id: 'decide', label: 'Classify', choices: [choice('check', 'True / false'), choice('classify', 'Category'), choice('score')] },
 	{ id: 'web', label: 'Web page', choices: [choice('scrape'), choice('search')] },
 	{ id: 'data', label: 'Company & person', choices: [choice('company', 'Company'), choice('person', 'Person')] },
-	{ id: 'email', label: 'Find email', choices: [choice('email-enrichment', 'Work email'), choice('hunter', 'Verify email'), choice('prospeo', 'Mobile & profile')] },
+	{ id: 'email', label: 'Find email', choices: [choice('email-enrichment', 'Work email'), choice('email-verify', 'Verify email'), choice('phone-find', 'Phone')] },
+	{ id: 'looot', label: 'Any looot endpoint', choices: [choice('looot', 'Any looot endpoint')] },
 	{ id: 'formula', label: 'Formula', choices: [
 		{ kind: 'formula', label: 'Formula', name: 'Formula', description: 'Calculate or transform existing data locally, with a preview of up to 10 rows.' },
 		choice('template'),
@@ -51,9 +52,17 @@ export function defaultOp(kind: EditorKind, columns: Column[], jevAvailable: boo
 		case 'formula':
 			return { kind, request: seed };
 		case 'email-enrichment': {
-			const waterfall = defaultEmailWaterfall(columns);
-			return { ...waterfall, domain: waterfall.domain || domain };
+			const find = defaultEmailFind(columns);
+			return { ...find, domain: find.domain || domain };
 		}
+		case 'email-verify':
+			return { kind, email: columnRef(guessEmailColumn(columns)), prefer: 'balanced' };
+		case 'phone-find': {
+			const find = defaultEmailFind(columns);
+			return { kind, name: find.name, company: find.company, domain: find.domain || domain, profileUrl: find.profileUrl, prefer: 'balanced' };
+		}
+		case 'looot':
+			return { kind, endpointId: '', inputs: {}, inputTypes: {}, unitCostUsd: null, path: '', prefer: 'balanced' };
 		case 'email-draft':
 			return { kind, mode: 'ai', prompt: seed || 'Draft a personalized email using this row.', to: columnRef(guessEmailColumn(columns)), cc: '', bcc: '', subject: '', body: '' };
 		case 'ai':
@@ -72,10 +81,6 @@ export function defaultOp(kind: EditorKind, columns: Column[], jevAvailable: boo
 			return { kind, domain, field: 'description' };
 		case 'person':
 			return { kind, field: 'title' };
-		case 'hunter':
-			return { kind, action: 'verify', email: columnRef(guessEmailColumn(columns)) };
-		case 'prospeo':
-			return { kind, field: 'mobile', onlyVerifiedEmail: true, domain };
 		case 'answer':
 			return { kind, task: seed, output: 'text', mode: 'fast' };
 		case 'template':

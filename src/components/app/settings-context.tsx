@@ -9,13 +9,10 @@ import { deriveConnections, isReady, type Connection } from './providers';
 
 interface SettingsContextValue {
 	selfHosted: boolean;
-	/** Hosted Context.dev sign-in: a missing or expired Context.dev connection is fixed by reconnecting, not by pasting a key. */
-	contextSignIn: boolean;
 	workspaceName: string;
 	trialLimitMessage: string | null;
 	reportTrialLimit: (message: string) => void;
 	settings: Settings;
-	logolinkPublicId?: string;
 	update: (patch: Partial<Settings>, expectedRevision?: number) => Promise<void>;
 	organization: OrganizationSettings | null;
 	settingsError: string | null;
@@ -26,7 +23,7 @@ interface SettingsContextValue {
 	server: ServerKeys | null;
 	connections: Record<Provider, Connection>;
 	ready: boolean;
-	/** Context.dev and OpenAI, which Find rows needs. Runs ask `providerReady` for just the providers their operations need. */
+	/** looot and OpenAI, which Find rows needs. Runs ask `providerReady` for just the providers their operations need. */
 	hasKeys: boolean;
 	providerReady: (provider: Provider) => boolean;
 	hasJev: boolean;
@@ -39,7 +36,7 @@ const SettingsContext = createContext<SettingsContextValue | null>(null);
 
 const serverSnapshot = () => DEFAULT_SETTINGS;
 
-export function SettingsProvider({ children, logolinkPublicId, selfHosted = false, contextSignIn = false, workspaceName = '' }: { children: ReactNode; logolinkPublicId?: string; selfHosted?: boolean; contextSignIn?: boolean; workspaceName?: string }) {
+export function SettingsProvider({ children, selfHosted = false, workspaceName = '' }: { children: ReactNode; selfHosted?: boolean; workspaceName?: string }) {
 	const settings = useSyncExternalStore(subscribeSettings, loadSettings, serverSnapshot);
 	const [settingsError, setSettingsError] = useState<string | null>(null);
 	const organization = organizationSettingsSnapshot();
@@ -89,15 +86,15 @@ export function SettingsProvider({ children, logolinkPublicId, selfHosted = fals
 		else await saveSettings({ [providerField[provider]]: '' });
 		setServer(await serverKeys());
 	}, []);
-	const connections = useMemo(() => deriveConnections({ settings, organization, server, selfHosted, trialLimited: Boolean(trialLimitMessage) }), [settings, organization, server, selfHosted, trialLimitMessage]);
-	// A key of the member's own replaces the trial, so its limit no longer applies.
+	const connections = useMemo(() => deriveConnections({ settings, organization, server }), [settings, organization, server]);
+	// A key of the member's own ends the prompt for one.
 	const activeTrialLimit = connections.openai.state === 'connected' || connections.openai.state === 'saved' ? null : trialLimitMessage;
-	const hasKeys = isReady(connections.context) && isReady(connections.openai);
+	const hasKeys = isReady(connections.looot) && isReady(connections.openai);
 	const providerReady = useCallback((provider: Provider) => isReady(connections[provider]), [connections]);
 	const hasJev = connections.typesafe.state !== 'missing' && connections.typesafe.state !== 'expired';
 	const openKeys = useCallback(() => setKeysOpen(true), []);
 	const closeKeys = useCallback(() => setKeysOpen(false), []);
-	const value = useMemo<SettingsContextValue>(() => ({ selfHosted, contextSignIn, workspaceName, settings, update, organization, settingsError, retrySettings, canImportSettings: Boolean(localSettingsToImport()), importSettings, disconnectProvider, server, connections, ready, hasKeys, providerReady, hasJev, logolinkPublicId, keysOpen, trialLimitMessage: activeTrialLimit, reportTrialLimit, openKeys, closeKeys }), [selfHosted, contextSignIn, workspaceName, settings, update, organization, settingsError, retrySettings, importSettings, disconnectProvider, server, connections, ready, hasKeys, providerReady, hasJev, logolinkPublicId, keysOpen, activeTrialLimit, reportTrialLimit, openKeys, closeKeys]);
+	const value = useMemo<SettingsContextValue>(() => ({ selfHosted, workspaceName, settings, update, organization, settingsError, retrySettings, canImportSettings: Boolean(localSettingsToImport()), importSettings, disconnectProvider, server, connections, ready, hasKeys, providerReady, hasJev, keysOpen, trialLimitMessage: activeTrialLimit, reportTrialLimit, openKeys, closeKeys }), [selfHosted, workspaceName, settings, update, organization, settingsError, retrySettings, importSettings, disconnectProvider, server, connections, ready, hasKeys, providerReady, hasJev, keysOpen, activeTrialLimit, reportTrialLimit, openKeys, closeKeys]);
 	return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 

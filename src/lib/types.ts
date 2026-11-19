@@ -29,15 +29,14 @@ export type Decider = (typeof DECIDERS)[number];
 const deciderField = z.enum(DECIDERS).default('jev');
 const pageField = PageSourceSchema.optional();
 
-export const PROSPEO_FIELDS = ['email', 'mobile', 'full_name', 'title', 'company', 'company_domain', 'linkedin', 'location'] as const;
-
 export const EmailDraftSchema = z.object({
  to: z.string(), cc: z.string(), bcc: z.string(), subject: z.string(), body: z.string(),
 });
 export type EmailDraft = z.infer<typeof EmailDraftSchema>;
 
-export const EMAIL_PROVIDERS = ['quickenrich', 'hunter', 'apollo', 'prospeo', 'contactout'] as const;
-export type EmailProvider = typeof EMAIL_PROVIDERS[number];
+/** How looot orders the providers of a job: the cheapest first, the most reliable first, or a mix of both. */
+export const EMAIL_PREFERENCES = ['balanced', 'cheapest', 'reliable'] as const;
+export type EmailPreference = typeof EMAIL_PREFERENCES[number];
 export const ColumnOpSchema = z.discriminatedUnion('kind', [
  z.object({
   kind: z.literal('email-enrichment'),
@@ -45,7 +44,36 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
   company: z.string().max(300).default(''),
   domain: z.string().trim().min(1).max(500),
   profileUrl: z.string().max(500).default(''),
-  providers: z.array(z.enum(EMAIL_PROVIDERS)).min(1).max(5).default([...EMAIL_PROVIDERS]).refine(items => new Set(items).size === items.length, 'Each provider can appear only once.'),
+  /** looot's job:people.email.find walks its providers in this order until one finds an email. */
+  prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
+ }),
+ z.object({
+  kind: z.literal('email-verify'),
+  email: z.string().trim().min(1).max(300),
+  prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
+ }),
+ z.object({
+  kind: z.literal('phone-find'),
+  name: z.string().max(300).default(''),
+  company: z.string().max(300).default(''),
+  domain: z.string().max(500).default(''),
+  profileUrl: z.string().max(500).default(''),
+  prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
+ }).refine((op) => Boolean(op.profileUrl.trim() || op.name.trim()), { message: 'Provide a LinkedIn URL, or a name and company.' }),
+ /** Any looot endpoint: a catalog endpoint with its inputs mapped from `{{Column}}` templates. */
+ z.object({
+  kind: z.literal('looot'),
+  endpointId: z.string().trim().min(1).max(200),
+  /** Endpoint input name -> template. A template that is only `{{Column}}` passes that cell's value as it is. */
+  inputs: z.record(z.string().min(1).max(100), z.string().max(2000)).default({}),
+  /** The JSON type each input declares (string, number, array...), read from the endpoint when the column was set up. */
+  inputTypes: z.record(z.string().min(1).max(100), z.string().max(40)).default({}),
+  /** The endpoint's estimated price per row in USD at setup, so a run can show its cost before it starts. */
+  unitCostUsd: z.number().min(0).max(1000).nullable().default(null),
+  /** Dotted path into the run's `normalized.fields` or `result` to keep, or empty for the whole answer. */
+  path: z.string().max(200).default(''),
+  /** The job's provider order. Only used when the endpoint is a job (job:<id>). */
+  prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
  }),
  z.object({
   kind: z.literal('email-draft'),
@@ -57,7 +85,7 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
   subject: z.string().max(2000).default(''),
   body: z.string().max(20000).default(''),
  }),
-	/** OpenAI answers a question about the row; optionally researching the web with Context.dev first. */
+	/** OpenAI answers a question about the row; optionally researching the web through looot first. */
 	z.object({
 		kind: z.literal('ai'),
 		prompt: z.string().min(1).max(4000),
@@ -92,7 +120,7 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
 		page: pageField,
 		decider: deciderField,
 	}),
-	/** Read a page with Context.dev and keep its text, relevant passages, or extracted fields. */
+	/** Read a page through looot and keep its text, relevant passages, or extracted fields. */
 	z.object({
 		kind: z.literal('scrape'),
 		page: PageSourceSchema,
@@ -101,7 +129,7 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
 		fields: z.array(z.object({ name: z.string().min(1).max(60), description: z.string().max(300).optional() })).max(20).optional(),
 		maxChars: z.number().int().min(100).max(20000).default(2000),
 	}),
-	/** Context.dev web search; keep the first URL, title, snippet or a list. */
+	/** Web search through looot; keep the first URL, title, snippet or a list. */
 	z.object({
 		kind: z.literal('search'),
 		query: z.string().min(1).max(500),
@@ -109,13 +137,13 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
 		numResults: z.number().int().min(1).max(10).default(3),
 		includeDomains: z.array(z.string()).max(20).optional(),
 	}),
-	/** Company facts from Context.dev brand retrieval. */
+	/** Company facts from looot's company.enrich and company.search jobs. */
 	z.object({
 		kind: z.literal('company'),
 		domain: z.string().min(1).max(500),
 		field: z.enum(['description', 'title', 'slogan', 'industry', 'employees', 'city', 'country', 'address', 'email', 'phone', 'ticker', 'linkedin', 'twitter', 'pricing_url', 'careers_url', 'blog_url', 'contact_url', 'logo_url', 'primary_color', 'language', 'funding_total', 'funding_stage', 'funding_latest_round', 'funding_latest_date', 'funding_latest_amount', 'funding_round_count']),
 	}),
-	/** Person facts from Context.dev people enrichment. */
+	/** Person facts from looot's people.enrich and linkedin.person.profile jobs. */
 	z.object({
 		kind: z.literal('person'),
 		name: z.string().max(300).optional(),
@@ -124,23 +152,7 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
 		profileUrl: z.string().max(500).optional(),
 		field: z.enum(['title', 'company', 'company_domain', 'location', 'bio', 'linkedin', 'email', 'skills', 'schools', 'degrees', 'experience', 'years_at_company', 'full_name']),
 	}),
-	z.object({
-		kind: z.literal('hunter'),
-		action: z.enum(['find', 'verify']),
-		name: z.string().max(300).optional(),
-		domain: z.string().max(500).optional(),
-		email: z.string().max(300).optional(),
-	}).refine((op) => op.action === 'find' ? Boolean(op.name?.trim() && op.domain?.trim()) : Boolean(op.email?.trim()), { message: 'Provide a name and domain to find an email, or an email to verify.' }),
-	z.object({
-		kind: z.literal('prospeo'),
-		name: z.string().max(300).optional(),
-		domain: z.string().max(500).optional(),
-		email: z.string().max(300).optional(),
-		profileUrl: z.string().max(500).optional(),
-		field: z.enum(PROSPEO_FIELDS),
-		onlyVerifiedEmail: z.boolean().default(true),
-	}).refine((op) => Boolean(op.email?.trim() || op.profileUrl?.trim() || op.name?.trim() && op.domain?.trim()), { message: 'Provide an email, LinkedIn URL, or name and company domain.' }),
-	/** Deep research with Context.dev web answers. */
+	/** Deep research: OpenAI searches the web and reads pages through looot, with a larger step budget. */
 	z.object({
 		kind: z.literal('answer'),
 		task: z.string().min(1).max(4000),
@@ -181,6 +193,23 @@ export interface Column {
 export type CellStatus = 'idle' | 'queued' | 'running' | 'done' | 'error';
 export type CellValue = string | number | boolean | null | string[];
 
+/** One looot run, kept on the cell so the panel can show who answered and what it cost. */
+export interface LoootCallMeta {
+	runId: string;
+	/** The job id (people.email.find) when the run was a job. */
+	job?: string;
+	/** The endpoint that answered, or the endpoint that was asked for. */
+	endpointId?: string;
+	/** The provider that answered. */
+	provider?: string;
+	outcome: 'hit' | 'weak' | 'miss' | 'error' | 'rejected' | 'skipped' | 'pending';
+	costUsd: number;
+	/** The providers a fallback route tried, in order. */
+	attempts?: Array<{ provider: string; endpointId?: string; outcome: string; costUsd: number; reason?: string }>;
+	/** How many providers the route skipped without calling. */
+	skipped?: number;
+}
+
 export interface CellMeta {
 	inputFingerprint?: string;
 	/** Photo returned for this exact person name by enrichment. */
@@ -196,12 +225,12 @@ export interface CellMeta {
 	probabilities?: Record<string, number>;
 	reasoning?: string;
 	model?: string;
-	credits?: number;
-	/** Provider-specific usage; kept separate from Context.dev credits. */
-	provider?: EmailProvider;
- enrichment?: { verified?: boolean; verificationStatus?: string; costUsd: number; attempts: Array<{ provider: EmailProvider; source: 'own-key' | 'included'; status: string; costUsd: number }> };
-	providerCredits?: number;
-	providerCreditUnit?: string;
+	/** What this cell's looot runs cost in USD. */
+	costUsd?: number;
+	/** The looot runs behind this cell, in order: which provider answered, the outcome, the price and any fallback attempts. */
+	looot?: LoootCallMeta[];
+	/** The email status a verify column keeps next to its value: valid, invalid, catch_all, risky or unknown. */
+	verification?: string;
 	durationMs?: number;
 	pageUrl?: string;
 	raw?: unknown;
@@ -324,12 +353,14 @@ export const EnrichRequestSchema = z.object({
 	/** Column name → current cell value for the row. */
 	row: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())])),
 	model: z.string().max(100).optional(),
+	/** One cell attempt. Each looot run of the attempt derives its idempotency key from it, so a resend of the same attempt never pays twice. */
+	attempt: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional(),
 });
 
 /** Why an enrichment failed. Set where the failure is understood; code branches on this, never on `error` text. */
 export const FAILURE_REASONS = ['rate_limited', 'credits_exhausted', 'credential_missing', 'credential_invalid', 'timeout', 'provider_error', 'input_invalid'] as const;
 export type FailureReason = (typeof FAILURE_REASONS)[number];
-export type FailureProvider = 'openai' | 'context' | 'typesafe' | 'email';
+export type FailureProvider = 'openai' | 'looot' | 'typesafe';
 export interface EnrichFailure {
 	reason: FailureReason;
 	/** The same request may succeed if repeated later without user action. */
@@ -364,10 +395,8 @@ export interface ComposeColumnResponse {
 }
 
 export interface KeyVerification {
-	hunter?: { ok: boolean; configured: boolean; message?: string };
-	prospeo?: { ok: boolean; configured: boolean; message?: string };
 	openai: { ok: boolean; message?: string; issue?: 'key' | 'billing' | 'model' | 'rate-limit' | 'connection'; inference?: boolean };
-	context: { ok: boolean; message?: string; credits?: number; issue?: 'key' | 'credits' };
+	looot: { ok: boolean; message?: string; balanceUsd?: number; issue?: 'key' | 'balance' };
 	typesafe: { ok: boolean; message?: string; configured: boolean };
 }
 

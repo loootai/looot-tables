@@ -1,27 +1,23 @@
-import { lookupPerson } from './person-lookup';
-import { profileUrl as safeProfileUrl } from '../profile-photo';
-import { companyContextForQuery } from './company-context';
-import { enrichmentValue } from '../enrichment-value';
-import { renderEmailDraft } from '../email-draft';
-import { EmailDraftSchema } from '../types';
-import { runEmailWaterfall } from './contextdevenrichmentwaterfall';
-import { runContactProvider } from './contact-providers';
-import { searchCompanySuggestions } from './company-search';
-import { fundingLabel } from '../funding';
-import { logoDomain } from '../organization-logo';
 import 'server-only';
 
 import { generateText, isStepCount, Output, tool } from 'ai';
-import type ContextDev from 'context.dev';
 import { z } from 'zod';
 import { coerceOutput, describeRow, formatValue, renderTemplate, toDomain, toUrl } from '../template';
 import { billingProvider, evaluatesLocally, instructionText } from '../operations';
 import { readsRowContext } from '../references';
+import { applyInputMap, getPath } from '../endpoint-map';
+import { profileUrl as safeProfileUrl } from '../profile-photo';
+import { enrichmentValue } from '../enrichment-value';
+import { renderEmailDraft } from '../email-draft';
+import { EmailDraftSchema } from '../types';
 import type { CellMeta, CellValue, ColumnOp, EnrichFailure, EnrichResponse, OutputType, PageSource } from '../types';
+import { logoDomain } from '../organization-logo';
+import { companyContextForQuery } from './company-context';
 import { CredentialError } from './credentials';
 import { afterSpend, classifyFailure, failure, inputError, Spend } from './enrich-failure';
-import { companySearch, extractFromPage, findPage, homepageUrl, PageNotFound, readPage, readWebOutput, resolveUrl, webSearch, type PageText } from './context';
 import { decideChoice, decideNoul, decideScore } from './jev';
+import { answerOf, companyEnrich, companyFieldValue, companySearch, extractFromPage, findEmail, findPage, findPhone, homepageUrl, isMiss, PageNotFound, pickValue, personLookup, readPage, readWebOutput, resolveUrl, searchCompanySuggestions, verifyEmail, webSearch, type PageText } from './looot-jobs';
+import type { LoootClient, LoootResult } from './looot';
 import type { ProviderAccess } from './provider-access';
 
 type Row = Record<string, CellValue>;
@@ -34,17 +30,19 @@ interface Run {
 	companyContext: string;
 }
 
-/** Run one column operation for one row. Never throws: errors come back as { error }. */
-export async function runOp(access: ProviderAccess, op: ColumnOp, row: Row): Promise<EnrichResponse> {
+/** Run one column operation for one row. Never throws: errors come back as { error }. `attempt` names this cell attempt;
+    every looot run it makes derives its idempotency key from it. */
+export async function runOp(access: ProviderAccess, op: ColumnOp, row: Row, attempt?: string): Promise<EnrichResponse> {
 	const started = Date.now();
 	// Everything this run asks of a provider, company research included, is recorded here by the clients themselves.
 	const spend = new Spend();
-	const run: Run = { access: access.withSpend(spend), sources: new Set(), companyContext: '' };
+	const run: Run = { access: access.withSpend(spend, attempt), sources: new Set(), companyContext: '' };
+	/** What the cell keeps about this run's money: the USD looot charged and each run behind it. */
+	const spent = (): CellMeta => ({ ...(spend.costUsd ? { costUsd: Math.round(spend.costUsd * 1e6) / 1e6 } : {}), ...(run.access.calls.length ? { looot: [...run.access.calls] } : {}) });
 	try {
 		if (!evaluatesLocally(op)) run.companyContext = await companyContextForQuery(run.access, instructionText(op));
 		const result = await execute(run, op, row);
-		const meta: CellMeta = { ...result.meta, durationMs: Date.now() - started };
-		if (spend.credits) meta.credits = spend.credits;
+		const meta: CellMeta = { ...result.meta, ...spent(), durationMs: Date.now() - started };
 		if (run.sources.size) meta.sources = [...new Set([...(meta.sources ?? []), ...run.sources])];
 		// Running the operation again would pay again for what this run already spent.
 		const outcome = result.error ? afterSpend(result.failure ?? failure('provider_error', billingProvider(op)), spend.paid) : undefined;
@@ -52,7 +50,7 @@ export async function runOp(access: ProviderAccess, op: ColumnOp, row: Row): Pro
 	} catch (error) {
 		// A failure the server cannot explain may have come after the request was sent.
 		const outcome = classifyFailure(error, billingProvider(op)) ?? failure('provider_error', billingProvider(op));
-		return { value: null, error: access.redact(error), failure: afterSpend(outcome, spend.paid), meta: { durationMs: Date.now() - started, credits: spend.credits || undefined } };
+		return { value: null, error: access.redact(error), failure: afterSpend(outcome, spend.paid), meta: { durationMs: Date.now() - started, ...spent() } };
 	}
 }
 
@@ -63,7 +61,7 @@ interface OpResult {
 	meta?: CellMeta;
 }
 
-async function resolvePage(client: ContextDev, page: PageSource, row: Row): Promise<string> {
+async function resolvePage(client: LoootClient, page: PageSource, row: Row): Promise<string> {
 	switch (page.type) {
 		case 'column': {
 			const value = formatValue(row[findKey(row, page.column)]);
@@ -92,7 +90,7 @@ function findKey(row: Row, name: string): string {
 	return Object.keys(row).find((key) => key.toLowerCase() === lower) ?? name;
 }
 
-async function readResolvedPage(client: ContextDev, page: PageSource, row: Row, sources: Set<string>, query?: string, maxChars?: number): Promise<PageText> {
+async function readResolvedPage(client: LoootClient, page: PageSource, row: Row, sources: Set<string>, query?: string, maxChars?: number): Promise<PageText> {
 	const url = await resolvePage(client, page, row);
 	const text = await readPage(client, url, { query, maxChars });
 	sources.add(url);
@@ -163,10 +161,13 @@ async function execute(run: Run, op: ColumnOp, row: Row): Promise<OpResult> {
 		case 'company':
 			return runCompany(run, op, row);
 		case 'email-enrichment':
-			return runEmailWaterfall(run.access, op, row);
-		case 'hunter':
-		case 'prospeo':
-			return runContactProvider(run.access, op, row);
+			return runEmailFind(run, op, row);
+		case 'email-verify':
+			return runEmailVerify(run, op, row);
+		case 'phone-find':
+			return runPhoneFind(run, op, row);
+		case 'looot':
+			return runLooot(run, op, row);
 		case 'person':
 			return runPerson(run, op, row);
 		case 'answer':
@@ -176,15 +177,21 @@ async function execute(run: Run, op: ColumnOp, row: Row): Promise<OpResult> {
 
 /* ───────────────────────────── Ask AI ───────────────────────────── */
 
-async function runAi({ access, sources, companyContext }: Run, op: Extract<ColumnOp, { kind: 'ai' }>, row: Row): Promise<OpResult> {
+async function runAi(run: Run, op: Extract<ColumnOp, { kind: 'ai' }>, row: Row): Promise<OpResult> {
+	return answerWithAi(run, { question: renderTemplate(op.prompt, row), output: op.output, research: op.research === 'web', page: op.page, includeRow: true, maxSteps: 8 }, row);
+}
+
+/** The shared agent behind Ask AI and Deep research: OpenAI answers one question, researching through looot when asked. */
+async function answerWithAi({ access, sources, companyContext }: Run, input: { question: string; output: OutputType; research: boolean; page?: PageSource; includeRow: boolean; maxSteps: number }, row: Row): Promise<OpResult> {
 	const model = access.openai();
-	const question = renderTemplate(op.prompt, row) + companyContext;
-	const context = describeRow(row);
+	const question = input.question + companyContext;
+	const context = input.includeRow ? describeRow(row) : '';
 	let pageText: PageText | null = null;
-	const wantsWeb = op.research === 'web';
-	const client = access.key('context') ? access.context() : null;
+	const wantsWeb = input.research;
+	const client = access.key('looot') ? access.looot() : null;
+	const op = { output: input.output, page: input.page };
 	if (op.page) {
-		if (!client) throw new CredentialError('Add your Context.dev API key in Configuration to read pages.', 401, 'credential_missing', 'context');
+		if (!client) throw new CredentialError('Add your looot token in Configuration to read pages.', 401, 'credential_missing', 'looot');
 		pageText = await readResolvedPage(client, op.page, row, sources, question, 8000);
 	}
 	const system = [
@@ -193,16 +200,16 @@ async function runAi({ access, sources, companyContext }: Run, op: Extract<Colum
 		'Return null when the answer cannot be established. Never invent facts.',
 		wantsWeb && client ? 'Use the tools to research the live web when the row and page do not already contain the answer. Prefer official sources (the company site, LinkedIn, press). Stop as soon as you have the answer.' : 'Answer only from the row, any page text, and supplied company reference data.',
 	].join('\n');
-	const prompt = [`ROW:\n${context || '(empty row)'}`, pageText ? `PAGE (${pageText.url}):\n${pageText.text}` : null, `QUESTION: ${question}`].filter(Boolean).join('\n\n');
+	const prompt = [input.includeRow ? `ROW:\n${context || '(empty row)'}` : null, pageText ? `PAGE (${pageText.url}):\n${pageText.text}` : null, `QUESTION: ${question}`].filter(Boolean).join('\n\n');
 	const tools =
 		wantsWeb && client
 			? {
 					searchWeb: tool({
-						description: 'Search the live web. Returns up to 5 results with titles, URLs and relevant passages.',
+						description: 'Search the live web. Returns up to 5 results with titles, URLs and snippets.',
 						inputSchema: z.object({ query: z.string().max(300) }),
 						execute: async ({ query }) => {
-							const result = await webSearch(client, query, { numResults: 5, highlights: true });
-							return result.results.map((hit) => ({ url: hit.url, title: hit.title, snippet: hit.description, passages: hit.highlights?.slice(0, 3) }));
+							const result = await webSearch(client, query, { numResults: 5 });
+							return result.results.map((hit) => ({ url: hit.url, title: hit.title, snippet: hit.description }));
 						},
 					}),
 					readPage: tool({
@@ -234,7 +241,7 @@ async function runAi({ access, sources, companyContext }: Run, op: Extract<Colum
 		system,
 		prompt,
 		tools,
-		stopWhen: isStepCount(8),
+		stopWhen: isStepCount(input.maxSteps),
 		output: Output.object({ schema: outputSchema(op.output) }),
 		// Billed once processed: a failed call is never resent (see `enrich-failure`).
 		maxRetries: 0,
@@ -248,7 +255,7 @@ async function runAi({ access, sources, companyContext }: Run, op: Extract<Colum
 async function buildState({ access, sources }: Run, page: PageSource | undefined, row: Row): Promise<{ state: string; pageUrl?: string; pageText?: string }> {
 	const rowText = describeRow(row);
 	if (!page) return { state: `ROW:\n${rowText || '(empty)'}` };
-	const pageText = await readResolvedPage(access.context(), page, row, sources, undefined, 40_000);
+	const pageText = await readResolvedPage(access.looot(), page, row, sources, undefined, 40_000);
 	return { state: `ROW:\n${rowText || '(empty)'}\n\nPAGE (${pageText.url}):\n${pageText.text}`, pageUrl: pageText.url, pageText: pageText.text };
 }
 
@@ -289,15 +296,16 @@ async function runScore(run: Run, op: Extract<ColumnOp, { kind: 'score' }>, row:
 	return { value: decision.level, meta: { probabilities: decision.probabilities, confidence: decision.confidence, model: decision.model, pageUrl, reasoning: decision.reasoning, raw: { score: decision.score } } };
 }
 
-/* ───────────────────────────── Context.dev data ops ───────────────────────────── */
+/* ───────────────────────────── looot data ops ───────────────────────────── */
 
 async function runScrape({ access, sources }: Run, op: Extract<ColumnOp, { kind: 'scrape' }>, row: Row): Promise<OpResult> {
-	const client = access.context();
+	const client = access.looot();
 	if (op.mode === 'url') {
 		const url = await resolvePage(client, op.page, row);
 		return { value: url, meta: { pageUrl: url } };
 	}
-	if (op.mode === 'links' || op.mode === 'map' || op.mode === 'html' || op.mode === 'images' || op.mode === 'emails' || op.mode === 'phone-numbers') {
+	if (op.mode === 'html' || op.mode === 'map') throw inputError(`"${op.mode}" output is not available through looot. Use markdown, links or images instead.`, 'looot');
+	if (op.mode === 'links' || op.mode === 'images' || op.mode === 'emails' || op.mode === 'phone-numbers') {
 		const url = await resolvePage(client, op.page, row);
 		const value = await readWebOutput(client, url, op.mode, op.maxChars);
 		sources.add(url);
@@ -312,9 +320,7 @@ async function runScrape({ access, sources }: Run, op: Extract<ColumnOp, { kind:
 	if (op.mode === 'extract') {
 		const url = await resolvePage(client, op.page, row);
 		const fields = op.fields?.length ? op.fields : [{ name: 'value', description: op.query }];
-		const properties: Record<string, unknown> = {};
-		for (const field of fields) properties[field.name] = { type: ['string', 'null'], description: field.description ?? field.name };
-		const data = await extractFromPage(client, url, { type: 'object', properties, required: Object.keys(properties), additionalProperties: false }, op.query ? renderTemplate(op.query, row) : undefined) ?? {};
+		const data = await extractFromPage(access, url, fields, op.query ? renderTemplate(op.query, row) : undefined);
 		sources.add(url);
 		if (fields.length === 1) return { value: coerceOutput(data[fields[0].name], 'text'), meta: { pageUrl: url, raw: data } };
 		return { value: JSON.stringify(data), meta: { pageUrl: url, raw: data } };
@@ -326,9 +332,9 @@ async function runScrape({ access, sources }: Run, op: Extract<ColumnOp, { kind:
 }
 
 async function runSearch({ access, sources }: Run, op: Extract<ColumnOp, { kind: 'search' }>, row: Row): Promise<OpResult> {
-	const client = access.context();
+	const client = access.looot();
 	const query = renderTemplate(op.query, row);
-	if (!query) throw inputError('Search query is empty for this row', 'context');
+	if (!query) throw inputError('Search query is empty for this row', 'looot');
 	const result = await webSearch(client, query, { numResults: op.numResults, includeDomains: op.includeDomains?.length ? op.includeDomains : undefined });
 	const first = result.results[0];
 	if (!first) return { value: null, meta: { reasoning: 'No results' } };
@@ -346,152 +352,113 @@ async function runSearch({ access, sources }: Run, op: Extract<ColumnOp, { kind:
 }
 
 async function runCompany({ access, sources }: Run, op: Extract<ColumnOp, { kind: 'company' }>, row: Row): Promise<OpResult> {
-	const client = access.context();
+	const client = access.looot();
 	const input = renderTemplate(op.domain, row).trim();
-	if (!input) throw inputError('No company or domain for this row', 'context');
+	if (!input) throw inputError('No company or domain for this row', 'looot');
 	const domain = logoDomain(input) ?? (await searchCompanySuggestions(client, input))[0]?.domain;
-	if (!domain) throw inputError('No matching company domain found for this row', 'context');
-	if (op.field.startsWith('funding_')) {
-		const result = await companySearch(client, { query: domain });
-		// Search can return similar companies; only use the exact requested domain.
-		const match = result.results.find((company) => logoDomain(company.domain) === domain);
-		const funding = match?.funding;
-		const values: Record<string, CellValue> = {
-			funding_total: funding?.total_usd ?? null,
-			funding_stage: fundingLabel(funding?.stage),
-			funding_latest_round: fundingLabel(funding?.latest_round?.type),
-			funding_latest_date: funding?.latest_round?.date ?? null,
-			funding_latest_amount: funding?.latest_round?.amount_usd ?? null,
-			funding_round_count: funding?.round_count ?? null,
-		};
-		sources.add(`https://${domain}`);
-		return { value: values[op.field], meta: { raw: funding ?? null, ...(match ? { companyIntel: { domain, input, source: 'company-search' as const, data: { ...match } } } : { reasoning: 'No exact company domain match found.' }) } };
-	}
-	const response = await client.brand.retrieve({ type: 'by_domain', domain, maxSpeed: true, timeoutOpts: { milliseconds: 45_000, behavior: 'return-partial' } });
-	const brand = response.brand ?? {};
+	if (!domain) throw inputError('No matching company domain found for this row', 'looot');
+	const result = await companyEnrich(client, domain);
 	sources.add(`https://${domain}`);
-	const social = (type: string) => brand.socials?.find((entry) => entry.type === type)?.url ?? null;
-	const value = ((): CellValue => {
-		switch (op.field) {
-			case 'description':
-				return brand.description ?? null;
-			case 'title':
-				return brand.title ?? null;
-			case 'slogan':
-				return brand.slogan ?? null;
-			case 'industry': {
-				const eic = brand.industries?.eic?.[0];
-				return eic ? [eic.industry, eic.subindustry].filter(Boolean).join(' · ') : null;
-			}
-			case 'employees':
-				return brand.employees?.exact ?? brand.employees?.range ?? null;
-			case 'city':
-				return brand.address?.city ?? null;
-			case 'country':
-				return brand.address?.country ?? brand.address?.country_code ?? null;
-			case 'address':
-				return [brand.address?.street, brand.address?.city, brand.address?.state_province, brand.address?.postal_code, brand.address?.country].filter(Boolean).join(', ') || null;
-			case 'email':
-				return brand.email ?? null;
-			case 'phone':
-				return brand.phone ?? null;
-			case 'ticker':
-				return brand.stock?.ticker ? `${brand.stock.ticker}${brand.stock.exchange ? ` (${brand.stock.exchange})` : ''}` : null;
-			case 'linkedin':
-				return social('linkedin');
-			case 'twitter':
-				return social('x');
-			case 'pricing_url':
-				return brand.links?.pricing ?? null;
-			case 'careers_url':
-				return brand.links?.careers ?? null;
-			case 'blog_url':
-				return brand.links?.blog ?? null;
-			case 'contact_url':
-				return brand.links?.contact ?? null;
-			case 'logo_url':
-				return brand.logos?.[0]?.url ?? null;
-			case 'primary_color':
-				return brand.colors?.[0]?.hex ?? null;
-			case 'language':
-				return brand.primary_language ?? null;
-			default:
-				return null;
-		}
-	})();
-	return { value, meta: { raw: { status: response.status }, companyIntel: { domain, input, source: 'brand', data: { ...brand } } } };
+	if (isMiss(result)) return { value: null, meta: { reasoning: 'No company data found for this domain.' } };
+	const answer = answerOf(result);
+	const value = companyFieldValue(answer, op.field);
+	const funding = op.field.startsWith('funding_');
+	const data = typeof result.result === 'object' && result.result ? { ...(result.result as Record<string, unknown>) } : { ...result.fields };
+	return { value, meta: { ...(value === null ? { reasoning: funding ? 'The provider that answered has no funding data for this company.' : 'The provider that answered has no such field for this company.' } : {}), companyIntel: { domain, input, source: funding ? 'company-search' : 'brand', data } } };
 }
 
 async function runPerson({ access, sources }: Run, op: Extract<ColumnOp, { kind: 'person' }>, row: Row): Promise<OpResult> {
-	const client = access.context();
-	const name = op.name ? renderTemplate(op.name, row) : '';
-	const company = op.company ? renderTemplate(op.company, row) : '';
-	const email = op.email ? renderTemplate(op.email, row) : '';
-	const profileUrl = op.profileUrl ? renderTemplate(op.profileUrl, row) : '';
-	const params: Record<string, unknown> = {};
-	if (profileUrl && toUrl(profileUrl)) params.social_urls = [toUrl(profileUrl)];
-	if (email && /\S+@\S+\.\S+/.test(email)) params.email = email;
-	if (name) {
-		const parts = name.trim().split(/\s+/);
-		if (parts.length >= 2) params.name = { first: parts[0], last: parts.slice(1).join(' ') };
-	}
-	if (company) {
-		const domain = toDomain(company);
-		params.company = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain) ? { domain } : { name: company };
-	}
-	if (!params.social_urls && !params.email && !params.name) throw inputError('Need a name, email, or profile URL for this row', 'context');
-	const canEnrich = params.social_urls || params.email || (params.name && params.company);
-	const response = await lookupPerson(client, canEnrich ? { ...params, timeoutOpts: { milliseconds: 60_000, behavior: 'return-partial' } } as Parameters<typeof client.people.enrich>[0] : null, name);
-	if (response.match.status !== 'candidate' || !response.match.person) return { value: null, meta: { reasoning: 'No matching person found' } };
-	const person = response.match.person;
-	// Historical roles must never fill current-employment fields.
-	const current = person.current_role_status === 'present' ? person.current_role : undefined;
+	const client = access.looot();
+	const name = op.name ? renderTemplate(op.name, row).trim() : '';
+	const company = op.company ? renderTemplate(op.company, row).trim() : '';
+	const email = op.email ? renderTemplate(op.email, row).trim() : '';
+	const profileUrl = op.profileUrl ? renderTemplate(op.profileUrl, row).trim() : '';
+	const linkedin = profileUrl && toUrl(profileUrl) && /linkedin\.com/i.test(profileUrl) ? toUrl(profileUrl)! : '';
+	if (!linkedin && !(name && company) && !email) throw inputError('Need a LinkedIn URL, a name and company, or an email for this row', 'looot');
+	const companyDomain = company && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(toDomain(company)) ? toDomain(company) : '';
+	const { person } = await personLookup(client, { name, company: companyDomain ? '' : company, companyDomain, email: /\S+@\S+\.\S+/.test(email) ? email : '', profileUrl: linkedin });
+	if (!person) return { value: null, meta: { reasoning: 'No matching person found' } };
 	const value = ((): CellValue => {
 		switch (op.field) {
-			case 'full_name':
-				return person.name?.full ?? [person.name?.first, person.name?.last].filter(Boolean).join(' ') ?? null;
-			case 'title':
-				return current?.title ?? null;
-			case 'company':
-				return current?.organization?.name ?? null;
-			case 'company_domain':
-				return current?.organization?.domain ?? null;
-			case 'location':
-				return person.location?.display ?? [person.location?.city, person.location?.region, person.location?.country].filter(Boolean).join(', ') ?? null;
-			case 'bio':
-				return person.bio ?? null;
-			case 'linkedin':
-				return person.social_urls.find((url) => url.includes('linkedin.com')) ?? null;
-			case 'email':
-				return person.email ?? null;
-			case 'skills':
-				return person.skills;
-			case 'schools':
-				return person.education.map((entry) => entry.institution.name);
-			case 'degrees':
-				return person.education.map((entry) => [entry.degree, entry.field_of_study, entry.institution.name].filter(Boolean).join(' · '));
-			case 'experience':
-				return person.experience.slice(0, 8).map((entry) => `${entry.title} at ${entry.organization.name}${entry.start_date?.year ? ` (${entry.start_date.year}${entry.end_date?.year ? `–${entry.end_date.year}` : '–now'})` : ''}`);
-			case 'years_at_company': {
-				const start = current?.start_date?.year;
-				return start ? Math.max(0, new Date().getFullYear() - start) : null;
-			}
+			case 'full_name': return person.name;
+			case 'title': return person.title;
+			case 'company': return person.company;
+			case 'company_domain': return person.companyDomain;
+			case 'location': return person.location;
+			case 'bio': return person.bio;
+			case 'linkedin': return person.linkedin ?? (linkedin || null);
+			case 'email': return person.email;
+			case 'skills': return person.skills;
+			case 'schools': return person.schools;
+			case 'degrees': return person.schools;
+			case 'experience': return person.experience.slice(0, 8);
+			case 'years_at_company': return null;
 		}
 	})();
-	for (const url of person.social_urls) sources.add(url);
-	const score = response.match.score;
-	return { value, meta: { ...(op.field === 'full_name' && typeof value === 'string' ? { person: { name: value, avatarUrl: safeProfileUrl(person.avatar_url) } } : {}), confidence: typeof score === 'number' ? (score > 1 ? score / 100 : score) : undefined } };
+	if (person.linkedin) sources.add(person.linkedin);
+	return { value, meta: { ...(op.field === 'full_name' && typeof value === 'string' ? { person: { name: value, avatarUrl: safeProfileUrl(person.avatarUrl) } } : {}) } };
 }
 
-async function runAnswer({ access, sources, companyContext }: Run, op: Extract<ColumnOp, { kind: 'answer' }>, row: Row): Promise<OpResult> {
-	const client = access.context();
-	const task = renderTemplate(op.task, row) + companyContext;
-	const context = describeRow(row);
-	const fullTask = readsRowContext(op) ? `${task}\n\nContext about the subject:\n${context}` : task;
-	const example = op.output === 'list' ? { answer: [''], confidence: 0.5 } : op.output === 'number' ? { answer: 0, confidence: 0.5 } : op.output === 'boolean' ? { answer: true, confidence: 0.5 } : { answer: '', confidence: 0.5 };
-	const response = await client.web.answers({ task: `${fullTask}\n\n${OUTPUT_HINT[op.output]}`, mode: op.mode, json_format: example, timeoutOpts: { milliseconds: 120_000, behavior: 'return-partial' } }, { timeout: 130_000 }); // past the server's 120 s deadline, so a partial answer arrives instead of a client cutoff
-	for (const source of response.sources ?? []) sources.add(source);
-	const content = response.json_content ?? {};
-	const confidence = typeof content.confidence === 'number' ? content.confidence : undefined;
-	return { value: coerceOutput(content.answer, op.output), meta: { confidence } };
+/* ───────────────────────────── Email, phone and any endpoint ───────────────────────────── */
+
+const outcomeNote = (result: LoootResult, found: string, missing: string) => result.outcome === 'weak' ? `${found} (weak match)` : result.outcome === 'miss' ? missing : found;
+
+async function runEmailFind({ access }: Run, op: Extract<ColumnOp, { kind: 'email-enrichment' }>, row: Row): Promise<OpResult> {
+	const input = (value: string) => renderTemplate(value, row).trim();
+	const identity = { name: input(op.name), company: input(op.company), domain: toDomain(input(op.domain)), profileUrl: input(op.profileUrl) };
+	if (!identity.name || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(identity.domain)) throw inputError('Provide a person name and company domain for this row.', 'looot');
+	if (identity.profileUrl) {
+		let profile: URL; try { profile = new URL(identity.profileUrl); } catch { throw inputError('Enter a valid LinkedIn profile URL.', 'looot'); }
+		if (profile.protocol !== 'https:' || !['linkedin.com', 'www.linkedin.com'].includes(profile.hostname) || !/^\/(in|pub)\//.test(profile.pathname)) throw inputError('Enter a valid LinkedIn profile URL.', 'looot');
+	}
+	const found = await findEmail(access.looot(), identity, { prefer: op.prefer });
+	const outcome = outcomeNote(found.result, 'Work email found', 'No work email found');
+	return { value: found.email, meta: { reasoning: found.email ? `${outcome}${found.status ? `. Provider status: ${found.status}` : ''}.` : 'No work email found', ...(found.status ? { verification: found.status } : {}) } };
+}
+
+async function runEmailVerify({ access }: Run, op: Extract<ColumnOp, { kind: 'email-verify' }>, row: Row): Promise<OpResult> {
+	const email = renderTemplate(op.email, row).trim();
+	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw inputError('Provide an email address to verify for this row.', 'looot');
+	const { status, result } = await verifyEmail(access.looot(), email, { prefer: op.prefer });
+	return { value: status, meta: { verification: status, reasoning: result.run.outcomeReason ? String(result.run.outcomeReason).slice(0, 200) : `Email status: ${status}` } };
+}
+
+async function runPhoneFind({ access }: Run, op: Extract<ColumnOp, { kind: 'phone-find' }>, row: Row): Promise<OpResult> {
+	const input = (value: string) => renderTemplate(value, row).trim();
+	const identity = { name: input(op.name), company: input(op.company), domain: toDomain(input(op.domain)), profileUrl: input(op.profileUrl) };
+	if (!identity.profileUrl && !identity.name) throw inputError('Provide a LinkedIn URL, or a name and company, for this row.', 'looot');
+	const { phone, result } = await findPhone(access.looot(), identity, { prefer: op.prefer });
+	return { value: phone, meta: { reasoning: phone ? outcomeNote(result, 'Phone number found', '') : 'No phone number found' } };
+}
+
+/** Any looot endpoint: the inputs come from the row through `{{Column}}` templates, the answer is kept whole or by path. */
+async function runLooot({ access }: Run, op: Extract<ColumnOp, { kind: 'looot' }>, row: Row): Promise<OpResult> {
+	const { input, empty } = applyInputMap(op.inputs, row, op.inputTypes);
+	if (!Object.keys(input).length && Object.keys(op.inputs).length) throw inputError(`Every mapped input is empty for this row (${empty.join(', ')}).`, 'looot');
+	const client = access.looot();
+	const result = op.endpointId.startsWith('job:') ? await client.job(op.endpointId.slice(4), input, { prefer: op.prefer }) : await client.endpoint(op.endpointId, input);
+	if (isMiss(result)) return { value: null, meta: { reasoning: result.run.outcomeReason ? String(result.run.outcomeReason).slice(0, 200) : 'No result' } };
+	const answer = Object.keys(result.fields).length ? result.fields : result.result;
+	let picked = op.path.trim() ? getPath(answer, op.path) : answer;
+	if (op.path.trim() && (picked === null || picked === undefined)) picked = getPath(result.result, op.path) ?? pickValue(result.result, [op.path]);
+	const value = toCellValue(picked);
+	return { value, meta: { raw: op.path.trim() ? undefined : picked, ...(value === null ? { reasoning: op.path.trim() ? `"${op.path}" is not in the answer.` : 'The answer was empty.' } : {}) } };
+}
+
+/** A cell holds text, a number, a boolean or a list of strings; anything else is kept as JSON text. */
+export function toCellValue(value: unknown): CellValue {
+	if (value === null || value === undefined || value === '') return null;
+	if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+	if (Array.isArray(value) && value.every((entry) => typeof entry === 'string')) return value as string[];
+	try { return JSON.stringify(value); } catch { return String(value); }
+}
+
+/* ───────────────────────────── Deep research ───────────────────────────── */
+
+/** Deep research is the same agent as Ask AI with the web on and a larger step budget: "ultra" thinks for longer. */
+async function runAnswer(run: Run, op: Extract<ColumnOp, { kind: 'answer' }>, row: Row): Promise<OpResult> {
+	run.access.requireKey('looot');
+	const task = renderTemplate(op.task, row);
+	const fullTask = readsRowContext(op) ? `${task}\n\nContext about the subject:\n${describeRow(row)}` : task;
+	return answerWithAi(run, { question: fullTask, output: op.output, research: true, includeRow: false, maxSteps: op.mode === 'ultra' ? 20 : 12 }, row);
 }

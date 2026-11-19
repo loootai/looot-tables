@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { documentBrand } from '@/lib/document-branding';
+import { companyEnrich, companyFieldValue, answerOf } from '@/lib/server/looot-jobs';
 import { logoDomain } from '@/lib/organization-logo';
 import { WorkspaceError } from '@/lib/workspace';
 import { errorResponse, newTrace, readJson } from '@/lib/server/api-route';
@@ -24,13 +25,14 @@ export async function POST(request: Request) {
 		const primaryDomain = parsed.data.primaryDomain || saved?.brand?.domain;
 		const secondaryDomain = parsed.data.secondaryDomain;
 		if (!primaryDomain && !secondaryDomain) return Response.json({}, { headers: NO_STORE_HEADERS });
-		if (!access.key('context')) return jsonError('Connect Context.dev to load document branding.', 401);
-		const client = access.context();
+		if (!access.key('looot')) return jsonError('Add your looot token in Configuration to load document branding.', 401);
+		const client = access.looot();
 		async function retrieve(domain: string) {
 			try {
-				const result = await client.brand.retrieve({ type: 'by_domain', domain }, { timeout: 20_000, maxRetries: 0, signal: request.signal });
-				const brand = documentBrand(result.brand ?? {}, domain);
-				if (brand.logoUrl) brand.logoUrl = await documentLogoData(brand.logoUrl);
+				const result = await companyEnrich(client, domain, { signal: request.signal });
+				const answer = answerOf(result), logo = companyFieldValue(answer, 'logo_url'), color = companyFieldValue(answer, 'primary_color');
+				const brand = documentBrand({ domain, title: String(companyFieldValue(answer, 'title') ?? ''), colors: typeof color === 'string' ? [{ hex: color }] : [], logos: typeof logo === 'string' ? [{ url: logo, type: 'logo', mode: 'light' }] : [] }, domain);
+				if (brand.logoUrl) brand.logoUrl = await documentLogoData(brand.logoUrl).catch(() => undefined);
 				return brand;
 			} catch { throw new WorkspaceError('Could not load document branding. Check the company websites and try again.', 502); }
 		}

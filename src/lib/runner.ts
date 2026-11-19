@@ -64,7 +64,8 @@ export interface RunnerStore {
 
 export interface RunnerPorts {
 	store: RunnerStore;
-	enrich(op: ColumnOp, record: Record<string, CellValue>, signal: AbortSignal): Promise<EnrichResponse>;
+	/** `attempt` names this cell attempt: every looot run it makes derives its idempotency key from it. */
+	enrich(op: ColumnOp, record: Record<string, CellValue>, signal: AbortSignal, attempt?: string): Promise<EnrichResponse>;
 	concurrency(): number;
 	/** How long a cell waiting on one running in another tab or an agent waits before looking again. */
 	waitMs: number;
@@ -89,6 +90,8 @@ interface Task {
 	readonly rowId: string;
 	readonly columnId: string;
 	readonly attempts: number;
+	/** Names this run of the cell; with the attempt number it is the idempotency seed of one attempt. */
+	readonly runId: string;
 	/** Restrict duplicate filling to the explicitly requested run scope. */
 	readonly targetRowIds?: ReadonlySet<string>;
 	/** The cell as it was queued (see `basisOf`): a result saved over it since, by another tab or an agent, is not run
@@ -278,7 +281,7 @@ export class Runner {
 				if (existing.state.phase === 'queued' || existing.state.op === canonicalJson(column.op)) continue;
 				existing.state.controller.abort();
 			}
-			const task: Task = { key, sheetId, rowId: row.id, columnId: column.id, attempts: 0, targetRowIds: options.targetRowIds, basis: existing ? undefined : basisOf(row.cells[column.id]), unfinished: options.unfinished, state: { phase: 'queued', starting: false } };
+			const task: Task = { key, sheetId, rowId: row.id, columnId: column.id, attempts: 0, runId: crypto.randomUUID(), targetRowIds: options.targetRowIds, basis: existing ? undefined : basisOf(row.cells[column.id]), unfinished: options.unfinished, state: { phase: 'queued', starting: false } };
 			this.tasks.delete(key);
 			this.tasks.set(key, task);
 			added.push(task);
@@ -662,7 +665,7 @@ export class Runner {
 		try {
 			if (signal.aborted) return;
 			let result: EnrichResponse | undefined, error: unknown;
-			try { result = await this.ports.enrich(op, plan.record, signal); }
+			try { result = await this.ports.enrich(op, plan.record, signal, `${task.runId}-${task.attempts}`); }
 			catch (caught) { error = caught; }
 			if (signal.aborted) return;
 			if (result && !result.error) { await finish(resultCell(plan, result.value, result.meta)); return; }

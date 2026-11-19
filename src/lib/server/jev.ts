@@ -1,19 +1,22 @@
 import 'server-only';
 
 import type { LanguageModelV4 } from '@ai-sdk/provider';
-import { TypeSafeClient, choice, noul, score } from '@typesafe-ai/sdk';
+import { TypeSafeClient, choice, noul, score, type Questions, type SystemOneRequest, type SystemOneResult } from '@typesafe-ai/sdk';
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import type { Decider } from '../types';
-import { CreditBudgetError } from './credit-ledger';
 import { CredentialError } from './credentials';
 import { retryUnbilled, trackedFetch, type Spend } from './enrich-failure';
 import type { ProviderAccess } from './provider-access';
-import type { Jev } from './typesafe-trial';
+
+/** What decisions need from a TypeSafe client. */
+export interface Jev {
+	systemOne<const Q extends Questions>(request: SystemOneRequest<Q>): Promise<SystemOneResult<Q>>;
+}
 
 /* Decisions: true/false, pick-one, and rubric scores. TypeSafe Jev is the first choice because it returns calibrated
-   probabilities rather than generated text; when no TypeSafe key is configured, or the included TypeSafe trial is used
-   up, OpenAI produces the same shape of answer through structured output, with a self-reported confidence instead of a
+   probabilities rather than generated text; when no TypeSafe key is configured, OpenAI
+   produces the same shape of answer through structured output, with a self-reported confidence instead of a
    calibrated one. */
 
 export interface NoulResult {
@@ -55,8 +58,7 @@ export function typesafeClient(apiKey: string, spend?: Spend) {
 
 interface OpenAIEngine { model: LanguageModelV4; id: string }
 
-/** Jev unless OpenAI is preferred and available, or only OpenAI is configured. When the workspace's included TypeSafe
-    trial cannot fund a decision, OpenAI answers it instead if available; the refusal reached no provider. */
+/** Jev unless OpenAI is preferred and available, or only OpenAI is configured. */
 async function decide<T>(access: ProviderAccess, requested: Decider, viaJev: (jev: Jev) => Promise<T>, viaOpenAI: (engine: OpenAIEngine) => Promise<T>): Promise<T> {
 	const typesafe = access.key('typesafe'), openai = access.key('openai');
 	if (!typesafe && !openai) throw new CredentialError('Add a TypeSafe or OpenAI key in Configuration to run decision columns.');
@@ -65,12 +67,7 @@ async function decide<T>(access: ProviderAccess, requested: Decider, viaJev: (je
 		return viaOpenAI({ model: access.openai(id), id });
 	};
 	if (!typesafe || (openai && access.decider(requested) === 'openai')) return withOpenAI();
-	try {
-		return await viaJev(access.typesafe());
-	} catch (error) {
-		if (openai && error instanceof CreditBudgetError && error.ledger === 'typesafe' && error.reason !== 'rate_limited') return withOpenAI();
-		throw error;
-	}
+	return viaJev(access.typesafe());
 }
 
 const keyFor = (label: string, index: number) => `option_${index}_${label.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30)}`;

@@ -2,9 +2,9 @@ import { z } from 'zod';
 import { DEFAULT_MODEL } from './types';
 import { logoDomain } from './organization-logo';
 
-export const PROVIDERS = ['openai', 'context', 'typesafe', 'hunter', 'prospeo', 'quickenrich', 'apollo', 'contactout'] as const;
+export const PROVIDERS = ['openai', 'looot', 'typesafe'] as const;
 export type Provider = typeof PROVIDERS[number];
-export const providerField = { openai: 'openaiKey', context: 'contextKey', typesafe: 'typesafeKey', hunter: 'hunterKey', prospeo: 'prospeoKey', quickenrich: 'quickenrichKey', apollo: 'apolloKey', contactout: 'contactoutKey' } as const;
+export const providerField = { openai: 'openaiKey', looot: 'loootKey', typesafe: 'typesafeKey' } as const;
 export const MODEL_ID = /^[a-z0-9.\-_:/]+$/i;
 /** Classifier setting that selects the Decisions API (TypeSafe Jev) rather than naming a model. */
 export const DECISIONS_CLASSIFIER = 'decisions';
@@ -15,7 +15,6 @@ export const organizationPreferencesSchema = z.object({
  openaiBaseUrl: z.string().max(512).default(''),
  concurrency: z.number().int().min(1).max(16).default(4),
  preferJev: z.boolean().default(true),
- logolinkKey: z.string().max(300).default(''),
 });
 export type OrganizationPreferences = z.infer<typeof organizationPreferencesSchema>;
 export type ProviderStatus = { configured: boolean; disconnected?: boolean; prefix?: string; source?: 'manual' | 'signin'; expiresAt?: number; reconnectRequired?: boolean; updatedAt?: number };

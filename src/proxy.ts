@@ -2,16 +2,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { newSecret, sessionConfig, readSession, safeRedirectUrl, safeReturnTo, SESSION_COOKIE } from '@/lib/server/auth';
 import { contextSignInEnabled, selfHostedEnabled } from '@/lib/server/deployment';
 import { selfHostedCookieOptions } from '@/lib/server/self-hosted';
-import { CREDIT_REPORT_PATH, creditReportAuthorized } from '@/lib/server/credit-report';
 
 export function proxy(request: NextRequest) {
 	const selfHosted = selfHostedEnabled();
 	if (contextSignInEnabled() && process.env.NODE_ENV === 'production' && request.nextUrl.origin !== sessionConfig().origin) {
 		return NextResponse.redirect(new URL(request.nextUrl.pathname + request.nextUrl.search, sessionConfig().origin), 308);
-	}
-	if (request.nextUrl.pathname === CREDIT_REPORT_PATH) {
-		if (!creditReportAuthorized(request)) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401, headers: { 'Cache-Control': 'private, no-store', Vary: 'Authorization' } });
-		return NextResponse.next();
 	}
 	if (selfHosted && ['/api/auth/start', '/api/auth/callback', '/api/auth/dev', '/api/auth/logout'].includes(request.nextUrl.pathname)) return new NextResponse(null, { status: 404 });
 	if (['/api/auth/dev', '/api/auth/start', '/api/auth/callback', '/api/auth/session', '/api/auth/logout'].includes(request.nextUrl.pathname)) return NextResponse.next();

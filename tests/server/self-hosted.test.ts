@@ -7,11 +7,10 @@ import { contextSignInEnabled } from '../../src/lib/server/deployment';
 import { serverKeyAvailability } from '../../src/lib/server/provider-access';
 import { requestGrant } from './access-fixture';
 import { workspaceId } from '../../src/lib/server/database';
-import { trialEnabled } from '../../src/lib/server/openai-trial';
 import { SELF_HOSTED_SECONDS } from '../../src/lib/server/self-hosted';
 
 function configure(t: TestContext) {
- const values = { NODE_ENV: 'production', ENRICHABLE_APP_URL: '', ENRICHABLE_SESSION_SECRET: '', ENRICHABLE_DEV_AUTH: '', CONTEXT_OAUTH_CLIENT_ID: '', CONTEXT_OAUTH_CLIENT_SECRET: '', ENRICHABLE_OPENAI_TRIAL_ENABLED: 'true', OPENAI_API_KEY: 'server-key', ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'false', ENRICHABLE_PASSWORD: '' };
+ const values = { NODE_ENV: 'production', ENRICHABLE_APP_URL: '', ENRICHABLE_SESSION_SECRET: '', ENRICHABLE_DEV_AUTH: '', CONTEXT_OAUTH_CLIENT_ID: '', CONTEXT_OAUTH_CLIENT_SECRET: '', OPENAI_API_KEY: 'server-key', ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'false', ENRICHABLE_PASSWORD: '' };
  const previous = Object.fromEntries(Object.keys(values).map(key => [key, process.env[key]]));
  Object.assign(process.env, values);
  t.after(() => { for (const [key,value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
@@ -68,17 +67,14 @@ test('self-hosted deployments use manual keys, ignore inherited OAuth credential
  process.env.CONTEXT_OAUTH_CLIENT_SECRET = 'c'.repeat(32);
  assert.equal(contextSignInEnabled(), false);
  assert.throws(authConfig, /only available/);
- assert.equal(trialEnabled(), false);
  for (const path of ['start', 'callback', 'logout', 'dev']) assert.equal(proxy(new NextRequest(`${origin}/api/auth/${path}`)).status, 404);
- const request = new Request(`${origin}/api/enrich`, { headers: { 'x-openai-key': 'my-openai', 'x-context-key': 'my-context' } });
+ const request = new Request(`${origin}/api/enrich`, { headers: { 'x-openai-key': 'my-openai', 'x-looot-key': 'my-looot' } });
  const credentials = await requestGrant(request);
  assert.equal(credentials.keys.openai, 'my-openai');
- assert.equal(credentials.keys.context, 'my-context');
- assert.equal(credentials.trialAccount, undefined);
+ assert.equal(credentials.keys.looot, 'my-looot');
+ assert.equal('trialAccount' in credentials, false, 'no run is billed to a shared token on someone else’s behalf');
  const availability = await serverKeyAvailability(request);
- assert.equal(availability.contextConnected, false);
- assert.equal(availability.openaiTrial, undefined);
- assert.equal(availability.openai, false);
+ assert.deepEqual(availability, { openai: false, looot: false, typesafe: false, passwordRequired: false });
 });
 
 test('production OAuth is restricted to official domains and cannot accept a self-hosted cookie', t => {

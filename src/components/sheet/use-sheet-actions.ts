@@ -59,7 +59,7 @@ export function useSheetActions({ sheet, commands, content, selection, overlays,
 		if (plan.kind === 'nothing') { toast(NOTHING_TO_RUN[plan.reason], 'info'); return; }
 		const { estimate } = plan;
 		if (!asksFirst(estimate, seen)) { void plan.execute().catch(report('Could not queue these cells. Please try again.')); return; }
-		setConfirm({ title: `Run ${plural(estimate.cells, 'cell')}?`, description: estimate.credits ? `${estimate.message}.` : 'Each cell is a separate request to your AI and data providers.', label: 'Run', action: plan.execute });
+		setConfirm({ title: `Run ${plural(estimate.cells, 'cell')}?`, description: estimate.usd ? `${estimate.message}. looot bills your own balance, and only for the runs that happen.` : 'Each cell is a separate request to your AI and data providers.', label: 'Run', action: plan.execute });
 	};
 	const runCells = (targets: Row[], columns: Column[], mode: RunMode, options: { limitToRows?: boolean; optimistic?: boolean } = {}) => request(commands.plan(targets, columns, mode, { ready: providerReady, grid: content.grid, sheetColumns: sheet.columns, ...options }));
 	const confirmDeleteRows = (targets: Row[]) => setConfirm({

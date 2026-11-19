@@ -1,6 +1,5 @@
 import 'server-only';
 import { APICallError, RetryError, type LanguageModelMiddleware } from 'ai';
-import { APIConnectionError as ContextConnectionError, APIConnectionTimeoutError as ContextTimeoutError, APIError as ContextError } from 'context.dev';
 import { APIConnectionError as TypeSafeConnectionError, APITimeoutError as TypeSafeTimeoutError, TypeSafeError } from '@typesafe-ai/sdk';
 import type { EnrichFailure, FailureProvider, FailureReason } from '../types';
 
@@ -44,24 +43,24 @@ export function unbilled(error: unknown): boolean {
 	return status === 429 || neverSent(error);
 }
 
-/** What one run spent: whether any provider did, or may have done, billable work for it, and the Context.dev credits it
-    consumed (shown on the cell). */
+/** What one run spent: whether any provider did, or may have done, billable work for it, and the USD looot charged for
+    it (shown on the cell). */
 export class Spend {
 	paid = false;
-	credits = 0;
-	record(credits = 0) { this.paid = true; this.credits += credits; }
+	costUsd = 0;
+	record(costUsd = 0) { this.paid = true; this.costUsd += costUsd; }
 }
 
 export interface Metering {
 	/** Whether the provider may have billed a response; anything but a 429 by default. */
 	billed?: (response: Response) => boolean;
-	/** The credits a billed response consumed. */
-	credits?: (response: Response, input: RequestInfo | URL, init?: RequestInit) => Promise<number>;
+	/** The USD a billed response cost. */
+	cost?: (response: Response, input: RequestInfo | URL, init?: RequestInit) => Promise<number>;
 }
 
 /** A transport that records into `spend` every request its provider may have billed. It wraps `retryUnbilled`, so it
     sees one final outcome per request, not the resends. */
-export function trackedFetch(transport: typeof fetch, spend: Spend, { billed = (response) => response.status !== 429, credits }: Metering = {}): typeof fetch {
+export function trackedFetch(transport: typeof fetch, spend: Spend, { billed = (response) => response.status !== 429, cost }: Metering = {}): typeof fetch {
 	return async (input, init) => {
 		let response: Response;
 		try { response = await transport(input, init); }
@@ -69,7 +68,7 @@ export function trackedFetch(transport: typeof fetch, spend: Spend, { billed = (
 			if (!unbilled(error)) spend.record();
 			throw error;
 		}
-		if (billed(response)) spend.record(await credits?.(response, input, init).catch(() => 0));
+		if (billed(response)) spend.record(await cost?.(response, input, init).catch(() => 0));
 		return response;
 	};
 }
@@ -110,7 +109,7 @@ export function retryUnbilled(transport: typeof fetch, delayMs = 500): typeof fe
 	};
 }
 
-/** Maps an upstream HTTP status. Only a 429 was refused before processing: Context.dev answers 408 at its own deadline,
+/** Maps an upstream HTTP status. Only a 429 was refused before processing: a provider may answer 408 at its own deadline,
     after doing the work, and a server error may come after it too. */
 export function httpFailure(status: number | undefined, provider?: FailureProvider, body = ''): EnrichFailure {
 	if (status === 429) return /insufficient_quota|billing_hard_limit/.test(body) ? failure('credits_exhausted', provider) : failure('rate_limited', provider);
@@ -125,11 +124,11 @@ export function httpFailure(status: number | undefined, provider?: FailureProvid
 export function classifyFailure(error: unknown, provider?: FailureProvider): EnrichFailure | undefined {
 	if (error instanceof EnrichError) return provider && !error.failure.provider ? { ...error.failure, provider } : error.failure;
 	if (RetryError.isInstance(error)) return classifyFailure(error.lastError, provider);
-	const source = APICallError.isInstance(error) ? 'openai' : error instanceof ContextError ? 'context' : error instanceof TypeSafeError ? 'typesafe' : provider;
+	const source = APICallError.isInstance(error) ? 'openai' : error instanceof TypeSafeError ? 'typesafe' : provider;
 	if (neverSent(error)) return failure('provider_error', source, true);
 	if (APICallError.isInstance(error)) return httpFailure(error.statusCode, source, error.responseBody);
-	if (error instanceof ContextTimeoutError || error instanceof TypeSafeTimeoutError || (error instanceof Error && error.name === 'TimeoutError')) return failure('timeout', source);
-	if (error instanceof ContextConnectionError || error instanceof TypeSafeConnectionError) return failure('provider_error', source);
+	if (error instanceof TypeSafeTimeoutError || (error instanceof Error && error.name === 'TimeoutError')) return failure('timeout', source);
+	if (error instanceof TypeSafeConnectionError) return failure('provider_error', source);
 	const status = error && typeof error === 'object' ? (error as { status?: unknown }).status : undefined;
 	return typeof status === 'number' ? httpFailure(status, source) : undefined;
 }

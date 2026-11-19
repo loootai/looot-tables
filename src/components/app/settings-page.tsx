@@ -90,11 +90,9 @@ function Defaults() {
 const modelEdited = (draft: Partial<Settings> | null, settings: Settings) => (draft?.model !== undefined && draft.model !== settings.model) || (draft?.openaiBaseUrl !== undefined && draft.openaiBaseUrl !== settings.openaiBaseUrl);
 
 function ModelDefaults({ values, draft, onChange }: { values: Settings; draft: Partial<Settings> | null; onChange: (patch: Partial<Settings>) => void }) {
-	const { settings, server, connections } = useSettings();
-	const trialInUse = connections.openai.state === 'included';
+	const { settings, connections } = useSettings();
 	const modelChanged = modelEdited(draft, settings);
-	const modelCheck = useVerification(values, modelChanged && !trialInUse && isReady(connections.openai) ? ['openai'] : [], { inference: true });
-	if (trialInUse) return <p className="text-body-sm text-fg-muted">Your workspace uses the included AI trial{server?.openaiTrial ? ` (${server.openaiTrial.model})` : ''}. Connect your own OpenAI key to choose models.</p>;
+	const modelCheck = useVerification(values, modelChanged && isReady(connections.openai) ? ['openai'] : [], { inference: true });
 	return <>
 		<Field label="AI model" help="Used for AI columns, research, and Find rows. Any OpenAI model ID works.">
 			{(id) => <ModelPicker id={id} value={values.model} onChange={(model) => onChange({ model })} />}

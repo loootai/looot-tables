@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { columnRole, columnsEntity, inferredFormat, roleColumn, type ColumnRole } from '../src/lib/column-roles';
 import { companyPreview } from '../src/lib/company-preview';
 import { documentClientDomain } from '../src/lib/document-branding';
-import { defaultEmailWaterfall } from '../src/lib/email-waterfall';
+import { defaultEmailFind } from '../src/lib/email-defaults';
 import { entityFieldOp, entityKind } from '../src/lib/entity-fields';
 import { guessDomainColumn } from '../src/components/sheet/column-operations';
 import type { Column, ColumnOp, Row } from '../src/lib/types';
@@ -42,7 +42,7 @@ const roles: Array<[string, Column, ColumnRole | null]> = [
 	['person title called Company', column('Company', { op: person('title') }), null],
 	['company name', column('Company name', { op: { kind: 'company', domain: '{{Domain}}', field: 'title' } }), 'company'],
 	['company description called Company', column('Company', { op: { kind: 'company', domain: '{{Domain}}', field: 'description' } }), null],
-	['found email', column('Work email', { op: { kind: 'email-enrichment', name: '{{Name}}', company: '', domain: '{{Domain}}', profileUrl: '', providers: ['hunter'] } }), 'email'],
+	['found email', column('Work email', { op: { kind: 'email-enrichment', name: '{{Name}}', company: '', domain: '{{Domain}}', profileUrl: '', prefer: 'balanced' } }), 'email'],
 	['found page', column('Pricing', { op: { kind: 'scrape', page: { type: 'find', column: 'Domain', page: 'pricing' }, mode: 'url', maxChars: 2000 } }), 'webpage'],
 	['found page kept as text', column('Pricing', { format: 'text', op: { kind: 'scrape', page: { type: 'find', column: 'Domain', page: 'pricing' }, mode: 'url', maxChars: 2000 } }), null],
 	['document answer', column('Report', { op: { kind: 'ai', prompt: 'Write', output: 'document', research: 'none' } }), 'document'],
@@ -78,8 +78,8 @@ test('every caller finds the same website column', () => {
 	const columns = [name, company, homepage];
 	const row: Row = { id: 'r', sheetId: 's', order: 0, createdAt: 1, cells: { [company.id]: { v: 'Acme', s: 'done', t: 1 }, [homepage.id]: { v: 'acme.com', s: 'done', t: 1 } } };
 	assert.equal(entityKind(homepage), 'website');
-	assert.equal(defaultEmailWaterfall(columns).domain, '{{Homepage}}');
-	assert.equal(defaultEmailWaterfall(columns).name, '{{Full name}}');
+	assert.equal(defaultEmailFind(columns).domain, '{{Homepage}}');
+	assert.equal(defaultEmailFind(columns).name, '{{Full name}}');
 	assert.equal(guessDomainColumn(columns), 'Homepage');
 	assert.equal(companyPreview(row, company, columns).domain, 'acme.com');
 	assert.equal(documentClientDomain({ columns }, row), 'acme.com');

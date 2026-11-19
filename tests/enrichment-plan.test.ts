@@ -90,7 +90,7 @@ test('plans read the catalog, send a record without the cell’s own value, and 
 	const sheet = sheetOf([name, notes, research, draft]);
 	const rows = [rowOf('r1', 0, { name: done('Ada'), research: done('Old answer') }), rowOf('r2', 1, { name: done('Grace') })];
 	const plan = planCell({ sheet, rows }, { rowId: 'r1', columnId: 'research' })!;
-	assert.deepEqual([plan.local, plan.providers, plan.worstCaseMs, plan.complete, plan.inPlace], [false, [['context']], 130_000, true, false]);
+	assert.deepEqual([plan.local, plan.providers, plan.worstCaseMs, plan.complete, plan.inPlace], [false, [['openai'], ['looot']], 240_000, true, false]);
 	assert.equal(plan.record.Research, null, 'a rerun never reads its previous answer');
 	assert.equal(plan.record.Name, 'Ada');
 	assert.doesNotMatch(plan.version, /Old answer/, 'nor is it an input');
@@ -133,8 +133,8 @@ test('results are stamped, admitted to the current format, and kept only while t
 	assert.deepEqual({ ...stale, cell: { ...stale.cell, t: 0 } }, { outcome: 'stale', cell: { v: 0.5, m: { reasoning: 'Earlier' }, s: 'error', e: 'Inputs or instructions changed during enrichment. Run this cell again.', t: 0 } }, 'a stale re-run keeps the previous value');
 	const superseded = settleCell(plan, grid([name, { ...out, op: template('{{Name}}!') }], 'Ada'), result, marker);
 	assert.deepEqual({ ...superseded, cell: { ...superseded.cell, t: 1 } }, { outcome: 'superseded', cell: previous }, 'a new rule restores the previous value');
-	assert.deepEqual(failureCell(plan, 'Rate limited', { credits: 1 }, 4, marker), { v: 0.5, m: { reasoning: 'Earlier' }, s: 'error', e: 'Rate limited', t: 4 }, 'a failed re-run keeps the previous value');
-	assert.deepEqual(failureCell(plan, 'Rate limited', { credits: 1 }, 4, startCell(planCell({ sheet: sheetOf([name, out]), rows: [rowOf('r', 0, { name: done('Ada') })] }, { rowId: 'r', columnId: 'out' })!)), { v: null, s: 'error', e: 'Rate limited', m: { credits: 1 }, t: 4 });
+	assert.deepEqual(failureCell(plan, 'Rate limited', { costUsd: 0.001 }, 4, marker), { v: 0.5, m: { reasoning: 'Earlier' }, s: 'error', e: 'Rate limited', t: 4 }, 'a failed re-run keeps the previous value');
+	assert.deepEqual(failureCell(plan, 'Rate limited', { costUsd: 0.001 }, 4, startCell(planCell({ sheet: sheetOf([name, out]), rows: [rowOf('r', 0, { name: done('Ada') })] }, { rowId: 'r', columnId: 'out' })!)), { v: null, s: 'error', e: 'Rate limited', m: { costUsd: 0.001 }, t: 4 });
 	const refused = settleCell(plan, grid([name, out], 'Ada'), resultCell(plan, 'not a percentage', undefined, 3), marker);
 	assert.deepEqual([refused.cell.v, refused.cell.s, refused.cell.m], [0.5, 'error', { reasoning: 'Earlier' }], 'an answer the format refuses keeps the previous value');
 });

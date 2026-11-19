@@ -28,8 +28,8 @@ export interface Operation<K extends OpKind = OpKind> {
 	local(op: Op<K>): boolean;
 	/** Keys the server executor needs before it can start. */
 	requires(op: Op<K>): ProviderNeed[];
-	/** Rough Context.dev credits per cell; work billed by another provider counts 0. */
-	credits(op: Op<K>): number;
+	/** Rough looot cost per cell in USD, for the confirmation before a run. A fallback route can cost more when providers miss. */
+	costUsd(op: Op<K>): number;
 	/** Slowest plausible single run, so MCP never starts a row it cannot finish. */
 	worstCaseMs(op: Op<K>): number;
 	/** Who answers failures that do not name their provider. Decisions may use TypeSafe or OpenAI. */
@@ -38,11 +38,13 @@ export interface Operation<K extends OpKind = OpKind> {
 	issue?(op: Op<K>): DefinitionIssue | null;
 }
 
-const CONTEXT: ProviderNeed = ['context'];
+const LOOOT: ProviderNeed = ['looot'];
 const OPENAI: ProviderNeed = ['openai'];
 const DECIDER: ProviderNeed = ['typesafe', 'openai'];
-const pageNeeds = (page?: PageSource): ProviderNeed[] => page ? [CONTEXT] : [];
-const pageCredits = (page?: PageSource) => !page ? 0 : page.type === 'find' ? 2 : 1;
+const pageNeeds = (page?: PageSource): ProviderNeed[] => page ? [LOOOT] : [];
+/** One scrape is about a tenth of a cent; finding a named page tries up to three paths first. */
+const SCRAPE_USD = 0.001;
+const pageCost = (page?: PageSource) => !page ? 0 : page.type === 'find' ? 3 * SCRAPE_USD + SCRAPE_USD : SCRAPE_USD;
 const remote = () => false;
 const row = (): RowContext => 'row';
 const references = (): RowContext => 'references';
@@ -53,92 +55,98 @@ const decision = () => 120_000;
 export const OPERATIONS: { readonly [K in OpKind]: Operation<K> } = {
 	'email-enrichment': {
 		label: 'Find email', short: 'Email', columnName: 'Work email',
-		description: 'Tries your providers top to bottom, including Hunter and Prospeo, and keeps the first work email found.',
+		description: 'Asks looot for a work email. looot tries its email providers one after another, in the order you pick, and stops at the first address.',
 		references: ['name', 'company', 'domain', 'profileUrl'], rowContext: references, local: remote,
-		// Each provider uses its own key or the included credit, and the waterfall reports what each attempt lacked.
-		requires: () => [], credits: free, worstCaseMs: () => 240_000, bills: 'email',
+		requires: () => [LOOOT], costUsd: () => 0.02, worstCaseMs: () => 200_000, bills: 'looot',
+	},
+	'email-verify': {
+		label: 'Verify email', short: 'Verify', columnName: 'Email status',
+		description: 'Checks whether an email is deliverable. The cell holds valid, invalid, catch_all, risky or unknown.',
+		references: ['email'], rowContext: references, local: remote,
+		requires: () => [LOOOT], costUsd: () => 0.003, worstCaseMs: () => 120_000, bills: 'looot',
+	},
+	'phone-find': {
+		label: 'Find phone', short: 'Phone', columnName: 'Phone',
+		description: 'Asks looot for a phone number from a LinkedIn URL, or a name and company. looot walks its phone providers until one answers.',
+		references: ['name', 'company', 'domain', 'profileUrl'], rowContext: references, local: remote,
+		requires: () => [LOOOT], costUsd: () => 0.03, worstCaseMs: () => 200_000, bills: 'looot',
+	},
+	looot: {
+		label: 'Any looot endpoint', short: 'looot', columnName: 'looot result',
+		description: 'Pick any endpoint from the looot catalog, map its inputs from your columns, and keep its answer. Shows the estimated cost before it runs.',
+		references: ['inputs'], rowContext: references, local: remote,
+		requires: () => [LOOOT], costUsd: (op) => op.unitCostUsd ?? 0, worstCaseMs: () => 180_000, bills: 'looot',
+		issue: (op) => Object.values(op.inputs).every((template) => !template.trim()) ? { field: 'inputs', message: 'Map at least one input to a column or a value.' } : null,
 	},
 	'email-draft': {
 		label: 'Email draft', short: 'Email draft', columnName: 'Email draft',
 		description: 'Draft a personalized email with AI, or fill an email template from columns.',
 		references: ['prompt', 'to', 'cc', 'bcc', 'subject', 'body'], instruction: 'prompt',
 		rowContext: (op) => op.mode === 'template' ? 'references' : 'row', local: (op) => op.mode === 'template',
-		requires: (op) => op.mode === 'template' ? [] : [OPENAI], credits: free, worstCaseMs: (op) => op.mode === 'template' ? 1_000 : 90_000, bills: 'openai',
+		requires: (op) => op.mode === 'template' ? [] : [OPENAI], costUsd: free, worstCaseMs: (op) => op.mode === 'template' ? 1_000 : 90_000, bills: 'openai',
 	},
 	ai: {
 		label: 'Ask AI', short: 'AI', columnName: 'AI answer',
-		description: 'AI answers a question about each row, searching the web with Context.dev when it needs to.',
+		description: 'AI answers a question about each row, searching the web through looot when it needs to.',
 		references: ['prompt', 'page'], instruction: 'prompt', rowContext: row, local: remote,
-		// Web research uses Context.dev only when it is connected; reading a page needs it.
-		requires: (op) => [OPENAI, ...pageNeeds(op.page)], credits: (op) => (op.research === 'web' ? 4 : 0) + pageCredits(op.page), worstCaseMs: decision, bills: 'openai',
+		// Web research uses looot only when a token is connected; reading a page needs it.
+		requires: (op) => [OPENAI, ...pageNeeds(op.page)], costUsd: (op) => (op.research === 'web' ? 0.004 : 0) + pageCost(op.page), worstCaseMs: decision, bills: 'openai',
 	},
 	check: {
 		label: 'True / false check', short: 'Check', columnName: 'Check',
 		description: 'A yes-or-no answer with a probability. Can read a page first.',
 		references: ['question', 'page'], instruction: 'question', rowContext: row, local: remote,
 		// Exact-text checks match the row or page without a model.
-		requires: (op) => [...pageNeeds(op.page), ...(op.literal?.trim() ? [] : [DECIDER])], credits: (op) => pageCredits(op.page), worstCaseMs: decision,
+		requires: (op) => [...pageNeeds(op.page), ...(op.literal?.trim() ? [] : [DECIDER])], costUsd: (op) => pageCost(op.page), worstCaseMs: decision,
 	},
 	classify: {
 		label: 'Classify', short: 'Classify', columnName: 'Category',
 		description: 'Pick one of your options for each row, with a probability for every option.',
 		references: ['question', 'page'], instruction: 'question', rowContext: row, local: remote,
-		requires: (op) => [...pageNeeds(op.page), DECIDER], credits: (op) => pageCredits(op.page), worstCaseMs: decision,
+		requires: (op) => [...pageNeeds(op.page), DECIDER], costUsd: (op) => pageCost(op.page), worstCaseMs: decision,
 	},
 	score: {
 		label: 'Score', short: 'Score', columnName: 'Score',
 		description: 'Rate each row on levels you define, lowest to highest.',
 		references: ['question', 'page'], instruction: 'question', rowContext: row, local: remote,
-		requires: (op) => [...pageNeeds(op.page), DECIDER], credits: (op) => pageCredits(op.page), worstCaseMs: decision,
+		requires: (op) => [...pageNeeds(op.page), DECIDER], costUsd: (op) => pageCost(op.page), worstCaseMs: decision,
 	},
 	scrape: {
 		label: 'Read a page', short: 'Scrape', columnName: 'Page',
 		description: 'Fetch a page and keep its text, relevant passages, links or extracted fields.',
 		references: ['page', 'query'], rowContext: references, local: remote,
-		requires: () => [CONTEXT], credits: (op) => Math.max(1, pageCredits(op.page)), worstCaseMs: typical, bills: 'context',
+		requires: () => [LOOOT], costUsd: (op) => Math.max(SCRAPE_USD, pageCost(op.page)), worstCaseMs: typical, bills: 'looot',
 		issue: (op) => op.mode === 'extract' && !op.fields?.length && !op.query?.trim() ? { field: 'fields', message: 'Add a field or instructions to extract.' } : null,
 	},
 	search: {
 		label: 'Web search', short: 'Search', columnName: 'Search result',
 		description: 'Search the web and keep the top URL, title or snippet.',
 		references: ['query'], rowContext: references, local: remote,
-		requires: () => [CONTEXT], credits: () => 1, worstCaseMs: typical, bills: 'context',
+		requires: () => [LOOOT], costUsd: () => 0.0005, worstCaseMs: typical, bills: 'looot',
 	},
 	company: {
 		label: 'Company data', short: 'Company', columnName: 'Company info',
 		description: 'Firmographics, funding, links and socials for a company domain.',
 		references: ['domain'], rowContext: references, local: remote,
-		requires: () => [CONTEXT], credits: () => 1, worstCaseMs: typical, bills: 'context',
+		requires: () => [LOOOT], costUsd: () => 0.002, worstCaseMs: typical, bills: 'looot',
 	},
 	person: {
 		label: 'Person data', short: 'Person', columnName: 'Person info',
-		description: 'Title, employer, education and profiles for a person.',
+		description: 'Title, employer, education and profiles for a person, from their LinkedIn URL or name and company.',
 		references: ['name', 'company', 'email', 'profileUrl'], rowContext: references, local: remote,
-		requires: () => [CONTEXT], credits: () => 1, worstCaseMs: typical, bills: 'context',
-	},
-	hunter: {
-		label: 'Hunter email', short: 'Hunter', columnName: 'Email status',
-		description: 'Find a work email from a name and domain, or verify an email with Hunter.',
-		references: ['name', 'domain', 'email'], rowContext: references, local: remote,
-		requires: () => [['hunter']], credits: free, worstCaseMs: typical, bills: 'email',
-	},
-	prospeo: {
-		label: 'Prospeo person', short: 'Prospeo', columnName: 'Mobile',
-		description: 'Find verified work emails, mobile numbers and person details with Prospeo.',
-		references: ['name', 'domain', 'email', 'profileUrl'], rowContext: references, local: remote,
-		requires: () => [['prospeo']], credits: free, worstCaseMs: typical, bills: 'email',
+		requires: () => [LOOOT], costUsd: () => 0.016, worstCaseMs: typical, bills: 'looot',
 	},
 	answer: {
 		label: 'Deep research', short: 'Research', columnName: 'Research',
-		description: 'Context.dev researches the live web and returns a sourced answer. Slower and uses more credits.',
+		description: 'AI researches the live web through looot, reading as many pages as it needs, and returns a sourced answer. Slower and costs more.',
 		references: ['task'], instruction: 'task', rowContext: () => 'row-unless-referenced', local: remote,
-		requires: () => [CONTEXT], credits: (op) => op.mode === 'ultra' ? 100 : 10, worstCaseMs: () => 130_000, bills: 'context',
+		requires: () => [OPENAI, LOOOT], costUsd: (op) => op.mode === 'ultra' ? 0.03 : 0.01, worstCaseMs: () => 240_000, bills: 'openai',
 	},
 	template: {
 		label: 'Text template', short: 'Template', columnName: 'Text',
 		description: 'Combine other columns with a template. No API calls.',
 		references: ['template'], rowContext: references, local: () => true,
-		requires: () => [], credits: free, worstCaseMs: () => 1_000,
+		requires: () => [], costUsd: free, worstCaseMs: () => 1_000,
 	},
 };
 
@@ -196,7 +204,7 @@ export function columnNameFromQuestion(question: string): string {
 
 export const evaluatesLocally = (op: ColumnOp) => operation(op.kind).local(op);
 export const requiredProviders = (op: ColumnOp) => operation(op.kind).requires(op);
-export const creditsPerCell = (op: ColumnOp) => operation(op.kind).credits(op);
+export const costPerCell = (op: ColumnOp) => operation(op.kind).costUsd(op);
 export const worstCaseMs = (op: ColumnOp) => operation(op.kind).worstCaseMs(op);
 export const billingProvider = (op: ColumnOp) => operation(op.kind).bills;
 

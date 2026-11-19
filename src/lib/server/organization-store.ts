@@ -66,39 +66,17 @@ export class OrganizationStore {
  private async saveProvider(sql: Sql, workspace: string, actor: Account, provider: Provider, secret: string, source: 'manual' | 'signin', expiresAt: number | null) {
   await sql.query('INSERT INTO enrichable.organization_providers (workspace_id,provider,encrypted_secret,prefix,source,subject_id,subject_email,expires_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (workspace_id,provider) DO UPDATE SET encrypted_secret=excluded.encrypted_secret,prefix=excluded.prefix,source=excluded.source,subject_id=excluded.subject_id,subject_email=excluded.subject_email,expires_at=excluded.expires_at,updated_at=excluded.updated_at,disabled=false', [workspace, provider, encryptSecret(this.key(), secret, [workspace, provider]), secret.length >= 12 ? secret.slice(0, 7) : '', source, actor.user.id, actor.user.email, expiresAt, Date.now()]);
  }
- async saveSignin(actor: Account, secret: string, expiresAt: number, reconnect = false) {
-  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) throw new WorkspaceError('Context.dev connection has expired. Sign in again.', 401);
-  return this.write(actor, async (sql, workspace) => {
-   await sql.query('INSERT INTO enrichable.signed_in_users (issuer,user_id) VALUES ($1,$2) ON CONFLICT (issuer,user_id) DO UPDATE SET last_signed_in_at=now()', [actor.issuer, actor.user.id]);
-   await sql.query('INSERT INTO enrichable.signed_in_memberships (workspace_id,issuer,user_id) VALUES ($1,$2,$3) ON CONFLICT (workspace_id,issuer,user_id) DO UPDATE SET last_signed_in_at=now()', [workspace, actor.issuer, actor.user.id]);
-   const previous = (await sql.query("SELECT source,subject_id,expires_at,disabled FROM enrichable.organization_providers WHERE workspace_id=$1 AND provider='context'", [workspace])).rows[0];
-   // Keep manual keys and explicit disconnects; a sign-in grant is replaced only by one that lasts longer, so the shared connection never expires before the newest session.
-   if (!reconnect && previous && (previous.disabled || previous.source === 'manual' || Number(previous.expires_at) >= expiresAt)) return;
-   await this.saveProvider(sql, workspace, actor, 'context', secret, 'signin', expiresAt);
-   await sql.query('UPDATE enrichable.organization_settings SET revision=revision+1 WHERE workspace_id=$1', [workspace]);
-   await this.audit(sql, workspace, actor, 'signin', ['context']);
-  });
- }
- /** A workspace without settings adopts the first Context.dev sign-in grant it is offered; later grants go through saveSignin. */
- async adoptSignin(actor: Account, connection: { key: string; expiresAt: number } | null) {
-  const existing = await this.get(actor);
-  if (!connection || existing.providers.context || existing.revision !== 0) return existing;
-  await this.saveSignin(actor, connection.key, connection.expiresAt);
-  return this.get(actor);
- }
  async credentials(actor: Account) {
   return this.read(actor, async (sql, workspace) => {
    const settings = await this.snapshot(sql, workspace);
    const rows = (await sql.query('SELECT provider,encrypted_secret,source,expires_at,subject_email,disabled FROM enrichable.organization_providers WHERE workspace_id=$1', [workspace])).rows;
    const keys: Partial<Record<Provider, string>> = {};
-   let contextUserEmail: string | undefined;
    for (const row of rows) {
     if (row.disabled || row.expires_at && Number(row.expires_at) <= Date.now()) continue;
     const provider = row.provider as Provider;
     keys[provider] = this.decrypt(String(row.encrypted_secret), workspace, provider);
-    if (provider === 'context') contextUserEmail = String(row.subject_email);
    }
-   return { settings, keys, contextUserEmail };
+   return { settings, keys };
   });
  }
 }

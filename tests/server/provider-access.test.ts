@@ -6,46 +6,47 @@ import type { Account } from '../../src/lib/auth-identity';
 import { PROVIDERS, type Provider } from '../../src/lib/organization-settings';
 import { DEFAULT_MODEL } from '../../src/lib/types';
 import { SESSION_COOKIE } from '../../src/lib/server/auth';
-import { CONTEXT_CONNECTION_COOKIE } from '../../src/lib/server/context-connection';
-import { TRIAL_MODEL } from '../../src/lib/server/openai-trial';
 import { BROWSER_POLICY, MCP_POLICY, mcpInputs, providerAccess, resolveGrant, serverKeyAvailability, type AccessInputs, type AccessPolicy } from '../../src/lib/server/provider-access';
 
 const alice: Account = { issuer: 'https://identity.example.com', user: { id: 'alice', email: 'alice@example.com', email_verified: true }, organization: { id: 'one', name: 'One' }, partition: 'alice' };
 const offered = (source: string) => Object.fromEntries(PROVIDERS.map((provider) => [provider, `${source}-${provider}`]));
-type Offering = 'request' | 'vault' | 'connection' | 'server';
+type Offering = 'request' | 'vault' | 'server';
 
 /** Every listed source offers a distinct key for every provider; the server is unlocked only when listed. */
 const everyKey = (sources: Offering[]): AccessInputs => ({
 	account: alice,
 	headers: new Headers(sources.includes('request') ? Object.fromEntries(PROVIDERS.map((provider) => [`x-${provider}-key`, `request-${provider}`])) : {}),
 	vault: sources.includes('vault') ? { keys: offered('vault'), preferences: {} } : null,
-	connection: sources.includes('connection') ? 'connection-context' : null,
-	server: { unlocked: sources.includes('server'), keys: offered('server'), trial: false },
+	server: { unlocked: sources.includes('server'), keys: offered('server') },
 });
 
-test('key precedence per policy: request, vault, connection (Context.dev only), unlocked server', () => {
+test('key precedence per policy: request, vault, unlocked server', () => {
 	const table: Array<[string, AccessPolicy, Offering[], (provider: Provider) => string | undefined]> = [
-		['browser: request overrides win', BROWSER_POLICY, ['request', 'vault', 'connection', 'server'], (p) => `request-${p}`],
-		['browser: vault beats connection and server', BROWSER_POLICY, ['vault', 'connection', 'server'], (p) => `vault-${p}`],
-		['browser: connection beats server for Context.dev', BROWSER_POLICY, ['connection', 'server'], (p) => p === 'context' ? 'connection-context' : `server-${p}`],
+		['browser: request overrides win', BROWSER_POLICY, ['request', 'vault', 'server'], (p) => `request-${p}`],
+		['browser: vault beats server', BROWSER_POLICY, ['vault', 'server'], (p) => `vault-${p}`],
 		['browser: unlocked server keys', BROWSER_POLICY, ['server'], (p) => `server-${p}`],
 		['browser: locked server keys are never used', BROWSER_POLICY, [], () => undefined],
-		['mcp: request overrides win', MCP_POLICY, ['request', 'vault', 'connection', 'server'], (p) => `request-${p}`],
-		['mcp: vault', MCP_POLICY, ['vault', 'connection', 'server'], (p) => `vault-${p}`],
-		['mcp: never the connection cookie or server keys', MCP_POLICY, ['connection', 'server'], () => undefined],
+		['mcp: request overrides win', MCP_POLICY, ['request', 'vault', 'server'], (p) => `request-${p}`],
+		['mcp: vault', MCP_POLICY, ['vault', 'server'], (p) => `vault-${p}`],
+		['mcp: never server keys', MCP_POLICY, ['server'], () => undefined],
 	];
 	for (const [name, policy, sources, winner] of table) {
 		const { keys } = resolveGrant(policy, everyKey(sources));
 		assert.deepEqual(Object.fromEntries(PROVIDERS.map((p) => [p, keys[p]])), Object.fromEntries(PROVIDERS.map((p) => [p, winner(p)])), name);
 	}
-	const withVault = { ...everyKey(['connection', 'server']), vault: { keys: {}, preferences: {} } };
-	assert.equal(resolveGrant(BROWSER_POLICY, withVault).keys.context, 'server-context', 'a vault disables the legacy connection cookie');
+});
+
+test('the looot token is its own provider, and a request header carries it', () => {
+	assert.deepEqual([...PROVIDERS], ['openai', 'looot', 'typesafe']);
+	const grant = resolveGrant(BROWSER_POLICY, { headers: new Headers({ 'x-looot-key': 'cs_ms_request' }) });
+	assert.equal(grant.keys.looot, 'cs_ms_request');
+	assert.equal(providerAccess(grant).looot().calls.length, 0, 'a client starts with no runs');
 });
 
 test('settings precedence per policy: model, classifier, endpoint and decider preference', () => {
 	const headers = { 'x-openai-key': 'request-openai', 'x-openai-model': 'request-model', 'x-classifier-model': 'request-classifier', 'x-openai-base-url': 'https://request.example/v1', 'x-prefer-jev': 'false' };
 	const vault = { keys: {}, preferences: { model: 'vault-model', classifierModel: 'vault-classifier', openaiBaseUrl: 'https://vault.example/v1', preferJev: true } };
-	const server = { unlocked: true, keys: {}, model: 'server-model', baseUrl: 'https://server.example/v1', trial: false };
+	const server = { unlocked: true, keys: {}, model: 'server-model', baseUrl: 'https://server.example/v1' };
 	const settings = (policy: AccessPolicy, inputs: AccessInputs) => {
 		const grant = resolveGrant(policy, inputs);
 		return [grant.model, grant.classifierModel, grant.openaiBaseUrl, grant.preferJev];
@@ -66,7 +67,7 @@ test('settings precedence per policy: model, classifier, endpoint and decider pr
 
 test('a key goes only to its own source endpoint unless the caller supplies the key too', () => {
 	const vault = (endpoint = '') => ({ keys: { openai: 'vault-openai' }, preferences: { openaiBaseUrl: endpoint } });
-	const server = (baseUrl?: string) => ({ unlocked: true, keys: { openai: 'server-openai' }, baseUrl, trial: false });
+	const server = (baseUrl?: string) => ({ unlocked: true, keys: { openai: 'server-openai' }, baseUrl });
 	const other = 'https://other.example/v1';
 	const table: Array<[string, AccessPolicy, AccessInputs, RegExp | string | null]> = [
 		['request key may use the organization endpoint', BROWSER_POLICY, { headers: new Headers({ 'x-openai-key': 'own' }), vault: { keys: {}, preferences: { openaiBaseUrl: other } } }, other],
@@ -86,36 +87,29 @@ test('a key goes only to its own source endpoint unless the caller supplies the 
 	}
 });
 
-test('the trial meters the deployment OpenAI key wherever it would be used, and only for the browser policy', () => {
-	const server = { unlocked: false, keys: { openai: 'server-openai' }, trial: true };
-	const trial = (policy: AccessPolicy, headers: Record<string, string> = {}, account: Account | null = alice, vault: AccessInputs['vault'] = null) => resolveGrant(policy, { account: account ?? undefined, headers: new Headers(headers), vault, server });
-	const sponsored = trial(BROWSER_POLICY, { 'x-openai-model': 'chosen', 'x-openai-base-url': 'https://other.example/v1', 'x-classifier-model': 'classifier' });
-	assert.deepEqual([sponsored.keys.openai, sponsored.model, sponsored.openaiBaseUrl, sponsored.classifierModel, sponsored.trialAccount], ['server-openai', TRIAL_MODEL, null, undefined, alice]);
-	assert.equal(trial(BROWSER_POLICY, { 'x-openai-key': 'server-openai' }).trialAccount, alice, 'sending the server key back is still metered');
-	assert.equal(trial(BROWSER_POLICY, { 'x-openai-key': 'own' }).trialAccount, undefined);
-	assert.equal(trial(BROWSER_POLICY, {}, alice, { keys: { openai: 'vault-openai' }, preferences: {} }).trialAccount, undefined);
-	assert.throws(() => trial(BROWSER_POLICY, {}, null), /Sign in/);
-	const mcp = trial(MCP_POLICY);
-	assert.equal(mcp.trialAccount, undefined);
-	assert.equal(mcp.keys.openai, undefined);
-});
-
-test('the MCP policy never reads browser cookies, deployment keys or the trial, even when they were gathered', async () => {
-	const everything: AccessInputs = { account: alice, headers: new Headers(), connection: 'browser-context', server: { unlocked: true, keys: offered('server'), model: 'server-model', baseUrl: 'https://server.example/v1', trial: true } };
+test('the MCP policy never reads browser cookies or deployment keys, even when they were gathered', async () => {
+	const everything: AccessInputs = { account: alice, headers: new Headers(), server: { unlocked: true, keys: offered('server'), model: 'server-model', baseUrl: 'https://server.example/v1' } };
 	const grant = resolveGrant(MCP_POLICY, everything);
 	assert.deepEqual(grant.keys, {});
-	assert.deepEqual([grant.trialAccount, grant.model, grant.openaiBaseUrl], [undefined, DEFAULT_MODEL, null]);
-	const gathered = await mcpInputs(new Headers({ cookie: `${SESSION_COOKIE}=forged; ${CONTEXT_CONNECTION_COOKIE}=browser-credential`, 'x-enrichable-password': 'deployment-password' }), alice);
+	assert.deepEqual([grant.model, grant.openaiBaseUrl], [DEFAULT_MODEL, null]);
+	const gathered = await mcpInputs(new Headers({ cookie: `${SESSION_COOKIE}=forged`, 'x-enrichable-password': 'deployment-password' }), alice);
 	assert.deepEqual(Object.keys(gathered).sort(), ['account', 'headers', 'vault'], 'the MCP gatherer collects no cookie or server state');
 	assert.equal(gathered.account, alice);
 });
 
+test('a deployment OpenAI key is never metered on someone else\'s behalf: there is no trial source', () => {
+	const server = { unlocked: false, keys: { openai: 'server-openai' } };
+	const grant = resolveGrant(BROWSER_POLICY, { account: alice, headers: new Headers(), server });
+	assert.equal(grant.keys.openai, undefined, 'a locked deployment key is not used');
+	assert.equal('trialAccount' in grant, false);
+});
+
 test('MCP rejects malformed overrides that the browser policy ignores', () => {
-	const malformed: Array<Record<string, string>> = [{ 'x-openai-model': 'not a model!' }, { 'x-classifier-model': 'x'.repeat(101) }, { 'x-hunter-key': 'k'.repeat(600) }];
+	const malformed: Array<Record<string, string>> = [{ 'x-openai-model': 'not a model!' }, { 'x-classifier-model': 'x'.repeat(101) }, { 'x-looot-key': 'k'.repeat(600) }];
 	for (const headers of malformed) {
 		assert.throws(() => resolveGrant(MCP_POLICY, { headers: new Headers(headers) }), /Invalid provider credential headers/);
 		const grant = resolveGrant(BROWSER_POLICY, { headers: new Headers(headers) });
-		assert.deepEqual([grant.model, grant.classifierModel, grant.keys.hunter], [DEFAULT_MODEL, undefined, undefined]);
+		assert.deepEqual([grant.model, grant.classifierModel, grant.keys.looot], [DEFAULT_MODEL, undefined, undefined]);
 	}
 });
 
@@ -134,9 +128,9 @@ test('redaction covers every provider in the list', () => {
 });
 
 test('availability reports every provider in the list from server-side sources only', async (t) => {
-	const env: Record<Provider, string> = { openai: 'OPENAI_API_KEY', context: 'CONTEXT_DEV_API_KEY', typesafe: 'TYPESAFE_API_KEY', hunter: 'HUNTER_API_KEY', prospeo: 'PROSPEO_API_KEY', quickenrich: 'QUICKENRICH_API_KEY', apollo: 'APOLLO_API_KEY', contactout: 'CONTACTOUT_API_KEY' };
-	setEnv(t, { ENRICHABLE_PASSWORD: '', ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'true', ENRICHABLE_OPENAI_TRIAL_ENABLED: 'false', ...Object.fromEntries(PROVIDERS.map((provider) => [env[provider], `server-${provider}`])) });
-	const request = () => new Request('http://localhost/api/keys/verify', { headers: { 'x-hunter-key': 'request-only' } });
+	const env: Record<Provider, string> = { openai: 'OPENAI_API_KEY', looot: 'LOOOT_TOKEN', typesafe: 'TYPESAFE_API_KEY' };
+	setEnv(t, { ENRICHABLE_PASSWORD: '', ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'true', ...Object.fromEntries(PROVIDERS.map((provider) => [env[provider], `server-${provider}`])) });
+	const request = () => new Request('http://localhost/api/keys/verify', { headers: { 'x-looot-key': 'request-only' } });
 	const open = await serverKeyAvailability(request());
 	assert.deepEqual(PROVIDERS.filter((provider) => !open[provider]), []);
 	assert.ok(!JSON.stringify(open).includes('server-'), 'availability never echoes a key');

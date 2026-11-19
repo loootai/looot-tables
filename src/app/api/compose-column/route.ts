@@ -1,5 +1,4 @@
 import { ComposeColumnRequestSchema } from '@/lib/types';
-import { CreditBudgetError } from '@/lib/server/credit-ledger';
 import { CredentialError, jsonError, NO_STORE_HEADERS } from '@/lib/server/credentials';
 import { classifyFailure } from '@/lib/server/enrich-failure';
 import { routeInput } from '@/lib/server/provider-access';
@@ -15,6 +14,6 @@ export async function POST(request: Request) {
 		const result = await composeColumn(access, { ...input, hasJev: input.hasJev ?? Boolean(access.key('typesafe')) });
 		return new Response(JSON.stringify(result), { status: 200, headers: NO_STORE_HEADERS });
 	} catch (error) {
-		return jsonError(access.redact(error), error instanceof CredentialError || error instanceof CreditBudgetError ? error.status : 500, classifyFailure(error));
+		return jsonError(access.redact(error), error instanceof CredentialError ? error.status : 500, classifyFailure(error));
 	}
 }

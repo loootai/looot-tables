@@ -8,7 +8,7 @@ import { ColumnOpSchema, type ColumnOp, type OpKind } from '../src/lib/types';
 
 /** One valid definition per kind; Record<OpKind, …> fails to compile when a kind is added without one. */
 const SAMPLES: Record<OpKind, ColumnOp> = {
-	'email-enrichment': { kind: 'email-enrichment', name: '{{Name}}', company: '', domain: '{{Domain}}', profileUrl: '', providers: ['hunter'] },
+	'email-enrichment': { kind: 'email-enrichment', name: '{{Name}}', company: '', domain: '{{Domain}}', profileUrl: '', prefer: 'balanced' },
 	'email-draft': { kind: 'email-draft', mode: 'ai', prompt: 'Intro', to: '{{Email}}', cc: '', bcc: '', subject: '', body: '' },
 	ai: { kind: 'ai', prompt: 'CEO?', output: 'text', research: 'web', page: { type: 'homepage', column: 'Domain' } },
 	check: { kind: 'check', question: 'B2B?', decider: 'jev', threshold: 0.5, page: { type: 'find', column: 'Domain', page: 'pricing' } },
@@ -18,8 +18,9 @@ const SAMPLES: Record<OpKind, ColumnOp> = {
 	search: { kind: 'search', query: '{{Company}} CEO', pick: 'url', numResults: 3 },
 	company: { kind: 'company', domain: '{{Domain}}', field: 'industry' },
 	person: { kind: 'person', name: '{{Name}}', field: 'title' },
-	hunter: { kind: 'hunter', action: 'verify', email: '{{Email}}' },
-	prospeo: { kind: 'prospeo', email: '{{Email}}', field: 'mobile', onlyVerifiedEmail: true },
+	'email-verify': { kind: 'email-verify', email: '{{Email}}', prefer: 'cheapest' },
+	'phone-find': { kind: 'phone-find', name: '{{Name}}', company: '{{Company}}', domain: '{{Domain}}', profileUrl: '{{LinkedIn}}', prefer: 'balanced' },
+	looot: { kind: 'looot', endpointId: 'job:people.email.find', inputs: { name: '{{Name}}', domain: '{{Domain}}' }, inputTypes: { name: 'string' }, unitCostUsd: 0.02, path: 'email', prefer: 'balanced' },
 	answer: { kind: 'answer', task: 'Latest funding', output: 'text', mode: 'fast' },
 	template: { kind: 'template', template: 'Hi {{Name}}' },
 };
@@ -46,7 +47,7 @@ for (const kind of OP_KINDS) test(`${kind}: the catalog record is complete and c
 	// Every reference field is a field of this kind, and is both counted as a dependency and renamed.
 	for (const field of record.references) {
 		assert.ok(field in shape, `${field} is a field of ${kind}`);
-		const probe = { ...sample, [field]: isText(shape[field]) ? `{{Probe}} and {{ probe }}` : { type: 'column', column: 'Probe' } } as ColumnOp;
+		const probe = { ...sample, [field]: field === 'inputs' ? { probe: `{{Probe}} and {{ probe }}` } : isText(shape[field]) ? `{{Probe}} and {{ probe }}` : { type: 'column', column: 'Probe' } } as ColumnOp;
 		assert.ok(opDependencies(probe).includes('Probe'), `${field} is a dependency`);
 		const renamed = renameOpReferences(probe, 'probe', 'Renamed');
 		assert.ok(opDependencies(renamed).includes('Renamed') && !opDependencies(renamed).some((name) => name.toLowerCase() === 'probe'), `${field} is renamed`);
@@ -67,34 +68,34 @@ for (const kind of OP_KINDS) test(`${kind}: the catalog record is complete and c
 	for (const need of needs) assert.ok(need.length && need.every((provider) => PROVIDERS.includes(provider)), 'needs name real providers');
 	assert.deepEqual(missingProviders(sample, () => true), []);
 	assert.deepEqual(missingProviders(sample, () => false), needs.map((need) => need[0]));
-	if (record.local(sample as never)) assert.deepEqual([needs, record.credits(sample as never)], [[], 0], 'local operations call no provider');
-	if (record.bills && record.bills !== 'email') assert.ok(needs.some((need) => need.includes(record.bills as never)), 'it bills a provider it requires');
-	const credits = record.credits(sample as never), worst = record.worstCaseMs(sample as never);
-	assert.ok(Number.isFinite(credits) && credits >= 0);
+	if (record.local(sample as never)) assert.deepEqual([needs, record.costUsd(sample as never)], [[], 0], 'local operations call no provider');
+	if (record.bills) assert.ok(needs.some((need) => need.includes(record.bills as never)), 'it bills a provider it requires');
+	const cost = record.costUsd(sample as never), worst = record.worstCaseMs(sample as never);
+	assert.ok(Number.isFinite(cost) && cost >= 0);
 	assert.ok(worst > 0 && worst < 280_000, 'one run fits inside the MCP row deadline');
 	assert.ok(['row', 'references', 'row-unless-referenced'].includes(record.rowContext(sample as never)));
 });
 
 test('modes change what an operation needs, reads and costs', () => {
 	const draft = SAMPLES['email-draft'] as Extract<ColumnOp, { kind: 'email-draft' }>;
-	const cases: Array<{ name: string; op: ColumnOp; requires: string[][]; local: boolean; readsRow: boolean; credits: number }> = [
-		{ name: 'AI email draft', op: draft, requires: [['openai']], local: false, readsRow: true, credits: 0 },
-		{ name: 'template email draft', op: { ...draft, mode: 'template' }, requires: [], local: true, readsRow: false, credits: 0 },
-		{ name: 'Ask AI reading a page found on the site', op: { kind: 'ai', prompt: 'CEO?', output: 'text', research: 'web', page: { type: 'find', column: 'Domain', page: 'team' } }, requires: [['openai'], ['context']], local: false, readsRow: true, credits: 6 },
-		{ name: 'Ask AI from the row alone', op: { kind: 'ai', prompt: 'CEO?', output: 'text', research: 'none' }, requires: [['openai']], local: false, readsRow: true, credits: 0 },
-		{ name: 'check decided by a model', op: { kind: 'check', question: 'B2B?', decider: 'jev', threshold: 0.5 }, requires: [['typesafe', 'openai']], local: false, readsRow: true, credits: 0 },
-		{ name: 'exact-text check on a page', op: { kind: 'check', question: 'Free plan?', literal: 'free', decider: 'jev', threshold: 0.5, page: { type: 'column', column: 'URL' } }, requires: [['context']], local: false, readsRow: true, credits: 1 },
-		{ name: 'research that references its subject', op: { kind: 'answer', task: 'Funding of {{Company}}', output: 'text', mode: 'ultra' }, requires: [['context']], local: false, readsRow: false, credits: 100 },
-		{ name: 'research about the whole row', op: SAMPLES.answer, requires: [['context']], local: false, readsRow: true, credits: 10 },
-		{ name: 'page read', op: SAMPLES.scrape, requires: [['context']], local: false, readsRow: false, credits: 1 },
-		{ name: 'text template', op: SAMPLES.template, requires: [], local: true, readsRow: false, credits: 0 },
+	const cases: Array<{ name: string; op: ColumnOp; requires: string[][]; local: boolean; readsRow: boolean; costUsd: number }> = [
+		{ name: 'AI email draft', op: draft, requires: [['openai']], local: false, readsRow: true, costUsd: 0 },
+		{ name: 'template email draft', op: { ...draft, mode: 'template' }, requires: [], local: true, readsRow: false, costUsd: 0 },
+		{ name: 'Ask AI reading a page found on the site', op: { kind: 'ai', prompt: 'CEO?', output: 'text', research: 'web', page: { type: 'find', column: 'Domain', page: 'team' } }, requires: [['openai'], ['looot']], local: false, readsRow: true, costUsd: 0.008 },
+		{ name: 'Ask AI from the row alone', op: { kind: 'ai', prompt: 'CEO?', output: 'text', research: 'none' }, requires: [['openai']], local: false, readsRow: true, costUsd: 0 },
+		{ name: 'check decided by a model', op: { kind: 'check', question: 'B2B?', decider: 'jev', threshold: 0.5 }, requires: [['typesafe', 'openai']], local: false, readsRow: true, costUsd: 0 },
+		{ name: 'exact-text check on a page', op: { kind: 'check', question: 'Free plan?', literal: 'free', decider: 'jev', threshold: 0.5, page: { type: 'column', column: 'URL' } }, requires: [['looot']], local: false, readsRow: true, costUsd: 0.001 },
+		{ name: 'research that references its subject', op: { kind: 'answer', task: 'Funding of {{Company}}', output: 'text', mode: 'ultra' }, requires: [['openai'], ['looot']], local: false, readsRow: false, costUsd: 0.03 },
+		{ name: 'research about the whole row', op: SAMPLES.answer, requires: [['openai'], ['looot']], local: false, readsRow: true, costUsd: 0.01 },
+		{ name: 'page read', op: SAMPLES.scrape, requires: [['looot']], local: false, readsRow: false, costUsd: 0.001 },
+		{ name: 'text template', op: SAMPLES.template, requires: [], local: true, readsRow: false, costUsd: 0 },
 	];
-	for (const { name, op, requires, local, readsRow, credits } of cases) {
+	for (const { name, op, requires, local, readsRow, costUsd } of cases) {
 		const record = operation(op.kind);
 		assert.deepEqual(record.requires(op as never), requires, name);
 		assert.equal(record.local(op as never), local, name);
 		assert.equal(readsRowContext(op), readsRow, name);
-		assert.equal(record.credits(op as never), credits, name);
+		assert.equal(record.costUsd(op as never), costUsd, name);
 	}
 });
 

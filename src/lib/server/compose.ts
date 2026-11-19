@@ -3,7 +3,7 @@ import 'server-only';
 
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
-import { type ColumnOp, type ComposeColumnRequest, type ComposeColumnResponse, EMAIL_PROVIDERS, PROSPEO_FIELDS, OUTPUT_TYPES, type PageSource } from '../types';
+import { type ColumnOp, type ComposeColumnRequest, type ComposeColumnResponse, OUTPUT_TYPES, type PageSource } from '../types';
 import { ColumnOpInputSchema, instructionField, instructionText, OP_KINDS, OPERATIONS } from '../operations';
 import type { ProviderAccess } from './provider-access';
 
@@ -12,9 +12,9 @@ const GUIDE = `You turn a plain-language request into one spreadsheet column def
 - formula: prefer for basic manipulation of existing data: arithmetic, text cleanup, splitting, joining, extracting parts, dates, conditional logic, and building URLs or combining literal text with column values. For text assembly, request readable formulas using the single & concatenation operator with spaces, e.g. ="Hi " & A1 & ", welcome!"; never &&. Set text to instructions for the formula builder, preserving column names and references. No external data or subjective reasoning. The client builds and tests a spreadsheet formula on up to 10 rows before applying it.
 - company: one of exactly these firmographic fields for a domain column: description, title, slogan, industry, employees, city, country, address, email, phone, ticker, linkedin, twitter, pricing_url, careers_url, blog_url, contact_url, logo_url, primary_color, language, funding_total, funding_stage, funding_latest_round, funding_latest_date, funding_latest_amount, funding_round_count. Nothing else (no people, investors, products, or tech stack): those need ai.
 - person: a fact about a person (title, company, location, LinkedIn, schools, degrees, experience) from a name + company, email, or profile URL column.
-- email-enrichment: for finding work emails from personName and domain, optionally personCompany and personProfileUrl. Stops at the first email returned, without additional verification. Uses an ordered multi-provider waterfall and included organization credit or saved provider keys. Prefer this for email discovery unless a specific provider was requested.
-- hunter: when Hunter is connected, find work email with hunterAction "find" and personName + domain, or verify an existing personEmail with hunterAction "verify". Verification returns a text status, not a boolean.
-- prospeo: when Prospeo is connected, enrich a person using personProfileUrl (LinkedIn), personEmail, or personName + domain. Select prospeoField. Only select mobile when explicitly requested because it costs more. Default onlyVerifiedEmail to true, except mobile lookups where false permits people without verified email.
+- email-enrichment: for finding work emails from personName and domain, optionally personCompany and personProfileUrl. looot tries its email providers one after another until one finds an address, in the order set by emailPrefer (balanced, cheapest or reliable). The address is not verified: add an email-verify column when asked to check it.
+- email-verify: check whether an email is deliverable. Set personEmail to the email template. The cell holds a status: valid, invalid, catch_all, risky or unknown.
+- phone-find: find a phone number from personProfileUrl (LinkedIn), or personName with personCompany or domain. Costs more than an email.
 - scrape: read a page. scrapeMode "highlights" with a query for passages, "extract" with fields for structured facts from a page, "title", or "url" (just find the page, e.g. the pricing page URL).
 - check: a true/false question. Set page when the answer lives on a page (pricing page, homepage, careers page, a URL column). Use literal only when the user asks for an exact phrase match.
 - classify: pick one of a fixed set of options (industry buckets, ICP fit, persona). Provide 2-8 clear options with short descriptions.
@@ -22,7 +22,7 @@ const GUIDE = `You turn a plain-language request into one spreadsheet column def
 - search: find a URL/title on the web for a query template, e.g. "{{Company}} crunchbase".
 - For documents, company briefs, one-page briefs, reports, and longer research writeups, select ai with output "document". Use the row cells as context, reference relevant columns in the prompt, and preserve the requested length. Use research "none" when asked to use only row data; otherwise "web".
 - ai: anything else that needs reasoning or multi-step research: who is the CEO or founder, what is the tech stack, when was the Series A, which investors, what products. research "web" lets it search and read pages; "none" answers from the row only.
-- answer: deep research needing many sources; costs more (10 credits fast, 100 ultra). Use sparingly.
+- answer: deep research needing many sources; the agent takes more steps, so it costs more (fast, or ultra for the longest). Use sparingly.
 
 Rules:
 - "text" holds the operation's main input: the question (ai/check/classify/score), the research task (answer), the search query (search), the highlight query or extraction instructions (scrape), or the formula-building instructions (formula).
@@ -41,7 +41,7 @@ const PERSON_FIELDS = ['title', 'company', 'company_domain', 'location', 'bio', 
    shape and the server folds it into a ColumnOp. */
 const FlatSchema = z.object({
 	name: z.string().describe('Column header, Title case, under 40 characters.'),
-	kind: z.enum(['email-enrichment', 'email-draft', 'ai', 'check', 'classify', 'score', 'scrape', 'search', 'company', 'person', 'hunter', 'prospeo', 'answer', 'formula']),
+	kind: z.enum(['email-enrichment', 'email-verify', 'phone-find', 'email-draft', 'ai', 'check', 'classify', 'score', 'scrape', 'search', 'company', 'person', 'answer', 'formula']),
 	text: z.string().describe('Main input for the operation; see the rules.'),
 	rationale: z.string().describe('One sentence on why this operation.'),
 	output: z.enum(OUTPUT_TYPES).nullable().describe('ai and answer only.'),
@@ -61,16 +61,14 @@ const FlatSchema = z.object({
 	scrapeMode: z.enum(['markdown', 'highlights', 'extract', 'title', 'url']).nullable(),
 	fields: z.array(z.object({ name: z.string(), description: z.string().nullable() })).nullable().describe('scrape extract only.'),
 	pick: z.enum(['url', 'title', 'snippet', 'list']).nullable().describe('search only.'),
-	domain: z.string().nullable().describe('company, hunter, or prospeo: a domain template such as {{Domain}}.'),
+	domain: z.string().nullable().describe('company, email-enrichment or phone-find: a domain template such as {{Domain}}.'),
 	companyField: z.enum(COMPANY_FIELDS).nullable(),
 	personName: z.string().nullable(),
 	personCompany: z.string().nullable(),
 	personEmail: z.string().nullable(),
 	personProfileUrl: z.string().nullable(),
 	personField: z.enum(PERSON_FIELDS).nullable(),
-	hunterAction: z.enum(['find', 'verify']).nullable(),
-	prospeoField: z.enum(PROSPEO_FIELDS).nullable(),
-	onlyVerifiedEmail: z.boolean().nullable(),
+	emailPrefer: z.enum(['balanced', 'cheapest', 'reliable']).nullable().describe('email-enrichment, email-verify and phone-find: how looot orders its providers.'),
 	emailMode: z.enum(['ai', 'template']).nullable(),
 	emailFields: z.object({ to: z.string(), cc: z.string(), bcc: z.string(), subject: z.string(), body: z.string() }).nullable(),
 	answerMode: z.enum(['fast', 'ultra']).nullable(),
@@ -97,7 +95,11 @@ function toOp(flat: Flat, decider: 'jev' | 'openai'): ComposeColumnResponse['op'
 		case 'formula':
 			return { kind: 'formula', request: flat.text };
 		case 'email-enrichment':
-			return { kind: 'email-enrichment', name: flat.personName ?? '', domain: flat.domain ?? '', company: flat.personCompany ?? '', profileUrl: flat.personProfileUrl ?? '', providers: [...EMAIL_PROVIDERS] };
+			return { kind: 'email-enrichment', name: flat.personName ?? '', domain: flat.domain ?? '', company: flat.personCompany ?? '', profileUrl: flat.personProfileUrl ?? '', prefer: flat.emailPrefer ?? 'balanced' };
+		case 'email-verify':
+			return { kind: 'email-verify', email: flat.personEmail ?? '', prefer: flat.emailPrefer ?? 'balanced' };
+		case 'phone-find':
+			return { kind: 'phone-find', name: flat.personName ?? '', company: flat.personCompany ?? '', domain: flat.domain ?? '', profileUrl: flat.personProfileUrl ?? '', prefer: flat.emailPrefer ?? 'balanced' };
 		case 'email-draft':
 			return { kind: 'email-draft', mode: flat.emailMode ?? 'ai', prompt: flat.text, to: '', cc: '', bcc: '', subject: '', body: '', ...flat.emailFields };
 		case 'ai':
@@ -116,10 +118,6 @@ function toOp(flat: Flat, decider: 'jev' | 'openai'): ComposeColumnResponse['op'
 			return { kind: 'company', domain: flat.domain || flat.text || '{{Domain}}', field: flat.companyField ?? 'description' };
 		case 'person':
 			return { kind: 'person', name: flat.personName ?? undefined, company: flat.personCompany ?? undefined, email: flat.personEmail ?? undefined, profileUrl: flat.personProfileUrl ?? undefined, field: flat.personField ?? 'title' };
-		case 'hunter':
-			return { kind: 'hunter', action: flat.hunterAction ?? 'find', name: flat.personName ?? undefined, domain: flat.domain ?? undefined, email: flat.personEmail ?? undefined };
-		case 'prospeo':
-			return { kind: 'prospeo', name: flat.personName ?? undefined, domain: flat.domain ?? undefined, email: flat.personEmail ?? undefined, profileUrl: flat.personProfileUrl ?? undefined, field: flat.prospeoField ?? 'email', onlyVerifiedEmail: flat.onlyVerifiedEmail ?? flat.prospeoField !== 'mobile' };
 		case 'answer':
 			return { kind: 'answer', task: flat.text, output: flat.output ?? 'text', mode: flat.answerMode ?? 'fast' };
 	}
@@ -133,8 +131,8 @@ export async function composeColumn(access: ProviderAccess, request: ComposeColu
 	const schema = request.excludeFormula ? FlatSchema.extend({ kind: FlatSchema.shape.kind.exclude(['formula']) }) : FlatSchema;
 	const { output } = await generateText({
 		model,
-		system: `${GUIDE}\nWhen the request refers to my/our company, preserve that reference AND any explicit company domain in the generated operation so execution can load the same company context.${request.excludeFormula ? '\nFormula generation or preview was unsuccessful (or unavailable). Do not select formula. Choose the best other operation for the original request.' : ''}\n\nProvider connections: Hunter ${access.key('hunter') ? 'connected' : 'unavailable; do not select hunter'}, Prospeo ${access.key('prospeo') ? 'connected' : 'unavailable; do not select prospeo'}.\n\nAvailable operations: ${request.excludeFormula ? '' : 'formula (Formula), '}${OP_KINDS
-			.filter((kind) => kind !== 'template')
+		system: `${GUIDE}\nWhen the request refers to my/our company, preserve that reference AND any explicit company domain in the generated operation so execution can load the same company context.${request.excludeFormula ? '\nFormula generation or preview was unsuccessful (or unavailable). Do not select formula. Choose the best other operation for the original request.' : ''}\n\nAvailable operations: ${request.excludeFormula ? '' : 'formula (Formula), '}${OP_KINDS
+			.filter((kind) => kind !== 'template' && kind !== 'looot')
 			.map((kind) => `${kind} (${OPERATIONS[kind].label})`)
 			.join(', ')}.`,
 		prompt: `Sheet rows are ${request.entity ?? 'records'}.\nColumns:\n${columns || '(none yet)'}\n\nRequest: ${request.ask}${companyContext}`,

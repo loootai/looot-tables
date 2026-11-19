@@ -2,7 +2,7 @@
 
 import type { MenuItem } from '@/components/ui/menu';
 import { addEmptyRow, newColumn, updateColumn } from '@/lib/db';
-import { defaultEmailWaterfall } from '@/lib/email-waterfall';
+import { defaultEmailFind } from '@/lib/email-defaults';
 import { OPERATIONS } from '@/lib/operations';
 import { uniqueName } from '@/lib/references';
 import type { SheetCommands } from '@/lib/sheet-commands';
@@ -24,7 +24,7 @@ export function useSheetMenus({ sheetId, sheet, allRows, commands, content, sele
 	const addColumnItems = (insertAt?: number): MenuItem[] => [
 		{ label: 'AI column', icon: <Sparkles />, onSelect: () => overlays.setEditor({ insertAt }) },
 		{ label: 'Formula', icon: <FunctionSquare />, onSelect: () => overlays.setFormulaBuilder({ column: newColumn({ name: uniqueName('Formula', columnNames), type: 'source' }), insertAt }) },
-		{ label: 'Find email', icon: <Mail />, onSelect: () => overlays.setEditor({ insertAt, initialOp: defaultEmailWaterfall(sheet.columns), initialName: uniqueName(OPERATIONS['email-enrichment'].columnName, columnNames) }) },
+		{ label: 'Find email', icon: <Mail />, onSelect: () => overlays.setEditor({ insertAt, initialOp: defaultEmailFind(sheet.columns), initialName: uniqueName(OPERATIONS['email-enrichment'].columnName, columnNames) }) },
 		{ label: 'Blank column', icon: <Columns3 />, onSelect: () => actions.addBlankColumn(insertAt) },
 	];
 	const addItems: MenuItem[] = [

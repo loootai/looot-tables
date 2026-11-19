@@ -43,10 +43,10 @@ function ShellAlerts() {
 	);
 }
 
-export function AppShell({ children, account, contextSignIn = false }: { children: ReactNode; account: Account & { sessionId: string }; contextSignIn?: boolean }) {
+export function AppShell({ children, account }: { children: ReactNode; account: Account & { sessionId: string } }) {
 	return (
 		<AccountBoundary account={account}>
-			<SettingsProvider logolinkPublicId={account.organization.logolink_public_id} selfHosted={account.issuer === SELF_HOSTED_ISSUER} contextSignIn={contextSignIn} workspaceName={account.organization.name}>
+			<SettingsProvider selfHosted={account.issuer === SELF_HOSTED_ISSUER} workspaceName={account.organization.name}>
 				<ToastProvider>
 					<NavigationProvider>
 					<div className="flex h-dvh overflow-clip bg-canvas pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">

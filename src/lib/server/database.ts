@@ -74,7 +74,7 @@ export function createDatabase(driver: Driver): Database {
 
 // Checked on first use, so requests that never touch storage work on deployments without it.
 function databaseUrl() {
-	if (!process.env.DATABASE_URL) throw new WorkspaceError('Cloud storage is not configured. Connect the Enrichable Neon database.', 503);
+	if (!process.env.DATABASE_URL) throw new WorkspaceError('Cloud storage is not configured. Connect the looot tables database.', 503);
 	return process.env.DATABASE_URL;
 }
 

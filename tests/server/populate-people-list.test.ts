@@ -2,35 +2,38 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { populateStream } from '../../src/lib/server/populate';
 import { personEnrichmentInput, listedPersonRow, type ListedPerson } from '../../src/lib/server/populate-people-list';
+import { personHitOf } from '../../src/lib/server/looot-jobs';
 import type { PopulateEvent } from '../../src/lib/types';
 import { rowSchema } from '../../src/lib/workspace';
 import { testAccess } from './access-fixture';
 
-const access = testAccess({ keys: { openai: 'test-openai', context: 'test-context' }, model: 'test-model', openaiBaseUrl: 'https://model.example/v1' });
+const access = testAccess({ keys: { openai: 'test-openai', looot: 'test-looot' }, model: 'test-model', openaiBaseUrl: 'https://model.example/v1' });
+const MODEL = 'https://model.example/v1/chat/completions';
 const person = (name: string, companyDomain: string | null = null): ListedPerson => ({ name, firstName: name.split(' ')[0], lastName: name.split(' ').slice(1).join(' ') || null, companyDomain, companyName: null, email: null, profileUrls: [], city: null, region: null, country: null, school: null });
 const completion = (content: string) => Response.json({ id: 'plan', object: 'chat.completion', created: 0, model: 'test-model', choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content } }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } });
+const run = (result: unknown, outcome = 'hit', n = 1) => Response.json({ runId: `run_${n}`, status: 'completed', outcome, result, actualCost: outcome === 'hit' ? 0.016 : 0 }, { status: 201 });
+const miss = (n = 1) => run({ data: null }, 'miss', n);
 
 test('list routing enriches supplied people separately and retains unmatched and name-only people', async (t) => {
- const people = [person('Nikhil Radosevich', 'context.dev'), { ...person('Adeline Kim'), companyName: 'Aside' }, person('Anicet Nougaret', 'boat.dev'), person('Name Only')];
- const requests: Record<string, unknown>[] = [];
+ const people = [person('Nikhil Radosevich', 'looot.ai'), { ...person('Adeline Kim'), companyName: 'Aside' }, person('Anicet Nougaret', 'boat.dev'), person('Name Only')];
+ const requests: Array<{ endpointId: string; input: Record<string, unknown> }> = [];
  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, options?: RequestInit) => {
   const request = new Request(input, options);
-  if (request.url === 'https://model.example/v1/chat/completions') {
+  if (request.url === MODEL) {
    const body = await request.json();
    assert.ok(!JSON.stringify(body.response_format).includes('\"format\":\"uri\"'));
    return completion(JSON.stringify({ mode: 'list', people }));
   }
-  if (request.url.endsWith('/people/search')) return Response.json({ request_id: 'search', results: [] });
-  assert.equal(request.url, 'https://api.context.dev/v1/people/enrich');
   requests.push(await request.json());
-  if (requests.length !== 3) return Response.json({ match: { status: 'not_found', person: null, score: null } });
-  return Response.json({ match: { status: 'candidate', score: 0.96, person: { name: { full: 'Anicet Nougaret' }, avatar_url: 'https://cdn.example.com/anicet.jpg', current_role_status: 'present', current_role: { title: 'Founder', organization: { name: 'Boat', domain: 'boat.dev' } }, education: [], experience: [], skills: ['Rust'], social_urls: ['https://www.linkedin.com/in/anicet'], website_urls: [], bio: 'Founder of Boat' } } });
+  if (requests.length !== 3) return miss(requests.length);
+  return run({ data: { full_name: 'Anicet Nougaret', avatar_url: 'https://cdn.example.com/anicet.jpg', title: 'Founder', company_name: 'Boat', website: 'boat.dev', profile_url: 'https://www.linkedin.com/in/anicet' } }, 'hit', 3);
  });
- const events: PopulateEvent[] = (await new Response(populateStream(access, { query: 'Nikhil Radosevich - context.dev\nAdeline Kim - Aside\nAnicet Nougaret - boat.dev\nName Only', entity: 'people', target: 1, availableRows: 100 })).text()).trim().split('\n').map(line => JSON.parse(line));
+ const events: PopulateEvent[] = (await new Response(populateStream(access, { query: 'Nikhil Radosevich - looot.ai\nAdeline Kim - Aside\nAnicet Nougaret - boat.dev\nName Only', entity: 'people', target: 1, availableRows: 100 })).text()).trim().split('\n').map(line => JSON.parse(line));
  assert.deepEqual(events.filter(e => e.type === 'error'), []);
- assert.equal(requests.length, 3);
- assert.deepEqual(requests.map(r => r.company), [{ domain: 'context.dev' }, { name: 'Aside' }, { domain: 'boat.dev' }]);
- assert.deepEqual(requests[2].name, { first: 'Anicet', last: 'Nougaret' });
+ assert.equal(requests.length, 3, 'a person with no clue to look up is kept without a paid lookup');
+ assert.ok(requests.every(r => r.endpointId === 'job:people.enrich'));
+ assert.deepEqual(requests.map(r => [r.input.domain, r.input.company]), [['looot.ai', undefined], [undefined, 'Aside'], ['boat.dev', undefined]]);
+ assert.deepEqual([requests[2].input.first_name, requests[2].input.last_name], ['Anicet', 'Nougaret']);
  const rows = events.flatMap(e => e.type === 'rows' ? e.rows : []);
  assert.deepEqual(rows.map(r => r.Name), people.map(p => p.name));
  assert.deepEqual(rows.map(r => r['Enrichment status']), ['No match', 'No match', 'Candidate found', 'No match']);
@@ -42,14 +45,14 @@ test('list routing enriches supplied people separately and retains unmatched and
  for (const [index, row] of rows.entries()) rowSchema.parse({ id: `row-${index}`, sheetId: 'people', order: index, createdAt: 1, cells: Object.fromEntries(Object.entries(row).map(([column, v]) => [column, { v, s: 'done', t: 1 }])) });
 });
 
-test('discovery routing retains the people search agent', async (t) => {
+test('discovery routing retains the people search agent, with a company finder beside it', async (t) => {
  let modelCalls = 0;
  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, options?: RequestInit) => {
   const request = new Request(input, options);
-  if (request.url === 'https://model.example/v1/chat/completions') {
+  if (request.url === MODEL) {
    if (++modelCalls === 1) return completion(JSON.stringify({ mode: 'discovery', people: [] }));
    const body = await request.json();
-   assert.deepEqual(body.tools.map((tool: { function: { name: string } }) => tool.function.name), ['searchPeople']);
+   assert.deepEqual(body.tools.map((tool: { function: { name: string } }) => tool.function.name).sort(), ['findCompanies', 'searchPeople']);
    return completion('No results');
   }
   throw new Error(`Unexpected API: ${request.url}`);
@@ -64,11 +67,10 @@ test('an API failure keeps the supplied person and continues with the next perso
  let calls = 0;
  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, options?: RequestInit) => {
   const request = new Request(input, options);
-  if (request.url === 'https://model.example/v1/chat/completions') return completion(JSON.stringify({ mode: 'list', people: [person('First Person', 'first.example'), person('Second Person', 'second.example')] }));
-  if (request.url.endsWith('/people/search')) return Response.json({ request_id: 'search', results: [] });
+  if (request.url === MODEL) return completion(JSON.stringify({ mode: 'list', people: [person('First Person', 'first.example'), person('Second Person', 'second.example')] }));
   calls++;
-  if (calls === 1) return Response.json({ error: { message: 'Invalid identity' } }, { status: 422 });
-  return Response.json({ match: { status: 'not_found', person: null, score: null } });
+  if (calls === 1) return Response.json({ error: { code: 'validation_error', message: 'Invalid identity' } }, { status: 422 });
+  return miss(calls);
  });
  const events: PopulateEvent[] = (await new Response(populateStream(access, { query: 'First Person and Second Person', entity: 'people', target: 3 })).text()).trim().split('\n').map(line => JSON.parse(line));
  assert.equal(calls, 2);
@@ -76,24 +78,23 @@ test('an API failure keeps the supplied person and continues with the next perso
  assert.equal(events.at(-1)?.type, 'error');
 });
 
-test('identity clues are passed together and former employers are not presented as current', () => {
- const input = { ...person('Ada Lovelace', 'engines.example'), companyName: 'Engines', city: 'London', school: 'School', email: 'ada@example.com' };
- assert.deepEqual(personEnrichmentInput(input)?.company, { name: 'Engines', domain: 'engines.example' });
- assert.deepEqual(personEnrichmentInput(input)?.location, { city: 'London' });
- const row = listedPersonRow(input, { request_id: 'test', match: { status: 'candidate', score: 0.9, person: { current_role_status: 'none', experience: [{ title: 'Engineer', organization: { name: 'Former employer' } }], education: [], skills: [], social_urls: [], website_urls: [] } } });
+test('identity clues are passed together and an unmatched person keeps only what was supplied', () => {
+ const input = { ...person('Ada Lovelace', 'engines.example'), companyName: 'Engines', city: 'London', school: 'School', email: 'ada@example.com', profileUrls: ['https://www.linkedin.com/in/ada'] };
+ assert.deepEqual(personEnrichmentInput(input), { name: 'Ada Lovelace', email: 'ada@example.com', profileUrl: 'https://www.linkedin.com/in/ada', company: 'Engines', companyDomain: 'engines.example' });
+ const row = listedPersonRow(input, null);
  assert.equal(row.Company, null);
  assert.equal(row['Supplied company'], 'Engines');
+ assert.equal(row['Enrichment status'], 'No match');
+ assert.equal(row.LinkedIn, 'https://www.linkedin.com/in/ada');
  assert.equal(personEnrichmentInput(person('Name Only')), null);
+ const found = listedPersonRow(person('Grace Hopper', 'navy.example'), personHitOf({ full_name: 'Grace Hopper', title: 'Rear Admiral', company_name: 'US Navy', website: 'navy.example', profile_url: 'https://www.linkedin.com/in/grace' }));
+ assert.deepEqual([found.Title, found.Company, found['Enrichment status']], ['Rear Admiral', 'US Navy', 'Candidate found']);
 });
 
 test('list processing respects sheet capacity and cancellation', async (t) => {
  const { populatePeopleList } = await import('../../src/lib/server/populate-people-list');
  let calls = 0;
- t.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
-  if (new Request(input).url.endsWith('/people/search')) return Response.json({ request_id: 'search', results: [] });
-  calls++;
-  return Response.json({ match: { status: 'not_found', person: null, score: null } });
- });
+ t.mock.method(globalThis, 'fetch', async () => miss(++calls));
  const people = [person('First Person', 'first.example'), person('Second Person', 'second.example')];
  const events: PopulateEvent[] = [];
  await populatePeopleList(access, { query: 'List', entity: 'people', target: 100, availableRows: 1 }, people, event => events.push(event), new AbortController().signal);
@@ -111,13 +112,12 @@ test('supplied people are looked up a few at a time, emitted in order, and never
  let active = 0, maxActive = 0, calls = 0;
  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, options?: RequestInit) => {
   const request = new Request(input, options);
-  if (request.url.endsWith('/people/search')) return Response.json({ request_id: 'search', results: [] });
   calls++; active++; maxActive = Math.max(maxActive, active);
-  const { company } = await request.json();
+  const { input: lookup } = await request.json();
   // Later people answer first; rows must still arrive in the supplied order.
-  await new Promise(resolve => setTimeout(resolve, 40 - Number(company.domain.split('.')[0].slice(1)) * 3));
+  await new Promise(resolve => setTimeout(resolve, 40 - Number(String(lookup.domain).split('.')[0].slice(1)) * 3));
   active--;
-  return Response.json({ match: { status: 'not_found', person: null, score: null } });
+  return miss(calls);
  });
  const people = Array.from({ length: 10 }, (_, i) => person(`Person ${i}`, `p${i}.example`));
  const events: PopulateEvent[] = [];

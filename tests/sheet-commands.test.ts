@@ -147,16 +147,16 @@ test('runs ask only for the providers their operations need', () => {
 	const cases: Array<{ name: string; op: ColumnOp; connected: Provider[]; missing: Provider[] }> = [
 		{ name: 'template', op: template, connected: [], missing: [] },
 		{ name: 'email template', op: { kind: 'email-draft', mode: 'template', prompt: '', to: '{{Email}}', cc: '', bcc: '', subject: 'Hi', body: 'Hello {{Name}}' }, connected: [], missing: [] },
-		{ name: 'AI email draft', op: { kind: 'email-draft', mode: 'ai', prompt: 'Intro', to: '', cc: '', bcc: '', subject: '', body: '' }, connected: ['context'], missing: ['openai'] },
-		{ name: 'company data with only Context.dev', op: { kind: 'company', domain: '{{Domain}}', field: 'industry' }, connected: ['context'], missing: [] },
-		{ name: 'web search without Context.dev', op: { kind: 'search', query: '{{Domain}}', pick: 'url', numResults: 3 }, connected: ['openai'], missing: ['context'] },
+		{ name: 'AI email draft', op: { kind: 'email-draft', mode: 'ai', prompt: 'Intro', to: '', cc: '', bcc: '', subject: '', body: '' }, connected: ['looot'], missing: ['openai'] },
+		{ name: 'company data with only looot', op: { kind: 'company', domain: '{{Domain}}', field: 'industry' }, connected: ['looot'], missing: [] },
+		{ name: 'web search without looot', op: { kind: 'search', query: '{{Domain}}', pick: 'url', numResults: 3 }, connected: ['openai'], missing: ['looot'] },
 		{ name: 'ask AI without a page needs only OpenAI', op: ask, connected: ['openai'], missing: [] },
-		{ name: 'ask AI reading a page', op: { ...ask, page: { type: 'homepage', column: 'Domain' } } as ColumnOp, connected: ['openai'], missing: ['context'] },
+		{ name: 'ask AI reading a page', op: { ...ask, page: { type: 'homepage', column: 'Domain' } } as ColumnOp, connected: ['openai'], missing: ['looot'] },
 		{ name: 'check decided by TypeSafe', op: { kind: 'check', question: 'B2B?', decider: 'jev', threshold: 0.5 }, connected: ['typesafe'], missing: [] },
-		{ name: 'check without a decider', op: { kind: 'check', question: 'B2B?', decider: 'jev', threshold: 0.5 }, connected: ['context'], missing: ['typesafe'] },
+		{ name: 'check without a decider', op: { kind: 'check', question: 'B2B?', decider: 'jev', threshold: 0.5 }, connected: ['looot'], missing: ['typesafe'] },
 		{ name: 'exact-text check on the row', op: { kind: 'check', question: 'Mentions Acme?', literal: 'Acme', decider: 'jev', threshold: 0.5 }, connected: [], missing: [] },
-		{ name: 'email waterfall', op: { kind: 'email-enrichment', name: '{{Name}}', company: '', domain: '{{Domain}}', profileUrl: '', providers: ['hunter'] }, connected: [], missing: [] },
-		{ name: 'Hunter', op: { kind: 'hunter', action: 'verify', email: '{{Email}}' }, connected: ['context', 'openai'], missing: ['hunter'] },
+		{ name: 'email find', op: { kind: 'email-enrichment', name: '{{Name}}', company: '', domain: '{{Domain}}', profileUrl: '', prefer: 'balanced' }, connected: ['looot'], missing: [] },
+		{ name: 'email verify', op: { kind: 'email-verify', email: '{{Email}}', prefer: 'balanced' }, connected: ['openai'], missing: ['looot'] },
 	];
 	for (const { name, op, connected, missing } of cases) {
 		const plan = commands.plan(rows, [column('Out', { type: 'enriched', op })], 'all', { ready: (provider) => connected.includes(provider), grid: grid(rows) });
@@ -171,10 +171,10 @@ test('every bulk run shares the cost rule', () => {
 	const options = { ready: () => true, grid: grid(many) };
 	const cheap = commands.plan(many.slice(0, 50), [column('Greeting', { type: 'enriched', op: template })], 'all', options);
 	const big = commands.plan(many, [column('CEO', { type: 'enriched', op: ask })], 'all', options);
-	const costly = commands.plan(many.slice(0, 2), [column('Funding', { type: 'enriched', op: ultra })], 'all', options);
+	const costly = commands.plan(many.slice(0, 20), [column('Funding', { type: 'enriched', op: ultra })], 'all', options);
 	assert.ok(cheap.kind === 'run' && !cheap.estimate.confirm);
-	assert.ok(big.kind === 'run' && big.estimate.confirm && big.estimate.message === '~60 cells × ~4 credits ≈ 240 credits');
-	assert.ok(costly.kind === 'run' && costly.estimate.confirm, 'two Ultra research cells cost more than the threshold');
+	assert.ok(big.kind === 'run' && big.estimate.confirm && big.estimate.message === '~60 cells × ~$0.0040 ≈ $0.24');
+	assert.ok(costly.kind === 'run' && costly.estimate.confirm, 'twenty Ultra research cells cost more than the threshold');
 });
 
 test('retry plans only failed cells', async () => {
@@ -255,7 +255,7 @@ test('run status is stable for useSyncExternalStore and overlays pending cells',
 	assert.equal(commands.status(), idle);
 	assert.equal(idle.pending, 0);
 	const cells = new Map([['r1', new Map([['CEO', 'running' as const]])]]);
-	const halt = { sheetId: 's1', reason: 'credits_exhausted' as const, provider: 'context' as const, message: 'Out of credits', failedCells: 2 };
+	const halt = { sheetId: 's1', reason: 'credits_exhausted' as const, provider: 'looot' as const, message: 'Out of credits', failedCells: 2 };
 	setSnapshot({ bySheet: { s1: { queued: 3, running: 1, cells } }, halted: { s1: halt } });
 	const busy = commands.status();
 	assert.equal(commands.status(), busy);
@@ -310,7 +310,7 @@ test('an unsaved column’s plan counts the never-run AI inputs it reads, so the
 	assert.deepEqual([alone.estimate.cells, alone.estimate.confirm], [30, false], 'the column by itself looks small');
 	const preview = commands.plan(rows, [draft], 'unfinished', { ...options, sheetColumns: [...sheet.columns, draft] });
 	assert.ok(preview.kind === 'run');
-	assert.deepEqual([preview.estimate.cells, preview.estimate.credits, preview.estimate.confirm], [60, 120, true], 'thirty Greeting cells and the thirty CEO cells they wait on');
+	assert.deepEqual([preview.estimate.cells, preview.estimate.usd, preview.estimate.confirm], [60, 0.12, true], 'thirty Greeting cells and the thirty CEO cells they wait on');
 });
 
 test('drag-fill never runs a cell another tab or an agent is running, or a finished one that cannot run', async () => {

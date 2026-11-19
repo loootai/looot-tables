@@ -6,11 +6,11 @@ import { notifyTrialLimit, OPENAI_KEY_REQUIRED, OPENAI_KEY_REQUIRED_EVENT } from
 const op = { kind: 'search' as const, query: 'example', pick: 'url' as const, numResults: 1 };
 
 test('enrichment failures carry their structured reason on results and on errors', async (t) => {
-	const failure = { reason: 'credits_exhausted', retryable: false, provider: 'context' } as const;
+	const failure = { reason: 'credits_exhausted', retryable: false, provider: 'looot' } as const;
 	const fetch = t.mock.method(globalThis, 'fetch', async () => Response.json({ value: null, error: 'Out of credits (402)', failure }));
 	assert.deepEqual((await enrichCell(op, {})).failure, failure);
-	fetch.mock.mockImplementation(async () => Response.json({ error: 'No Context.dev key', failure: { reason: 'credential_missing', retryable: false, provider: 'context' } }, { status: 400 }));
-	await assert.rejects(enrichCell(op, {}), (error) => error instanceof ApiError && error.status === 400 && error.message === 'No Context.dev key' && error.failure?.reason === 'credential_missing');
+	fetch.mock.mockImplementation(async () => Response.json({ error: 'No looot token', failure: { reason: 'credential_missing', retryable: false, provider: 'looot' } }, { status: 400 }));
+	await assert.rejects(enrichCell(op, {}), (error) => error instanceof ApiError && error.status === 400 && error.message === 'No looot token' && error.failure?.reason === 'credential_missing');
 	fetch.mock.mockImplementation(async () => new Response('Bad gateway', { status: 502 }));
 	await assert.rejects(enrichCell(op, {}), (error) => error instanceof ApiError && error.status === 502 && error.failure === undefined && /502/.test(error.message));
 });
@@ -30,7 +30,7 @@ test('the OpenAI key prompt follows the structured failure, with message text on
 	t.after(() => { delete (globalThis as { window?: unknown }).window; });
 	notifyTrialLimit('Trial used up', { reason: 'credits_exhausted', retryable: false, provider: 'openai' });
 	notifyTrialLimit(undefined, { reason: 'credential_missing', retryable: false, provider: 'openai' });
-	notifyTrialLimit(`Context.dev is out of credits. ${OPENAI_KEY_REQUIRED}`, { reason: 'credits_exhausted', retryable: false, provider: 'context' });
+	notifyTrialLimit(`looot is out of credits. ${OPENAI_KEY_REQUIRED}`, { reason: 'credits_exhausted', retryable: false, provider: 'looot' });
 	notifyTrialLimit('Slow down', { reason: 'rate_limited', retryable: true, provider: 'openai' });
 	notifyTrialLimit(`Older server. ${OPENAI_KEY_REQUIRED}`);
 	notifyTrialLimit('Unrelated');

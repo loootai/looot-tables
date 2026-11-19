@@ -18,6 +18,3 @@ export function logoDomain(value: string | undefined): string | null {
 	}
 }
 
-export function logoLinkUrl(clientId: string, domain: string): string {
-	return `https://logos.context.dev/?${new URLSearchParams({ publicClientId: clientId, domain, type: 'icon' })}`;
-}

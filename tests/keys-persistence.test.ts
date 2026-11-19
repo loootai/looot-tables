@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS, keyHeaders, loadSettings, saveSettings } from '../src
 test('provider settings recover after early reads and stay synchronized with browser storage', () => {
  const storage = new Map<string, string>();
  const key = 'enrichable.settings.v1.account.persistence-test';
- const saved = { ...DEFAULT_SETTINGS, openaiKey: 'test-saved-openai', contextKey: 'test-saved-context' };
+ const saved = { ...DEFAULT_SETTINGS, openaiKey: 'test-saved-openai', loootKey: 'test-saved-looot' };
  storage.set(key, JSON.stringify(saved));
  let failWrites = false;
  const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
@@ -18,7 +18,7 @@ test('provider settings recover after early reads and stay synchronized with bro
   assert.equal(loadSettings().openaiKey, '', 'Before account initialization only defaults are available');
   setStorageAccount({ partition: 'persistence-test', sessionId: 'test-session' });
   assert.equal(loadSettings().openaiKey, saved.openaiKey, 'An early read must not hide persisted credentials');
-  assert.equal(keyHeaders()['x-context-key'], saved.contextKey);
+  assert.equal(keyHeaders()['x-looot-key'], saved.loootKey);
   assert.equal(loadSettings(), loadSettings(), 'Unchanged snapshots keep a stable React snapshot');
   storage.set(key, JSON.stringify({ ...saved, openaiKey: 'test-updated-in-another-tab' }));
   assert.equal(loadSettings().openaiKey, 'test-updated-in-another-tab');

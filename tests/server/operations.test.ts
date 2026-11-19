@@ -24,14 +24,15 @@ const SAMPLES: Array<[string, ColumnOp]> = [
 	['search', { kind: 'search', query: '{{Name}}', pick: 'url', numResults: 3 }],
 	['company', { kind: 'company', domain: '{{Domain}}', field: 'industry' }],
 	['person', { kind: 'person', name: '{{Name}}', company: '{{Domain}}', field: 'title' }],
-	['hunter', { kind: 'hunter', action: 'verify', email: '{{Email}}' }],
-	['prospeo', { kind: 'prospeo', email: '{{Email}}', field: 'email', onlyVerifiedEmail: true }],
+	['email verify', { kind: 'email-verify', email: '{{Email}}', prefer: 'balanced' }],
+	['phone find', { kind: 'phone-find', name: '{{Name}}', company: '', domain: '{{Domain}}', profileUrl: '', prefer: 'balanced' }],
+	['any looot endpoint', { kind: 'looot', endpointId: 'job:people.email.find', inputs: { name: '{{Name}}', domain: '{{Domain}}' }, inputTypes: {}, unitCostUsd: 0.02, path: '', prefer: 'cheapest' }],
 	['answer', { kind: 'answer', task: 'Funding of {{Domain}}', output: 'text', mode: 'fast' }],
-	['email waterfall', { kind: 'email-enrichment', name: '{{Name}}', company: '', domain: '{{Domain}}', profileUrl: '', providers: ['hunter', 'prospeo'] }],
+	['email find', { kind: 'email-enrichment', name: '{{Name}}', company: '', domain: '{{Domain}}', profileUrl: '', prefer: 'balanced' }],
 ];
 
 /** Every request succeeds with a page of text, so runs reach each credential check and fail only on content. */
-const respond = async () => Response.json({ markdown: { success: true, data: 'Page text: free plan, Ada' }, highlights: { success: true, data: ['Page text'] } });
+const respond = async () => Response.json({ runId: 'run_operations', status: 'completed', outcome: 'hit', result: { results: [{ url: 'https://example.com/free', title: 'Free plan', snippet: 'Ada' }] }, normalized: { fields: { markdown: 'Page text: free plan, Ada', title: 'Page', email: 'ada@example.com', status: 'valid', phone: '+14155550100' } }, actualCost: 0 }, { status: 201 });
 const keysExcept = (excluded: readonly Provider[]) => Object.fromEntries(PROVIDERS.filter((provider) => !excluded.includes(provider)).map((provider) => [provider, `test-${provider}-key`]));
 const reason = async (op: ColumnOp, excluded: readonly Provider[]) => (await runOp(testAccess({ keys: keysExcept(excluded), model: 'test' }), op, row)).failure?.reason;
 
@@ -40,8 +41,7 @@ test('the catalog’s required providers are exactly the keys the executor deman
 	for (const [name, op] of SAMPLES) {
 		const needs = requiredProviders(op);
 		assert.notEqual(await reason(op, []), 'credential_missing', `${name}: runs with every key`);
-		// Without its own keys the waterfall spends the included credit, which needs a signed-in organization.
-		if (op.kind !== 'email-enrichment') assert.equal(await reason(op, PROVIDERS) === 'credential_missing', needs.length > 0, `${name}: runs without keys only when it needs none`);
+		assert.equal(await reason(op, PROVIDERS) === 'credential_missing', needs.length > 0, `${name}: runs without keys only when it needs none`);
 		for (const need of needs) {
 			assert.equal(await reason(op, need), 'credential_missing', `${name}: needs one of ${need.join(', ')}`);
 			for (const provider of need) assert.notEqual(await reason(op, need.filter((entry) => entry !== provider)), 'credential_missing', `${name}: ${provider} alone is enough`);

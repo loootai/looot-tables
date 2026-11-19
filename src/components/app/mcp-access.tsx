@@ -6,7 +6,7 @@ import { liveStore, useLiveStore } from '@/lib/live-store';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { useSettings } from './settings-context';
-import { formatExpiry, mcpConfig, type Connection } from './providers';
+import { mcpConfig } from './providers';
 
 type KeyInfo = { prefix: string; version: string; createdAt: number; recoverable?: boolean; secret?: string };
 type AgentKey = KeyInfo & { created: string };
@@ -29,7 +29,7 @@ const subscribeNothing = () => () => {};
 const useEndpoint = () => useSyncExternalStore(subscribeNothing, () => `${window.location.origin}/mcp`, () => '/mcp');
 
 export function McpAccess() {
-	const { selfHosted, connections } = useSettings();
+	const { selfHosted } = useSettings();
 	const load = useLiveStore(agentKey);
 	const key = load.status === 'ready' ? load.key : null;
 	const [busy, setBusy] = useState<Busy | null>(null);
@@ -63,7 +63,7 @@ export function McpAccess() {
 		{error && <p role="alert" className="text-body-sm text-danger">{error}</p>}
 		{key?.recoverable === false && <p className="text-caption text-fg-subtle">This older key needs a verified backfill by your server administrator before it can be retrieved. Rotation creates a recoverable replacement.</p>}
 		{secret && <code className="break-all rounded-lg border border-line-subtle p-3 text-body-sm select-all">{secret}</code>}
-		<AgentConnectionNote selfHosted={selfHosted} context={connections.context} />
+		<AgentConnectionNote selfHosted={selfHosted} />
 		<details className="text-body-sm text-fg-muted">
 			<summary className="cursor-pointer">View config</summary>
 			<div className="mt-3 flex flex-col gap-2">
@@ -86,8 +86,7 @@ function AgentKeyActions({ agentKey, busy, visible, onCopy, onToggle, onRotate }
 	</>;
 }
 
-function AgentConnectionNote({ selfHosted, context }: { selfHosted: boolean; context: Connection }) {
-	if (selfHosted) return <p className="text-caption text-fg-subtle"><span className="font-medium text-fg-muted">Required:</span> agents must send <code className="font-mono">x-openai-key</code> and <code className="font-mono">x-context-key</code> headers. Keys you saved here stay in this browser, so agents can’t use them.</p>;
-	if (context.source === 'signin' && context.expiresAt) return <p className="text-caption text-fg-subtle">Agents use your workspace’s Context.dev sign-in, which {formatExpiry(context.expiresAt)}. For always-on agents, add a Context.dev API key in Connections.</p>;
+function AgentConnectionNote({ selfHosted }: { selfHosted: boolean }) {
+	if (selfHosted) return <p className="text-caption text-fg-subtle"><span className="font-medium text-fg-muted">Required:</span> agents must send <code className="font-mono">x-openai-key</code> and <code className="font-mono">x-looot-key</code> headers. Keys you saved here stay in this browser, so agents can’t use them.</p>;
 	return <p className="text-caption text-fg-subtle">Agents use your workspace’s connections and defaults.</p>;
 }

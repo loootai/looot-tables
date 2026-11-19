@@ -100,12 +100,20 @@ export const readsOtherRows = (references: readonly string[], columns: readonly 
 
 const isPage = (value: unknown): value is PageSource => typeof value === 'object' && value !== null && 'type' in value;
 
+/** The "any endpoint" column keeps one template per endpoint input; `inputs` is a record of them, not a page source. */
+const isInputs = (field: string, value: unknown): value is Record<string, string> => field === 'inputs' && typeof value === 'object' && value !== null && !Array.isArray(value);
+
 /** Each reference field's value, rewritten. Returns `op` itself when nothing changed. */
 export function rewriteOp(op: ColumnOp, next: (name: string) => string | null): ColumnOp {
 	const fields = op as unknown as Record<string, unknown>;
 	let changed: Record<string, unknown> | undefined;
 	for (const field of operation(op.kind).references) {
 		const value = fields[field];
+		if (isInputs(field, value)) {
+			const rewrittenInputs = Object.fromEntries(Object.entries(value).map(([name, template]) => [name, typeof template === 'string' ? rewriteText(template, next) : template]));
+			if (JSON.stringify(rewrittenInputs) !== JSON.stringify(value)) (changed ??= { ...fields })[field] = rewrittenInputs;
+			continue;
+		}
 		const rewritten = typeof value === 'string' ? rewriteText(value, next) : !isPage(value) ? value
 			: value.type === 'template' ? { ...value, template: rewriteText(value.template, next) } : { ...value, column: next(value.column.trim()) ?? value.column };
 		if (JSON.stringify(rewritten) !== JSON.stringify(value)) (changed ??= { ...fields })[field] = rewritten;
@@ -119,6 +127,10 @@ export function opDependencies(op: ColumnOp): string[] {
 	const names = new Set<string>();
 	for (const field of operation(op.kind).references) {
 		const value = fields[field];
+		if (isInputs(field, value)) {
+			for (const template of Object.values(value)) for (const name of typeof template === 'string' ? textReferences(template) : []) if (name) names.add(name);
+			continue;
+		}
 		const found = typeof value === 'string' ? textReferences(value) : !isPage(value) ? [] : value.type === 'template' ? textReferences(value.template) : [value.column.trim()];
 		for (const name of found) if (name) names.add(name);
 	}

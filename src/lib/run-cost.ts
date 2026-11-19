@@ -1,18 +1,20 @@
-import { creditsPerCell as operationCredits } from './operations';
+import { costPerCell as operationCost } from './operations';
+import { formatUsd } from './endpoint-map';
 import type { ColumnOp, FormulaSuggestion } from './types';
 
-/** Runs larger than either limit ask before starting. */
+/** Runs larger than either limit ask before starting. A column on any looot endpoint always asks: its price is the
+    reason to look before spending. */
 export const CONFIRM_CELLS = 50;
-export const CONFIRM_CREDITS = 100;
+export const CONFIRM_USD = 0.5;
 
 type RunOp = ColumnOp | FormulaSuggestion | null | undefined;
 
-/** Rough Context.dev credits per cell. Formulas run locally. */
-export function creditsPerCell(op: RunOp): number {
-	return op && op.kind !== 'formula' ? operationCredits(op) : 0;
+/** Rough looot cost per cell in USD. Formulas run locally. */
+export function costPerCell(op: RunOp): number {
+	return op && op.kind !== 'formula' ? operationCost(op) : 0;
 }
 
-export interface RunEstimate { cells: number; creditsPerCell: number; credits: number; confirm: boolean; message: string }
+export interface RunEstimate { cells: number; usdPerCell: number; usd: number; confirm: boolean; message: string }
 
 const count = (value: number, unit: string) => `${value.toLocaleString('en-US')} ${unit}${value === 1 ? '' : 's'}`;
 
@@ -20,19 +22,20 @@ const count = (value: number, unit: string) => `${value.toLocaleString('en-US')}
 export function estimateCells(columns: ReadonlyArray<{ cells: number; op: RunOp }>): RunEstimate {
 	const counted = columns.map(({ cells, op }) => ({ cells: Math.max(0, Math.floor(cells)), op }));
 	const cells = counted.reduce((sum, column) => sum + column.cells, 0);
-	const credits = counted.reduce((sum, column) => sum + column.cells * creditsPerCell(column.op), 0);
-	const perCell = credits ? Math.max(1, Math.round(credits / cells)) : 0;
+	const usd = Math.round(counted.reduce((sum, column) => sum + column.cells * costPerCell(column.op), 0) * 1e6) / 1e6;
+	const usdPerCell = cells ? usd / cells : 0;
+	const priced = counted.some(({ cells: n, op }) => n > 0 && op?.kind === 'looot');
 	return {
 		cells,
-		creditsPerCell: perCell,
-		credits,
-		confirm: cells > CONFIRM_CELLS || credits > CONFIRM_CREDITS,
-		message: credits ? `~${count(cells, 'cell')} × ~${count(perCell, 'credit')} ≈ ${count(credits, 'credit')}` : `~${count(cells, 'cell')}`,
+		usdPerCell,
+		usd,
+		confirm: cells > CONFIRM_CELLS || usd > CONFIRM_USD || (priced && cells > 0),
+		message: usd ? `~${count(cells, 'cell')} × ~${formatUsd(usdPerCell)} ≈ ${formatUsd(usd)}` : `~${count(cells, 'cell')}`,
 	};
 }
 
 /** Whether a run asks before starting. `seen` is an estimate already shown (and accepted, if it asked): a run no bigger
-    in cells or credits doesn't ask again. */
+    in cells or cost doesn't ask again. */
 export function asksFirst(estimate: RunEstimate, seen?: RunEstimate): boolean {
-	return estimate.confirm && !(seen && estimate.cells <= seen.cells && estimate.credits <= seen.credits);
+	return estimate.confirm && !(seen && estimate.cells <= seen.cells && estimate.usd <= seen.usd);
 }

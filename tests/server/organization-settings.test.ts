@@ -23,13 +23,13 @@ async function fixture(t: {after(fn:()=>Promise<void>):void}) {
 
 test('organization settings and encrypted credentials share across members/devices and isolate organizations',async t=>{
  const {db,store,database}=await fixture(t);
- const saved=await store.patch(actor(),{revision:0,preferences:{model:'test-model',concurrency:2},providers:{openai:'org-openai-secret',context:'org-context-secret'},importOnly:false});
+ const saved=await store.patch(actor(),{revision:0,preferences:{model:'test-model',concurrency:2},providers:{openai:'org-openai-secret',looot:'org-looot-secret'},importOnly:false});
  assert.equal(saved.revision,1);
  assert.deepEqual(await store.get(actor('one','bob')),saved);
  assert.equal((await store.credentials(actor('one','bob'))).keys.openai,'org-openai-secret');
  assert.equal((await store.get(actor('two'))).providers.openai,undefined);
  assert.deepEqual((await store.credentials(actor('two'))).keys,{});
- assert.equal((await new OrganizationStore(database,()=>root).credentials(actor())).keys.context,'org-context-secret');
+ assert.equal((await new OrganizationStore(database,()=>root).credentials(actor())).keys.looot,'org-looot-secret');
  assert.ok(!JSON.stringify((await db.query('SELECT * FROM enrichable.organization_providers')).rows).includes('org-openai-secret'));
  assert.ok(!JSON.stringify(saved).includes('org-openai-secret'));
  await assert.rejects(new OrganizationStore(database,()=> 'wrong-root-with-at-least-32-characters').credentials(actor()),/could not be decrypted/);
@@ -40,61 +40,28 @@ test('organization settings and encrypted credentials share across members/devic
  assert.equal(changes.filter(x=>x.status==='fulfilled').length,1);
 });
 
-test('sign-in connections preserve manual keys and disconnects, keep the longest-lived grant, honor expiry and reconnect',async t=>{
- const {store,db}=await fixture(t);
- const now=Date.now();
- await store.saveSignin(actor(),'signin-alice',now+600_000);
- const firstSignin=(await db.query<{first_signed_in_at:Date}>('SELECT first_signed_in_at FROM enrichable.signed_in_users')).rows[0].first_signed_in_at;
- await store.saveSignin(actor('one','bob'),'signin-bob-shorter',now+300_000);
- assert.equal((await store.credentials(actor('one','bob'))).keys.context,'signin-alice','A shorter grant never replaces a longer one');
- assert.equal((await store.credentials(actor('one','bob'))).contextUserEmail,'alice@example.com');
- // Alice's 09:00 grant would expire during Bob's 16:00 session; Bob's later grant takes over.
- await store.saveSignin(actor('one','bob'),'signin-bob',now+650_000);
- assert.equal((await store.credentials(actor())).keys.context,'signin-bob');
- assert.equal((await store.credentials(actor())).contextUserEmail,'bob@example.com');
- assert.equal((await store.get(actor())).providers.context?.expiresAt,now+650_000);
- await store.saveSignin(actor(),'renewed-alice',now+700_000);
- assert.equal((await store.credentials(actor())).keys.context,'renewed-alice');
- const info=await store.get(actor());
- await store.patch(actor('one','bob'),{revision:info.revision,providers:{context:'manual-context'},importOnly:false});
- await store.saveSignin(actor(),'signin-replacement',Date.now()+700_000);
- assert.equal((await store.credentials(actor())).keys.context,'manual-context');
- await assert.rejects(store.saveSignin(actor(),'expired',Date.now()-1),/expired/);
- const latest=await store.get(actor());
- await store.patch(actor(),{revision:latest.revision,providers:{context:null},importOnly:false});
- assert.equal((await store.credentials(actor())).keys.context,undefined);
- await store.saveSignin(actor('one','bob'),'should-not-restore',Date.now()+600_000);
- assert.equal((await store.credentials(actor())).keys.context,undefined);
- await store.saveSignin(actor('one','bob'),'explicit-reconnect',Date.now()+600_000,true);
- assert.equal((await store.credentials(actor())).keys.context,'explicit-reconnect');
- await store.saveSignin(actor('two'),'signin-alice-other-org',Date.now()+600_000);
- assert.equal((await db.query('SELECT * FROM enrichable.signed_in_users')).rows.length,2);
- assert.equal((await db.query('SELECT * FROM enrichable.signed_in_memberships')).rows.length,3);
- assert.deepEqual((await db.query<{first_signed_in_at:Date}>("SELECT first_signed_in_at FROM enrichable.signed_in_users WHERE user_id='alice'")).rows[0].first_signed_in_at,firstSignin);
- assert.equal((await db.query("SELECT * FROM enrichable.signed_in_users WHERE user_id='bob'")).rows.length,1);
-});
-
 test('expired connections are unavailable to MCP and import cannot overwrite existing organization preferences or keys',async t=>{
  const {store,db}=await fixture(t);
- await store.saveSignin(actor(),'signin-key',Date.now()+600_000);
- const info=await store.get(actor());
- await store.patch(actor(),{revision:info.revision,preferences:{model:'imported-model'},providers:{openai:'imported-openai'},importOnly:true});
+ const first=await store.get(actor());
+ await store.patch(actor(),{revision:first.revision,preferences:{model:'imported-model'},providers:{openai:'imported-openai',looot:'looot-token'},importOnly:true});
  const saved=await store.get(actor());
  await assert.rejects(store.patch(actor(),{revision:saved.revision,preferences:{model:'overwrite'},importOnly:true}),/already exist/);
- await db.query('UPDATE enrichable.organization_providers SET expires_at=1 WHERE provider=$1',['context']);
- assert.equal((await store.get(actor())).providers.context?.reconnectRequired,true);
- assert.equal((await store.credentials(actor())).keys.context,undefined);
- await store.saveSignin(actor('one','bob'),'reconnected',Date.now()+600_000);
- assert.equal((await store.credentials(actor())).keys.context,'reconnected');
+ assert.equal((await store.credentials(actor())).keys.looot,'looot-token');
+ await db.query('UPDATE enrichable.organization_providers SET expires_at=1 WHERE provider=$1',['looot']);
+ assert.equal((await store.get(actor())).providers.looot?.reconnectRequired,true);
+ assert.equal((await store.credentials(actor())).keys.looot,undefined);
+ const latest=await store.get(actor());
+ await store.patch(actor('one','bob'),{revision:latest.revision,providers:{looot:'replacement-token'},importOnly:false});
+ assert.equal((await store.credentials(actor())).keys.looot,'replacement-token');
 });
 
 test('credential encryption authenticates the provider and workspace; disconnect does not affect other providers',async t=>{
  const {store,db}=await fixture(t);
- await store.patch(actor(),{revision:0,providers:{openai:'openai-secret',hunter:'hunter-secret'},importOnly:false});
- await db.query("UPDATE enrichable.organization_providers SET encrypted_secret=(SELECT encrypted_secret FROM enrichable.organization_providers WHERE provider='hunter') WHERE provider='openai'");
+ await store.patch(actor(),{revision:0,providers:{openai:'openai-secret',looot:'looot-secret'},importOnly:false});
+ await db.query("UPDATE enrichable.organization_providers SET encrypted_secret=(SELECT encrypted_secret FROM enrichable.organization_providers WHERE provider='looot') WHERE provider='openai'");
  await assert.rejects(store.credentials(actor()),/could not be decrypted/);
  await store.patch(actor(),{revision:1,providers:{openai:null},importOnly:false});
- assert.equal((await store.credentials(actor())).keys.hunter,'hunter-secret');
+ assert.equal((await store.credentials(actor())).keys.looot,'looot-secret');
 });
 
 test('credentials sealed before the shared envelope still decrypt',async t=>{
@@ -108,9 +75,9 @@ test('credentials sealed before the shared envelope still decrypt',async t=>{
 
 test('MCP authenticates with only its org key, uses organization providers/models, and preserves explicit overrides',async t=>{
  const {store,keys,sheets}=await fixture(t);
- await store.patch(actor(),{revision:0,preferences:{model:'org-model',classifierModel:'org-classifier'},providers:{openai:'org-openai',context:'org-context'},importOnly:false});
+ await store.patch(actor(),{revision:0,preferences:{model:'org-model',classifierModel:'org-classifier'},providers:{openai:'org-openai',looot:'org-looot'},importOnly:false});
  const resolved=await mcpAccess(new Headers(),actor('one','bob'),store);
- assert.equal(resolved.key('openai'),'org-openai');assert.equal(resolved.key('context'),'org-context');assert.equal(resolved.model,'org-model');assert.equal(resolved.classifierModel,'org-classifier');assert.equal(resolved.trial,false);
+ assert.equal(resolved.key('openai'),'org-openai');assert.equal(resolved.key('looot'),'org-looot');assert.equal(resolved.model,'org-model');assert.equal(resolved.classifierModel,'org-classifier');
  const headers=new Headers({'x-openai-key':'explicit-key','x-openai-model':'explicit-model'});
  const override=await mcpAccess(headers,actor(),store);
  assert.equal(override.key('openai'),'explicit-key');assert.equal(override.model,'explicit-model');

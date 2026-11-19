@@ -4,7 +4,6 @@ import { NextRequest } from 'next/server';
 import { POST } from '../../src/app/api/auth/dev/route';
 import { POST as logout } from '../../src/app/api/auth/logout/route';
 import { DEV_ISSUER, devAuthEnabled, readSession, SESSION_COOKIE } from '../../src/lib/server/auth';
-import { CONTEXT_CONNECTION_COOKIE } from '../../src/lib/server/context-connection';
 import { proxy } from '../../src/proxy';
 
 const origin = 'http://localhost:3000';
@@ -41,7 +40,6 @@ test('developer sign-in works without OAuth credentials, uses normal sessions an
 	const account = readSession(cookie.value)!;
 	assert.equal(account.issuer, DEV_ISSUER);
 	assert.equal(account.organization.id, 'local-development');
-	assert.equal(response.cookies.get(CONTEXT_CONNECTION_COOKIE)?.maxAge, 0);
 	const again = await POST(request());
 	const second = readSession(again.cookies.get(SESSION_COOKIE)?.value)!;
 	assert.equal(second.partition, account.partition);

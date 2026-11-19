@@ -220,8 +220,9 @@ function runningLabel(column: Column): string {
 		case 'company':
 			return 'Looking up…';
 		case 'email-enrichment':
-		case 'hunter':
-		case 'prospeo':
+		case 'email-verify':
+		case 'phone-find':
+		case 'looot':
 		case 'person':
 			return 'Enriching…';
 		case 'answer':

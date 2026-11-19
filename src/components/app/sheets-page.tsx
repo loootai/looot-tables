@@ -189,11 +189,12 @@ export function SheetsPage() {
 	);
 }
 
-/** A rejected Context.dev or OpenAI key, or used-up credit, found before a sheet exists for the search. A check that can't run never blocks. */
+/** A rejected looot token or OpenAI key, or an empty looot balance, found before a sheet exists for the search. A check that can't run never blocks. */
 async function requiredKeyIssue(): Promise<{ error: string; issue: ConnectionIssue } | null> {
 	try {
-		const { context, openai } = await verifyKeys({ only: ['context', 'openai'] });
-		if (!context.ok && context.issue) return { error: context.message ?? 'Context.dev rejected the API key.', issue: { reason: context.issue === 'key' ? 'credential_invalid' : 'credits_exhausted', provider: 'context' } };
+		const { looot, openai } = await verifyKeys({ only: ['looot', 'openai'] });
+		if (!looot.ok && looot.issue) return { error: looot.message ?? 'looot rejected the token.', issue: { reason: looot.issue === 'key' ? 'credential_invalid' : 'credits_exhausted', provider: 'looot' } };
+		if (looot.ok && looot.issue === 'balance') return { error: looot.message ?? 'Your looot balance is $0.', issue: { reason: 'credits_exhausted', provider: 'looot' } };
 		if (!openai.ok && (openai.issue === 'key' || openai.issue === 'billing')) return { error: openai.message ?? 'OpenAI rejected the API key.', issue: { reason: openai.issue === 'key' ? 'credential_invalid' : 'credits_exhausted', provider: 'openai' } };
 	} catch { /* The search reports the same problem with its fix. */ }
 	return null;

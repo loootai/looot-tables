@@ -31,7 +31,7 @@ test('cell transitions keep the settled value and metadata while pending', () =>
 	assert.deepEqual(cellTransition(running, { type: 'cancel' }, 4), { ...done, t: 4 });
 	assert.deepEqual(cellTransition({ v: null, s: 'done', m: { reasoning: 'Nothing found' }, t: 1 }, { type: 'start' }, 2), { v: null, s: 'running', m: { reasoning: 'Nothing found' }, t: 2 });
 	assert.equal(cellTransition({ v: null, s: 'running', m: { reasoning: 'Nothing found' }, t: 1 }, { type: 'cancel' }).s, 'done');
-	assert.deepEqual(cellTransition({ v: null, s: 'error', e: 'Failed', m: { credits: 1 }, t: 1 }, { type: 'start' }, 2), { v: null, s: 'running', t: 2 });
+	assert.deepEqual(cellTransition({ v: null, s: 'error', e: 'Failed', m: { costUsd: 0.001 }, t: 1 }, { type: 'start' }, 2), { v: null, s: 'running', t: 2 });
 	assert.deepEqual(cellTransition({ v: null, s: 'running', t: 1 }, { type: 'cancel' }, 2), { v: null, s: 'idle', t: 2 });
 	assert.deepEqual(cellTransition(running, { type: 'expire' }, 5), { ...running, s: 'error', e: 'This run timed out or was interrupted. Run this cell again.', t: 5 });
 	assert.equal(cellTransition(done, { type: 'cancel' }), done);
@@ -188,7 +188,7 @@ test('cells are identified structurally, so IDs containing colons never collide'
 test('a fatal provider failure pauses the sheet once instead of failing every queued cell', async (t) => {
 	const others = gate();
 	let requests = 0;
-	const fatal = { error: 'Out of credits (402): Context.dev balance is empty', failure: { reason: 'credits_exhausted', retryable: false, provider: 'context' } };
+	const fatal = { error: 'Out of credits (402): looot balance is empty', failure: { reason: 'credits_exhausted', retryable: false, provider: 'looot' } };
 	const fetch = t.mock.method(globalThis, 'fetch', async () => {
 		if (++requests === 1) return Response.json({ value: null, ...fatal });
 		await others.opened;
@@ -202,7 +202,7 @@ test('a fatal provider failure pauses the sheet once instead of failing every qu
 		const records = await rows(sheet.id);
 		await runner.enqueue(sheet, records, [output]);
 		await waitFor(() => Boolean(runner.getSnapshot().halted[sheet.id]));
-		assert.deepEqual(runner.getSnapshot().halted[sheet.id], { sheetId: sheet.id, reason: 'credits_exhausted', provider: 'context', message: fatal.error, failedCells: 1 });
+		assert.deepEqual(runner.getSnapshot().halted[sheet.id], { sheetId: sheet.id, reason: 'credits_exhausted', provider: 'looot', message: fatal.error, failedCells: 1 });
 		others.open();
 		await waitFor(async () => (await rows(sheet.id)).filter((row) => row.cells[output.id].v === 'ok').length === 3);
 		await new Promise((resolve) => setTimeout(resolve, 50));

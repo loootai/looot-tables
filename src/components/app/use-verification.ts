@@ -5,7 +5,7 @@ import { keyHeaders, type Settings } from '@/lib/keys';
 import type { Provider } from '@/lib/organization-settings';
 import type { KeyVerification } from '@/lib/types';
 
-export type ProviderCheck = { ok: boolean; message?: string; credits?: number; issue?: string };
+export type ProviderCheck = { ok: boolean; message?: string; balanceUsd?: number; issue?: string };
 
 /** Debounced check of only the listed providers. Inference (a billed test call) runs only when the OpenAI key or model changed. */
 export function useVerification(settings: Settings, providers: readonly Provider[], { inference = false, version = '' }: { inference?: boolean; version?: string } = {}) {
@@ -32,8 +32,7 @@ export function useVerification(settings: Settings, providers: readonly Provider
 export function providerCheck(result: KeyVerification | undefined, provider: Provider): ProviderCheck | undefined {
 	if (!result) return undefined;
 	if (provider === 'openai') return result.openai;
-	if (provider === 'context') return result.context;
+	if (provider === 'looot') return result.looot;
 	if (provider === 'typesafe') return result.typesafe.configured ? result.typesafe : undefined;
-	if (provider === 'hunter' || provider === 'prospeo') return result[provider]?.configured ? result[provider] : undefined;
 	return undefined;
 }

@@ -20,7 +20,7 @@ export async function handleMcpRequest(request: Request, services: { keys: McpSt
 		return await serveMcp(request, new McpOperations(services.sheets, services.keys, actor, access), trace);
 	} catch (error) {
 		const response = errorResponse(error, trace);
-		if (response.status === 401) response.headers.set('WWW-Authenticate', 'Bearer realm="Enrichable MCP"');
+		if (response.status === 401) response.headers.set('WWW-Authenticate', 'Bearer realm="looot tables MCP"');
 		return response;
 	}
 }

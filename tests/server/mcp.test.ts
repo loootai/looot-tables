@@ -250,13 +250,13 @@ test('agents get the browser’s retry rule: a provider failure after the reques
 	const { keys, sheets } = await fixture(t);
 	let calls = 0;
 	t.mock.method(globalThis, 'fetch', async () => { calls++; return Response.json({ error: 'upstream failed' }, { status: 503 }); });
-	const access = resolveAccess(MCP_POLICY, { account: actor(), headers: new Headers({ 'x-context-key': 'test-context' }) });
+	const access = resolveAccess(MCP_POLICY, { account: actor(), headers: new Headers({ 'x-looot-key': 'test-looot' }) });
 	const ops = new McpOperations(sheets, keys, actor(), access);
 	await seed(ops);
 	await ops.call('configure_column', { sheetId: 'companies', revision: 2, column: { id: 'site', name: 'Site', type: 'enriched', op: { kind: 'search', query: 'retry rule {{Domain}}', pick: 'url', numResults: 1 } } });
 	const result = await ops.call('enrich_cells', { sheetId: 'companies', columnId: 'site', rowIds: ['r1'], idempotencyKey: 'provider-failure' });
 	const [outcome] = result.outcomes as Array<{ status: string; failure?: unknown }>;
-	assert.deepEqual([outcome.status, outcome.failure, calls], ['error', { reason: 'provider_error', retryable: false, provider: 'context' }, 1]);
+	assert.deepEqual([outcome.status, outcome.failure, calls], ['error', { reason: 'provider_error', retryable: false, provider: 'looot' }, 1]);
 });
 
 test('rows start only when their worst case ends before the function limit, and failures stay structured', async (t) => {
@@ -323,14 +323,13 @@ test('real MCP client discovers and calls tools over stateless HTTP; auth and or
 	assert.equal(revoked.status, 401);
 });
 
-test('MCP credentials never inherit browser cookies, deployment keys, or sponsored budgets and reject unsafe URLs', async () => {
+test('MCP credentials never inherit browser cookies or deployment keys and reject unsafe URLs', async () => {
 	const previous = process.env.OPENAI_API_KEY;
 	process.env.OPENAI_API_KEY = 'deployment-secret';
 	try {
-		const credentials = await mcpAccess(new Headers({ cookie: 'enrichable.context=browser-credential', 'x-enrichable-password': 'deployment-password' }), actor());
+		const credentials = await mcpAccess(new Headers({ cookie: 'enrichable.session=browser-credential', 'x-enrichable-password': 'deployment-password' }), actor());
 		assert.equal(credentials.key('openai'), null);
-		assert.equal(credentials.key('context'), null);
-		assert.equal(credentials.trial, false);
+		assert.equal(credentials.key('looot'), null);
 		assert.equal((await mcpAccess(new Headers({ 'x-openai-key': 'caller-key' }), actor())).key('openai'), 'caller-key');
 		await assert.rejects(mcpAccess(new Headers({ 'x-openai-base-url': 'http://169.254.169.254/latest' }), actor()), /public/);
 		await assert.rejects(mcpAccess(new Headers({ 'x-openai-base-url': 'file:///etc/passwd' }), actor()), /public/);

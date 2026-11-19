@@ -1,7 +1,6 @@
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { FormulaBuilderRequestSchema } from '@/lib/formula-builder';
-import { CreditBudgetError } from '@/lib/server/credit-ledger';
 import { CredentialError, jsonError, NO_STORE_HEADERS } from '@/lib/server/credentials';
 import { classifyFailure } from '@/lib/server/enrich-failure';
 import { routeInput } from '@/lib/server/provider-access';
@@ -33,6 +32,6 @@ When feedback is present, the supplied formula failed its sample preview. Repair
 		if (!output.formula.trim().startsWith('=') || output.formula.trim() === '=') return jsonError('AI returned an incomplete formula. Try describing it again.', 502);
 		return Response.json({ ...output, formula: output.formula.trim() }, { headers: NO_STORE_HEADERS });
 	} catch (error) {
-		return jsonError(access.redact(error), error instanceof CredentialError || error instanceof CreditBudgetError ? error.status : 500, classifyFailure(error));
+		return jsonError(access.redact(error), error instanceof CredentialError ? error.status : 500, classifyFailure(error));
 	}
 }

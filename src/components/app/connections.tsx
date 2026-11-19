@@ -11,7 +11,7 @@ import { MenuButton, type MenuItem } from '@/components/ui/menu';
 import { useToast } from '@/components/ui/toast';
 import { useSettings } from './settings-context';
 import { ConnectionDialog, ProviderLogo } from './keys-dialog';
-import { CONNECTION_ORDER, formatExpiry, PROVIDER_INFO, reconnectContext, REQUIRED_PROVIDERS, type Connection } from './providers';
+import { CONNECTION_ORDER, PROVIDER_INFO, REQUIRED_PROVIDERS, type Connection } from './providers';
 import { providerCheck, useVerification, type ProviderCheck } from './use-verification';
 
 const TONE = { success: 'text-success', danger: 'text-danger', warning: 'text-warning', muted: 'text-fg-subtle' } as const;
@@ -20,22 +20,20 @@ function status(provider: Provider, connection: Connection, check?: ProviderChec
 	if (connection.state === 'missing') return { text: connection.detail ?? 'Not connected', tone: (REQUIRED_PROVIDERS as readonly Provider[]).includes(provider) ? 'warning' : 'muted' };
 	if (connection.state === 'expired') return { text: 'Expired', tone: 'danger' };
 	if (check && !check.ok) return { text: check.message ?? 'Needs attention', tone: 'danger' };
-	if (connection.state === 'included') return { text: 'Included trial', tone: 'muted' };
 	if (connection.state === 'deployment') return { text: 'Provided by deployment', tone: 'muted' };
 	if (connection.state === 'saved' && !check) return { text: 'Saved', tone: 'muted' };
 	return { text: 'Connected', tone: 'success' };
 }
 
 function detail(provider: Provider, connection: Connection) {
-	const expiry = connection.source === 'signin' && connection.expiresAt ? ` · ${formatExpiry(connection.expiresAt)}` : '';
-	return connection.state === 'missing' || connection.state === 'included' ? PROVIDER_INFO[provider].description : `${connection.detail ?? PROVIDER_INFO[provider].description}${expiry}`;
+	return connection.state === 'missing' ? PROVIDER_INFO[provider].description : connection.detail ?? PROVIDER_INFO[provider].description;
 }
 
 /** Every provider in one list: logo, status, and one action menu. Configured connections are checked (without inference) on load. */
 export function Connections() {
-	const { settings, connections, organization, server, selfHosted, contextSignIn, disconnectProvider, canImportSettings, importSettings } = useSettings();
+	const { settings, connections, organization, server, selfHosted, disconnectProvider, canImportSettings, importSettings } = useSettings();
 	const { toast } = useToast();
-	const [editing, setEditing] = useState<{ provider: Provider; section: 'key' | 'logolink' } | null>(null);
+	const [editing, setEditing] = useState<Provider | null>(null);
 	const [disconnecting, setDisconnecting] = useState<Provider | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [importing, setImporting] = useState(false);
@@ -45,12 +43,9 @@ export function Connections() {
 
 	function actions(provider: Provider, connection: Connection): MenuItem[] {
 		const configured = connection.state === 'connected' || connection.state === 'saved' || connection.state === 'expired';
-		const hostedContext = provider === 'context' && contextSignIn;
 		return [
-			...(hostedContext ? [{ label: 'Reconnect with Context.dev', onSelect: reconnectContext }] : []),
-			{ label: hostedContext ? 'Use an API key instead' : configured ? 'Replace key' : 'Add key', onSelect: () => setEditing({ provider, section: 'key' }) },
-			...(provider === 'context' ? [{ label: 'Logo Link key', onSelect: () => setEditing({ provider, section: 'logolink' }) }] : []),
-			...(configured && (connection.state !== 'expired' || !hostedContext) ? [{ separator: true, label: '' }, { label: 'Disconnect', danger: true, onSelect: () => setDisconnecting(provider) }] : []),
+			{ label: configured ? 'Replace key' : 'Add key', onSelect: () => setEditing(provider) },
+			...(configured ? [{ separator: true, label: '' }, { label: 'Disconnect', danger: true, onSelect: () => setDisconnecting(provider) }] : []),
 		];
 	}
 
@@ -65,7 +60,6 @@ export function Connections() {
 				{CONNECTION_ORDER.map((provider) => {
 					const connection = connections[provider];
 					const label = status(provider, connection, providerCheck(verification.result, provider));
-					const canReconnect = provider === 'context' && contextSignIn && (connection.state === 'missing' || connection.state === 'expired');
 					return (
 						<li key={provider} className="flex items-center gap-3 py-3">
 							<ProviderLogo provider={provider} />
@@ -74,10 +68,10 @@ export function Connections() {
 								<span className="truncate text-caption text-fg-subtle">{detail(provider, connection)}</span>
 							</div>
 							<span className={clsx('max-w-[45%] text-right text-caption break-words', TONE[label.tone])}>
-								{label.text}{canReconnect && <> · <button type="button" onClick={reconnectContext} className="text-brand hover:underline">Reconnect</button></>}
+								{label.text}
 							</span>
-							{connection.state === 'missing' && !canReconnect
-								? <Button size="xs" onClick={() => setEditing({ provider, section: 'key' })}>Connect</Button>
+							{connection.state === 'missing'
+								? <Button size="xs" onClick={() => setEditing(provider)}>Connect</Button>
 								: <MenuButton label={`${PROVIDER_INFO[provider].name} actions`} align="right" items={actions(provider, connection)} className="grid size-7 shrink-0 place-items-center rounded-md text-fg-subtle transition-colors hover:bg-tint/[0.05] hover:text-fg max-md:size-11"><MoreHorizontal aria-hidden="true" className="size-4" /></MenuButton>}
 						</li>
 					);
@@ -88,7 +82,7 @@ export function Connections() {
 					<Button size="xs" onClick={() => setPasswordOpen(true)}>{settings.accessPassword ? 'Change' : 'Add'}</Button>
 				</li>}
 			</ul>
-			{editing && <ConnectionDialog provider={editing.provider} section={editing.section} onClose={() => setEditing(null)} />}
+			{editing && <ConnectionDialog provider={editing} onClose={() => setEditing(null)} />}
 			{passwordOpen && <PasswordDialog onClose={() => setPasswordOpen(false)} />}
 			{disconnecting && <ConfirmDialog
 				title={`Disconnect ${PROVIDER_INFO[disconnecting].name}?`}
