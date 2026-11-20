@@ -66,8 +66,8 @@ function structuredData() {
 	};
 }
 
-const primaryButton = 'inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-brand px-6 text-[1rem] font-medium text-brand-fg shadow-[0_1px_2px_oklch(0.37_0.09_163/0.3),0_8px_24px_-8px_oklch(0.37_0.09_163/0.5)] transition-[background-color,scale] duration-150 hover:bg-brand-hover active:scale-[0.98] motion-reduce:active:scale-100';
-const secondaryButton = 'inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-surface px-[22px] text-[1rem] font-medium shadow-[inset_0_0_0_1px_var(--color-line-strong)] transition-[box-shadow,scale] duration-150 hover:shadow-[inset_0_0_0_1px_var(--color-fg)] active:scale-[0.98] motion-reduce:active:scale-100';
+const primaryButton = 'inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-brand px-6 text-[1rem] font-medium text-brand-fg shadow-[0_1px_2px_oklch(0.37_0.09_163/0.3),0_8px_24px_-8px_oklch(0.37_0.09_163/0.5)] transition-[background-color,box-shadow,scale,translate] duration-200 ease-[var(--ease-emphasized)] hover:-translate-y-0.5 hover:bg-brand-hover hover:shadow-[0_2px_4px_oklch(0.37_0.09_163/0.3),0_14px_32px_-10px_oklch(0.37_0.09_163/0.6)] [&_svg]:transition-transform hover:[&_svg]:translate-x-0.5 motion-reduce:hover:translate-y-0 active:scale-[0.98] motion-reduce:active:scale-100';
+const secondaryButton = 'inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-surface px-[22px] text-[1rem] font-medium shadow-[inset_0_0_0_1px_var(--color-line-strong)] transition-[box-shadow,scale,translate] duration-200 hover:-translate-y-0.5 hover:shadow-[inset_0_0_0_1px_var(--color-fg),0_10px_24px_-12px_oklch(0.2_0.025_165/0.35)] motion-reduce:hover:translate-y-0 active:scale-[0.98] motion-reduce:active:scale-100';
 const inlineLink = 'font-medium text-fg underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-fg';
 
 export default function Landing() {
