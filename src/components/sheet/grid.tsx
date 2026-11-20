@@ -381,7 +381,7 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 				</div>
 			</div>
 			{moreRight > 0 && <span aria-hidden data-grid-more-right className="pointer-events-none absolute top-0 right-0 bottom-0 z-[26] w-12 bg-gradient-to-l from-surface via-surface/80 to-transparent" />}
-			{moreRight > 0 && !cellDetailsOpen && <button type="button" data-grid-more-chip onClick={() => scrollRef.current?.scrollBy({ left: Math.round((scrollRef.current?.clientWidth ?? 0) * 0.7), behavior: 'smooth' })} className="absolute right-2 z-[27] inline-flex h-6 items-center gap-1 rounded-full border border-line bg-surface px-2 text-caption text-fg-muted shadow-[var(--shadow-card)] transition-colors hover:border-line-strong hover:text-fg" style={{ top: (HEADER_HEIGHT - 24) / 2 }} aria-label={`Scroll to ${plural(moreRight, 'more column')}`}>{moreRight} more<ChevronRight aria-hidden className="size-3" strokeWidth={2} /></button>}
+			{moreRight > 0 && !cellDetailsOpen && <button type="button" data-grid-more-chip onClick={() => scrollRef.current?.scrollBy({ left: Math.round((scrollRef.current?.clientWidth ?? 0) * 0.7), behavior: 'smooth' })} className="absolute right-3 z-[27] inline-flex h-7 items-center gap-1 rounded-full border border-line bg-surface px-2.5 text-caption text-fg-muted shadow-[var(--shadow-floating)] transition-colors hover:border-line-strong hover:text-fg" style={{ bottom: (stats.size ? 28 : 0) + 12 }} aria-label={`Scroll to ${plural(moreRight, 'more column')}`}>{moreRight} more<ChevronRight aria-hidden className="size-3" strokeWidth={2} /></button>}
 			<ColumnFooter ref={footerRef} columns={columns} stats={stats} totalWidth={totalWidth} />
 		</div>
 		</SheetColumnsContext.Provider>
