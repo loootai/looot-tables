@@ -6,6 +6,17 @@
 	border-radius: inherit;
 }
 
+/* A logo on a white tile, so a black mark stays visible in dark mode. */
+.logolink-image[data-tile] {
+	background: #fff;
+}
+
+.logolink-image[data-tile] > img {
+	inset: 1.5px;
+	width: calc(100% - 3px);
+	height: calc(100% - 3px);
+}
+
 .logolink-image[data-loading]::after {
 	content: '';
 	position: absolute;

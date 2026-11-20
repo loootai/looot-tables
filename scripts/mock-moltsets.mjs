@@ -15,9 +15,11 @@ let used = 0;
 const log = [];
 
 const KNOWN = new Map([
-	['ada rivera', { email: 'ada.rivera@example.com', risk_score: 'A', last_validated_at: '2026-11-02', linkedin_url: 'https://linkedin.com/in/ada-rivera-example' }],
-	['linus nakamura', { email: 'linus.nakamura@example.com', risk_score: 'C', last_validated_at: '2026-10-18', linkedin_url: 'https://linkedin.com/in/linus-nakamura-example' }],
-	['margaret schmidt', { email: 'margaret.schmidt@example.com', risk_score: 'D', last_validated_at: '2026-09-30', linkedin_url: 'https://linkedin.com/in/margaret-schmidt-example' }],
+	['maya rios', { email: 'maya.rios@stripe.com', risk_score: 'A', last_validated_at: '2026-11-02', linkedin_url: 'https://linkedin.com/in/maya-rios-example' }], // leak-scan:allow fictional demo contact at a real company domain
+	['marcus bell', { email: 'marcus.bell@linear.app', risk_score: 'B', last_validated_at: '2026-11-11', linkedin_url: 'https://linkedin.com/in/marcus-bell-example' }], // leak-scan:allow fictional demo contact at a real company domain
+	['yuki tanaka', { email: 'yuki.tanaka@vercel.com', risk_score: 'C', last_validated_at: '2026-10-18', linkedin_url: 'https://linkedin.com/in/yuki-tanaka-example' }], // leak-scan:allow fictional demo contact at a real company domain
+	['ingrid larsen', { email: 'ingrid.larsen@figma.com', risk_score: 'D', last_validated_at: '2026-09-30', linkedin_url: 'https://linkedin.com/in/ingrid-larsen-example' }], // leak-scan:allow fictional demo contact at a real company domain
+	['amara okafor', { email: 'amara.okafor@retool.com', risk_score: 'F', last_validated_at: '2026-06-03', linkedin_url: 'https://linkedin.com/in/amara-okafor-example' }], // leak-scan:allow fictional demo contact at a real company domain
 ]);
 
 const fairUse = () => ({ records_remaining_5h: LIMIT_5H - used, records_reset_5h: new Date(Date.now() + 5 * 3600_000).toISOString().replace(/\.\d+Z$/, 'Z'), records_remaining_1w: 75_000 - used, records_reset_1w: new Date(Date.now() + 7 * 24 * 3600_000).toISOString().replace(/\.\d+Z$/, 'Z') });

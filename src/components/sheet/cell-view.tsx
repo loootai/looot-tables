@@ -19,9 +19,11 @@ import { riskTitle, riskTone } from '@/lib/moltsets-risk';
 import { keyedItems } from '@/lib/detail-value';
 import clsx from 'clsx';
 import { AlertCircle, Check, ExternalLink, FileText, X } from 'lucide-react';
-import { useContext } from 'react';
+import { createContext, useContext } from 'react';
 import { RunPausedContext } from './run-paused';
 import { Waterfall } from './waterfall';
+import { routedJob } from '@/lib/job-of';
+import { ProviderMark } from './provider-mark';
 import { formatUsd } from '@/lib/endpoint-map';
 
 function Pill({ tone, children, title, numeric = false }: { numeric?: boolean; tone: 'true' | 'false' | 'brand' | 'muted' | 'danger'; children: React.ReactNode; title?: string }) {
@@ -57,12 +59,14 @@ export function CellView(props: CellViewProps) {
 	if (cell?.s === 'error') return <CellError message={cell.e} />;
 	if (isCheckboxColumn(column)) return <CheckboxCell column={column} cell={cell} onToggle={onToggleCheckbox} />;	const value = cell?.v;
 	if (!cell || isBlank(value)) return cell?.s === 'done' ? column.type === 'enriched' ? <span data-miss className="num text-[11.5px] text-fg-subtle">Not found · {formatUsd(cell.m?.costUsd ?? 0)}</span> : <span className="text-caption text-fg-subtle">—</span> : null;
-	if (column.op?.kind === 'email-enrichment' && typeof value === 'string') return <EmailValue email={value} status={cell.m?.verification} />;
+	if (column.op?.kind === 'email-enrichment' && typeof value === 'string') return <EmailValue email={value} status={cell.m?.verification} moltsets={cell.m?.moltsets} answeredBy={answeredBy(cell.m)} />;
+	if (column.op?.kind === 'phone-find' && typeof value === 'string') return <span className="flex min-w-0 items-center gap-1.5"><span className="num min-w-0 flex-1 truncate text-fg">{value}</span><AnsweredBy provider={answeredBy(cell.m)} cost={cell.m?.costUsd} /></span>;
 	return <FormattedValue {...props} cell={cell} value={value} />;
 }
 
 function CellProgress({ status, column, rowId = '' }: { status: 'running' | 'queued'; column: Column; rowId?: string }) {
-	const paused = useContext(RunPausedContext) && status === 'queued';	if (status === 'running' && !paused && column.type === 'enriched') return <Waterfall column={column} seed={`${rowId}:${column.id}`} />;
+	const paused = useContext(RunPausedContext) && status === 'queued';	// A routed looot job shows the providers it walks; AI and other columns keep their step label ("Researching…").
+	if (status === 'running' && !paused && column.type === 'enriched' && routedJob(column.op)) return <Waterfall column={column} seed={`${rowId}:${column.id}`} />;
 	return (
 		<span className="inline-flex min-w-0 items-center text-body-sm text-fg-subtle" style={{ gap: 9 }}>
 			<CellStatusLoader status={paused ? 'paused' : status} seed={`${rowId}:${column.id}`} />
@@ -89,12 +93,28 @@ const VERIFY: Record<string, { label: string; tone: string }> = {
 	invalid: { label: 'Invalid', tone: 'bg-danger-soft text-danger-strong' },
 };
 
-/** A found work email in mono, with its checked status when the column verifies. Emerald only for Valid. */
-function EmailValue({ email, status }: { email: string; status?: string }) {
-	const verdict = status ? VERIFY[status] : undefined;
+/** Who answered a contact cell: MoltSets when its plan found it, else the first looot provider that hit. */
+function answeredBy(meta: Cell['m']): string | undefined {
+	if (meta?.moltsets?.outcome === 'hit') return 'MoltSets';
+	return meta?.looot?.find((call) => call.outcome === 'hit' || call.outcome === 'weak')?.provider;
+}
+
+/** The answering provider's logo at the end of a contact cell; the receipt has the full route. */
+function AnsweredBy({ provider, cost }: { provider?: string; cost?: number }) {
+	if (!provider) return null;
+	return <span title={`Answered by ${provider}${cost !== undefined ? ` · ${formatUsd(cost)}` : ''}`} className="shrink-0"><ProviderMark name={provider} size="xs" /></span>;
+}
+
+/** A found work email in mono: with MoltSets' A to F grade when MoltSets found it, else its checked status when the
+    column verifies. Emerald only for Valid and A or B. */
+function EmailValue({ email, status, moltsets, answeredBy }: { email: string; status?: string; moltsets?: MoltSetsCallMeta; answeredBy?: string }) {
+	const graded = moltsets?.outcome === 'hit' && Boolean(moltsets.riskScore);
+	const verdict = status && !graded ? VERIFY[status] : undefined;
 	return <span className="flex min-w-0 items-center gap-1.5">
+		{graded && <RiskBadge meta={moltsets} />}
 		{verdict && <span data-verification={status} className={clsx('shrink-0 rounded-full px-1.5 text-[10.5px] font-medium leading-[18px]', verdict.tone)}>{verdict.label}</span>}
-		<span className="num truncate text-fg">{email}</span>
+		<span className="num min-w-0 flex-1 truncate text-fg">{email}</span>
+		<AnsweredBy provider={answeredBy} />
 	</span>;
 }
 
@@ -143,6 +163,7 @@ function ProbabilityPill({ tone, cell, numeric, confidence = false, children }: 
 
 /** Lists, numbers, and entity values (organizations, people, websites); plain text and links otherwise. */
 function EntityValue({ cell, column, row, columns, value, remainingRows, totalRows, onAddEntityColumn }: ValueProps) {
+	const allColumns = useContext(SheetColumnsContext);
 	const organization = organizationKind(column);
 	const domain = organization ? organizationDomain(cell, row, columns, organization) : undefined;
 	const entity = entityKind(column);
@@ -151,8 +172,8 @@ function EntityValue({ cell, column, row, columns, value, remainingRows, totalRo
 	if (typeof value === 'number') return <NumberValue value={value} column={column} />;
 	const text = cellText(column, value);
 	if (entity === 'website' || entity === 'webpage') return <WebsiteValue {...menu} kind={entity} text={text} />;
-	if (entity === 'person') return <PersonValue {...menu} cell={cell} columns={columns} text={text} />;
-	if (organization) return <AdaptiveEntityGroup><OrganizationChip name={text} kind={organization} domain={domain}>{entity && <EntityMenu {...menu} kind={entity} />}</OrganizationChip></AdaptiveEntityGroup>;
+	if (entity === 'person') return <PersonValue {...menu} cell={cell} columns={allColumns ?? columns} text={text} />;
+	if (organization) return <AdaptiveEntityGroup><OrganizationChip name={text} kind={organization} domain={domain} logo={organization === 'company' ? rowLogo(row, allColumns ?? columns) : null}>{entity && <EntityMenu {...menu} kind={entity} />}</OrganizationChip></AdaptiveEntityGroup>;
 	if (entity) return <AdaptiveEntityGroup><Pill tone="muted" title={text}><EntityLabel name={text} /><EntityMenu {...menu} kind={entity} /></Pill></AdaptiveEntityGroup>;
 	return <TextValue column={column} text={text} moltsets={cell.m?.moltsets} />;
 }
@@ -205,6 +226,16 @@ function PersonValue({ cell, columns, text, ...menu }: EntityMenuProps & { cell:
 	return <AdaptiveEntityGroup><Pill tone="muted" title={text}><PersonAvatar src={personPhoto(cell, menu.column, menu.row, columns, text)} /><EntityLabel name={text} /><EntityMenu {...menu} kind="person" /></Pill></AdaptiveEntityGroup>;
 }
 
+/** Every column of the sheet, hidden ones included, so a hidden Logo or Profile photo column still feeds the chips. */
+export const SheetColumnsContext = createContext<Column[] | null>(null);
+
+/** The row's Logo column value, for a company chip. */
+function rowLogo(row: Row | undefined, columns: Column[] | undefined) {
+	const logoColumn = columns && roleColumn(columns, 'logo');
+	const logo = logoColumn && row?.cells[logoColumn.id]?.v;
+	return typeof logo === 'string' ? logo : null;
+}
+
 /** The matched person's avatar, else a hand-entered row's photo column. */
 function personPhoto(cell: Cell, column: Column, row: Row | undefined, columns: Column[] | undefined, text: string) {
 	if (cell.m?.person?.name === text) return cell.m.person.avatarUrl;
@@ -213,12 +244,12 @@ function personPhoto(cell: Cell, column: Column, row: Row | undefined, columns: 
 	return column.type === 'source' && typeof photo === 'string' ? photo : null;
 }
 
-const RISK_CLASS = { good: 'bg-success-soft text-success', caution: 'bg-warning-soft text-warning', bad: 'bg-danger-soft text-danger', none: 'bg-neutral-5 text-fg-subtle' } as const;
+const RISK_CLASS = { good: 'bg-success-soft text-success', caution: 'bg-warning-soft text-warning-strong', bad: 'bg-danger-soft text-danger-strong', none: 'bg-neutral-5 text-fg-subtle' } as const;
 
 /** The MoltSets send-safety grade of an email it found: A and B green, C amber, D red, F grey. */
 function RiskBadge({ meta }: { meta?: MoltSetsCallMeta }) {
 	if (meta?.outcome !== 'hit' || !meta.riskScore) return null;
-	return <span data-risk-score={meta.riskScore} data-risk-tone={riskTone(meta.riskScore)} title={riskTitle(meta.riskScore, meta.lastValidatedAt)} className={clsx('inline-flex h-[18px] shrink-0 items-center rounded px-1.5 text-caption font-medium', RISK_CLASS[riskTone(meta.riskScore)])}>{meta.riskScore}</span>;
+	return <span data-risk-score={meta.riskScore} data-risk-tone={riskTone(meta.riskScore)} title={riskTitle(meta.riskScore, meta.lastValidatedAt)} className={clsx('num shrink-0 rounded-full px-1.5 text-[10.5px] font-semibold leading-[18px]', RISK_CLASS[riskTone(meta.riskScore)])}>{meta.riskScore}</span>;
 }
 
 function TextValue({ column, text, moltsets }: { column: Column; text: string; moltsets?: MoltSetsCallMeta }) {

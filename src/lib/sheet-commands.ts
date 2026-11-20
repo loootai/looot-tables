@@ -307,7 +307,7 @@ export function createSheetCommands(sheetId: string, ports: { runner?: RunnerPor
 			const { columns, cells } = unpackColumns(column, rows, fields, (field) => {
 				const name = uniqueName(field.name, names);
 				names.push(name);
-				return newColumn({ name, type: 'source', width: 140, ...(field.format ? { format: field.format } : {}), ...(field.format === 'currency' ? { currency: 'USD', decimalPlaces: 0 } : {}) });
+				return newColumn({ name, type: 'source', width: 140, ...(field.format ? { format: field.format } : {}), ...(field.format === 'currency' ? { currency: 'USD' } : {}) });
 			});
 			await insert(columns, () => 'unpack', { position: grid.sheet.columns.findIndex((entry) => entry.id === column.id) + 1 });
 			if (cells.length) await store.setCells(cells);

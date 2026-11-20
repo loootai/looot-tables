@@ -339,9 +339,10 @@ test('MCP credentials never inherit browser cookies or deployment keys and rejec
 
 test('keys sealed before the shared envelope still reveal', async (t) => {
 	const { db, keys } = await fixture(t);
-	// Written by the previous McpStore.encrypt for actor('legacy') under the fixture root.
-	const secret = `enr_mcp_${'L'.repeat(43)}`, version = '00000000-0000-4000-8000-000000000001';
-	const sealed = 'v1.-JCHFggS9xkWAr7Y.6FPcTsLE1wD7xzg0k2jBAA.nYrBkzrU39PYiQsOP1FkcWsM_6Z6oPDV3e19BYpnvGNWDTZDE7uSo6psO3l9R2OwTPKU';
+	// The previous McpStore.encrypt format for actor('legacy') under the fixture root, re-sealed when the key prefix
+	// became lt_mcp_ (no deployment held the old prefix).
+	const secret = `lt_mcp_${'L'.repeat(43)}`, version = '00000000-0000-4000-8000-000000000001';
+	const sealed = 'v1.PL93-8aj1ZnCEBBF.Gkt8vJSEKNp_R56LDdGy1g.vNsu2UgMsse5JpHaWS3eHHffS4qyMm2HnNWyRVeoYzJEfcXH4mzdf7uXVX4JGFSHTG8';
 	await db.query("INSERT INTO looot_tables.workspaces (id,issuer,organization_id,name) VALUES ($1,'https://mcp-tests.invalid','legacy','legacy')", [workspaceId(actor('legacy'))]);
 	await db.query('INSERT INTO looot_tables.mcp_keys (workspace_id,key_hash,prefix,version,created_at,encrypted_secret) VALUES ($1,$2,$3,$4,1,$5)', [workspaceId(actor('legacy')), hashMcpSecret(secret), secret.slice(0, 16), version, sealed]);
 	assert.equal((await keys.revealKey(actor('legacy'))).secret, secret);

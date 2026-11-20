@@ -18,7 +18,7 @@ import clsx from 'clsx';
 import { ArrowDown, ArrowUp, Check, ChevronDown, MoreHorizontal, Play, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, memo, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Select } from '@/components/ui/select';
-import { CellView } from './cell-view';
+import { CellView, SheetColumnsContext } from './cell-view';
 import { DatePicker } from '@/components/ui/date-picker';
 import { RowArrival } from './row-loading';
 import { CompanyEditor } from './company-editor';
@@ -185,11 +185,18 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 	const revealColumn = useCallback((columnId: string) => {
 		const columnIndex = columns.findIndex((column) => column.id === columnId);
 		const scroller = scrollRef.current;
-		if (columnIndex >= 0 && scroller) {
+		// The frozen first column is always in view. Others scroll so a column starts right at the frozen edge: a column
+		// never sits half-hidden under it.
+		if (columnIndex > 0 && scroller) {
+			const frozenEdge = offsets[1];
 			const left = offsets[columnIndex];
 			const right = left + columns[columnIndex].width;
-			if (left - INDEX_WIDTH < scroller.scrollLeft) scroller.scrollLeft = left - INDEX_WIDTH;
-			else if (right > scroller.scrollLeft + scroller.clientWidth) scroller.scrollLeft = right - scroller.clientWidth;
+			if (left - frozenEdge < scroller.scrollLeft) scroller.scrollLeft = left - frozenEdge;
+			else if (right > scroller.scrollLeft + scroller.clientWidth) {
+				const need = right - scroller.clientWidth;
+				const start = offsets.slice(1, columnIndex + 1).find((offset) => offset - frozenEdge >= need) ?? left;
+				scroller.scrollLeft = start - frozenEdge;
+			}
 		}
 	}, [columns, offsets]);
 
@@ -283,8 +290,9 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 
 	// A new pointer gesture must not inherit click suppression from the previous drag.
 	return (
+		<SheetColumnsContext.Provider value={sheet.columns}>
 		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-		<div ref={scrollRef} tabIndex={0} onPointerDownCapture={() => { suppressClickUntil.current = 0; }} onScroll={(event) => { if (footerRef.current) footerRef.current.style.transform = `translateX(${-event.currentTarget.scrollLeft}px)`; if (loadingRows) { const node = event.currentTarget; followArrivals.current = node.scrollHeight - node.scrollTop - node.clientHeight < ROW_HEIGHT * 2; } }} onKeyDown={onKeyDown} onContextMenu={openContextMenu} onDragStart={(event) => event.preventDefault()} onClickCapture={(event) => { if (performance.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); suppressClickUntil.current = 0; } }} aria-multiselectable="true" aria-label="Sheet grid" role="grid" aria-activedescendant={activeDescendant(active, columns, (rowId) => virtualItems.some((item) => rows[item.index]?.id === rowId))} aria-busy={loadingRows} aria-rowcount={rowCount} aria-colcount={columns.length} className="scrollbar-thin relative min-h-0 min-w-0 flex-1 touch-auto select-none overflow-auto overscroll-contain bg-surface outline-none">
+		<div ref={scrollRef} tabIndex={0} onPointerDownCapture={() => { suppressClickUntil.current = 0; }} onScroll={(event) => { if (footerRef.current) footerRef.current.style.transform = `translateX(${-event.currentTarget.scrollLeft}px)`; if (loadingRows) { const node = event.currentTarget; followArrivals.current = node.scrollHeight - node.scrollTop - node.clientHeight < ROW_HEIGHT * 2; } }} onKeyDown={onKeyDown} onContextMenu={openContextMenu} onDragStart={(event) => event.preventDefault()} onClickCapture={(event) => { if (performance.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); suppressClickUntil.current = 0; } }} aria-multiselectable="true" aria-label="Sheet grid" role="grid" aria-activedescendant={activeDescendant(active, columns, (rowId) => virtualItems.some((item) => rows[item.index]?.id === rowId))} aria-busy={loadingRows} aria-rowcount={rowCount} aria-colcount={columns.length} style={{ scrollSnapType: 'x proximity', scrollPaddingLeft: INDEX_WIDTH + (columns[0]?.width ?? 0) }} className="scrollbar-thin relative min-h-0 min-w-0 flex-1 touch-auto select-none overflow-auto overscroll-contain bg-surface outline-none">
 			<div style={{ width: totalWidth, height: HEADER_HEIGHT + virtualizer.getTotalSize() + ROW_HEIGHT + 24, position: 'relative' }}>
 				<GridHeader stats={stats} ghosts={ghosts} onAddNextStep={onAddNextStep} onRoutingMenu={onRoutingMenu} sheet={sheet} sort={sort} columns={columns} offsets={offsets} totalWidth={totalWidth} rows={rows} selected={selected} columnDrag={columnDrag} renamingColumnId={renamingColumnId} onToggleAll={onToggleAll} onAddColumn={onAddColumn} onStartDrag={beginColumnDrag} onColumnMenu={onColumnMenu} onResizeColumn={onResizeColumn} onPreviewResize={previewResize} onSortColumn={onSortColumn} onRenameColumn={onRenameColumn} onCancelRenameColumn={onCancelRenameColumn} />
 
@@ -341,6 +349,7 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 			</div>
 			<ColumnFooter ref={footerRef} columns={columns} stats={stats} totalWidth={totalWidth} />
 		</div>
+		</SheetColumnsContext.Provider>
 	);
 }
 
@@ -357,6 +366,8 @@ function ColumnFooter({ ref, columns, stats, totalWidth }: { ref: React.Ref<HTML
 				</div>;
 			})}
 		</div>
+		{/* The frozen first column covers the totals scrolled under it, as it covers their cells. */}
+		<div aria-hidden className="absolute inset-y-0 left-0 border-r border-line bg-neutral-5" style={{ width: INDEX_WIDTH + (columns[0]?.width ?? 0) }} />
 	</div>;
 }
 
@@ -470,11 +481,14 @@ const HeaderCell = memo(function HeaderCell({ frozen, stats, onRoutingMenu, colu
 	const enriched = column.type === 'enriched' && column.op;
 	const fill = stats && stats.rows ? stats.filled / stats.rows : 0;
 	const filled = stats && fillPercent(stats) ? `${fillPercent(stats)} fill` : null;
+	// The header line keeps the price; the typical time and the fill move to the hover title (the fill also shows as the
+	// bar under the header and in the footer), so a header with its routing pill never truncates.
 	const subline = !enriched ? null : measured?.costPerHitUsd != null
-		? [`${formatUsd(measured.costPerHitUsd)}/hit`, measured.p50Ms != null ? `${(measured.p50Ms / 1000).toFixed(1)}s` : null, filled].filter(Boolean).join(' · ')
-		: [routing?.job ?? column.op!.kind, costPerCell(column.op) ? `~${formatUsd(costPerCell(column.op))}` : null, filled].filter(Boolean).join(' · ');
+		? `${formatUsd(measured.costPerHitUsd)}/hit`
+		: costPerCell(column.op) ? `~${formatUsd(costPerCell(column.op))}/row` : routing?.job ?? null;
+	const sublineTitle = measured?.costPerHitUsd != null ? [`${formatUsd(measured.costPerHitUsd)} per hit`, measured.p50Ms != null ? `typically ${(measured.p50Ms / 1000).toFixed(1)} s` : null, filled].filter(Boolean).join(' · ') : subline ?? undefined;
 	return (
-		<div role="columnheader" data-column-header={column.id} aria-sort={sort === 'asc' ? 'ascending' : sort === 'desc' ? 'descending' : 'none'} className={clsx('group/header relative flex h-full items-center border-r border-b border-line bg-neutral-5 text-caption text-fg-muted', frozen && 'sticky z-[25]')} style={{ width, flexShrink: 0, opacity: dragging ? 0.5 : 1, ...(frozen ? { left: INDEX_WIDTH } : {}) }}>
+		<div role="columnheader" data-column-header={column.id} aria-sort={sort === 'asc' ? 'ascending' : sort === 'desc' ? 'descending' : 'none'} className={clsx('group/header relative flex h-full items-center border-r border-b border-line bg-neutral-5 text-caption text-fg-muted', frozen && 'sticky z-[25] after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-2.5 after:translate-x-full after:bg-gradient-to-r after:from-tint/[0.12] after:to-transparent')} style={{ width, flexShrink: 0, opacity: dragging ? 0.5 : 1, ...(frozen ? { left: INDEX_WIDTH } : { scrollSnapAlign: 'start' }) }}>
 			{renaming ? <div className="relative h-full min-w-0 flex-1"><InlineEditor initial={column.name} selectInitial label="Rename column" onCommit={(name) => onRename(column.id, name)} onCancel={onCancelRename} /></div> : <button type="button" onPointerDown={(event) => onStartDrag(column.id, event)} onClick={() => onSort(column.id)} className="touch-auto cursor-pointer flex h-full min-w-0 flex-1 items-center gap-1.5 pl-3 pr-1 text-left transition-colors hover:bg-tint/[0.03]" title="Click to cycle ascending, descending, and original row order; drag to rearrange; right-click for column options">
 				<span className="flex min-w-0 flex-1 flex-col items-start gap-px">
 						<span className="flex w-full min-w-0 items-center gap-1.5">
@@ -483,7 +497,7 @@ const HeaderCell = memo(function HeaderCell({ frozen, stats, onRoutingMenu, colu
 							{sort === 'asc' && <ArrowUp className="size-3 shrink-0 text-brand" strokeWidth={2} />}
 							{sort === 'desc' && <ArrowDown className="size-3 shrink-0 text-brand" strokeWidth={2} />}
 						</span>
-						{subline && <span data-column-subline className="num w-full truncate text-[10.5px] text-fg-subtle">{subline}</span>}
+						{subline && <span data-column-subline title={sublineTitle} className="num w-full truncate text-[10.5px] text-fg-subtle">{subline}</span>}
 					</span>
 				</button>}
 				{routing && !renaming && <button type="button" data-routing-pill aria-label={`Routing for ${column.name}: ${PREFER_LABEL[routing.prefer]}${routing.exclude.length ? `, ${routing.exclude.length} skipped` : ''}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => onRoutingMenu?.(column, event.currentTarget.getBoundingClientRect())} className="mr-0.5 inline-flex h-5 shrink-0 items-center rounded-full border border-line bg-surface px-1.5 text-[10.5px] font-medium text-fg-muted hover:border-brand hover:text-brand">{PREFER_LABEL[routing.prefer]}{routing.exclude.length ? ` −${routing.exclude.length}` : ''}</button>}
@@ -492,7 +506,7 @@ const HeaderCell = memo(function HeaderCell({ frozen, stats, onRoutingMenu, colu
 				{column.type === 'enriched' && !renaming && <Sparkles aria-hidden="true" className="absolute size-3.5 text-brand group-hover/header:opacity-0 group-focus-within/header:opacity-0 [@media(hover:none)]:opacity-0" strokeWidth={1.75} />}
 				<MoreHorizontal aria-hidden="true" className={clsx('size-3.5', column.type === 'enriched' && !renaming && 'opacity-0 group-hover/header:opacity-100 group-focus-within/header:opacity-100 [@media(hover:none)]:opacity-100')} strokeWidth={1.75} />
 			</button>
-			<div role="separator" tabIndex={-1} aria-label={`Resize ${column.name}`} aria-orientation="vertical" aria-valuenow={width} aria-valuemin={MIN_COLUMN_WIDTH} aria-valuemax={MAX_COLUMN_WIDTH} onPointerDown={startResize} onDoubleClick={() => onResize(column.id, 220)} className="absolute top-0 -right-[3px] z-10 h-full w-[7px] touch-none cursor-col-resize select-none hover:bg-brand/40 active:bg-brand/60" />
+			<div role="separator" tabIndex={-1} aria-label={`Resize ${column.name}`} aria-orientation="vertical" aria-valuenow={width} aria-valuemin={MIN_COLUMN_WIDTH} aria-valuemax={MAX_COLUMN_WIDTH} onPointerDown={startResize} onDoubleClick={() => onResize(column.id, column.type === 'enriched' ? 250 : 220)} className="absolute top-0 -right-[3px] z-10 h-full w-[7px] touch-none cursor-col-resize select-none hover:bg-brand/40 active:bg-brand/60" />
 		</div>
 	);
 });
@@ -596,7 +610,7 @@ const GridRow = memo(function GridRow({ sheet, referenceRows, newColumnSelected,
 							else onOpenCell({ rowId: row.id, columnId: column.id });
 						}}
 						data-state={state}
-							className={clsx('cell-state group/cell relative flex h-full min-w-0 items-center border-r border-line-subtle px-3 text-body-sm text-fg', frozen && (selected ? 'sticky z-[3] bg-blue-10 font-medium' : 'sticky z-[3] bg-surface font-medium group-hover/row:bg-neutral-5'), isActive && 'shadow-[inset_0_0_0_1.5px_var(--color-brand)]', inRange && (range?.reference ? 'bg-success-soft' : 'bg-blue-10/70'), cell?.s === 'error' && 'bg-danger-soft/40', stale && (isRightAligned ? 'pl-8' : 'pr-8'))}
+							className={clsx('cell-state group/cell relative flex h-full min-w-0 items-center border-r border-line-subtle px-3 text-body-sm text-fg', frozen && (selected ? 'sticky z-[3] bg-blue-10 font-medium' : 'sticky z-[3] bg-surface font-medium group-hover/row:bg-neutral-5'), frozen && 'after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-2.5 after:translate-x-full after:bg-gradient-to-r after:from-tint/[0.12] after:to-transparent', isActive && 'shadow-[inset_0_0_0_1.5px_var(--color-brand)]', inRange && (range?.reference ? 'bg-success-soft' : 'bg-blue-10/70'), cell?.s === 'error' && 'bg-danger-soft/40', stale && (isRightAligned ? 'pl-8' : 'pr-8'))}
 						style={{ width: column.width, flexShrink: 0, ...(frozen ? { left: INDEX_WIDTH } : {}) }}
 						>
 							{viewers.length > 0 && <span data-collaborator-cell title={viewers.map((peer) => `${peer.name} selected this cell`).join(', ')} className="pointer-events-none absolute inset-0 z-[25] border-2" style={{ borderColor: viewers[0].color }}><span className="absolute -right-[2px] bottom-full mb-[2px] max-w-full truncate rounded-t-[4px] px-2 py-0.5 text-[11px] font-semibold leading-4 text-white" style={{ background: viewers[0].color }}>{viewers.map((peer) => peer.name).join(', ')}</span></span>}

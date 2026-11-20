@@ -6,10 +6,10 @@ useDefault = true
 [[rules]]
 id = "looot-tables-mcp-key"
 description = "looot tables full-workspace MCP bearer key"
-regex = '''\b(enr_mcp_[A-Za-z0-9_-]{43})(?:[^A-Za-z0-9_-]|$)'''
+regex = '''\b(lt_mcp_[A-Za-z0-9_-]{43})(?:[^A-Za-z0-9_-]|$)'''
 secretGroup = 1
 entropy = 3.5
-keywords = ["enr_mcp_"]
+keywords = ["lt_mcp_"]
 
 [[rules]]
 id = "moltsets-api-key"

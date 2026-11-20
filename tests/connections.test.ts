@@ -37,6 +37,6 @@ test('workspace connections report their expiry and when one must be replaced', 
 });
 
 test('the self-hosted MCP config carries the looot token header next to the OpenAI one', () => {
-	assert.deepEqual(JSON.parse(mcpConfig('https://self.example/mcp', 'enr_mcp_secret', true)).mcpServers['looot-tables'].headers, { Authorization: 'Bearer enr_mcp_secret', 'x-openai-key': 'YOUR_OPENAI_API_KEY', 'x-looot-key': 'YOUR_LOOOT_TOKEN' });
+	assert.deepEqual(JSON.parse(mcpConfig('https://self.example/mcp', 'lt_mcp_secret', true)).mcpServers['looot-tables'].headers, { Authorization: 'Bearer lt_mcp_secret', 'x-openai-key': 'YOUR_OPENAI_API_KEY', 'x-looot-key': 'YOUR_LOOOT_TOKEN' });
 	assert.deepEqual(JSON.parse(mcpConfig('https://tables.example/mcp', undefined, false)).mcpServers['looot-tables'].headers, { Authorization: 'Bearer YOUR_AGENT_KEY' });
 });

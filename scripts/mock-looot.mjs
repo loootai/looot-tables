@@ -1,7 +1,8 @@
 // A local stand-in for the looot REST API, so the whole app runs without a looot token and without spending money.
 // Run: node scripts/mock-looot.mjs [--openai]   then start the app with LOOOT_API_URL=http://127.0.0.1:4546 and any
 // token. --openai also starts an OpenAI-compatible model on port 4545 that drives "Find rows" for a people list.
-// Shapes follow the public docs (https://api.looot.ai/llms-full.txt). Every company, person and domain is invented.
+// Shapes follow the public docs (https://api.looot.ai/llms-full.txt). Company names and domains are real public
+// companies so screenshots read naturally; every other value (people, emails, phones, headcount, funding) is invented.
 import http from 'node:http';
 import { createHash } from 'node:crypto';
 
@@ -9,23 +10,35 @@ const PORT = Number(process.env.MOCK_LOOOT_PORT ?? 4546);
 /** How long one provider attempt takes, so a running cell can be watched. */
 const ATTEMPT_MS = Number(process.env.MOCK_ATTEMPT_MS ?? 650);
 
-const FIRST = ['Ada', 'Grace', 'Linus', 'Margaret', 'Dennis', 'Barbara', 'Ken', 'Radia', 'Alan', 'Donald', 'Frances', 'Edsger'];
-const LAST = ['Rivera', 'Okafor', 'Nakamura', 'Schmidt', 'Haddad', 'Larsen', 'Moreau', 'Costa', 'Patel', 'Kowalski', 'Ibarra', 'Novak'];
-const NAMES = ['Brightledger', 'Paystream', 'Northwind Capital', 'Ledgerly', 'Fintrail', 'Quillpay', 'Harborpoint', 'Coinvale', 'Stackbank', 'Tidewater Pay', 'Meridian Lend', 'Plumb Finance'];
-const INDUSTRIES = ['Payments', 'Lending', 'Banking software', 'Accounting', 'Payroll', 'Treasury'];
+// Ten real companies (names, domains, HQ city) with one fictional contact each; the people and every number below are
+// made up for screenshots. Headcount and funding are rough round figures, not checked facts.
+const COMPANIES = [
+	['Stripe', 'stripe.com', 'Payments', 'San Francisco', 8000, 9.4e9, 'Maya Rios', 'Head of RevOps'],
+	['Linear', 'linear.app', 'Developer tools', 'San Francisco', 150, 134e6, 'Marcus Bell', 'VP Engineering'],
+	['Vercel', 'vercel.com', 'Developer tools', 'San Francisco', 700, 563e6, 'Yuki Tanaka', 'Growth Marketing Lead'],
+	['Notion', 'notion.so', 'Productivity', 'San Francisco', 900, 343e6, 'Arjun Mehta', 'Director of Sales Ops'],
+	['Figma', 'figma.com', 'Design software', 'San Francisco', 1600, 333e6, 'Ingrid Larsen', 'Chief Revenue Officer'],
+	['Datadog', 'datadoghq.com', 'Observability', 'New York', 6500, 148e6, 'Owen Fletcher', 'Account Executive'],
+	['Retool', 'retool.com', 'Developer tools', 'San Francisco', 400, 141e6, 'Amara Okafor', 'Head of Partnerships'],
+	['Intercom', 'intercom.com', 'Customer service', 'San Francisco', 1000, 241e6, 'Omar Haddad', 'Director of Demand Gen'],
+	['Supabase', 'supabase.com', 'Developer tools', 'San Francisco', 150, 396e6, 'Dewi Pratama', 'Product Marketing Manager'], // leak-scan:allow a company domain in demo data, not a Supabase project host
+	['Airtable', 'airtable.com', 'Productivity', 'San Francisco', 800, 1.4e9, 'Claire Donovan', 'VP Customer Success'],
+];
+const INDUSTRIES = COMPANIES.map(([, , industry]) => industry);
 const slug = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '');
-const companies = NAMES.map((name, i) => ({ name, domain: `${slug(name)}.example`, index: i }));
-const personFor = (company) => ({ first: FIRST[company.index], last: LAST[company.index] });
+const companies = COMPANIES.map(([name, domain, , city, employees, funding, contact, role], i) => ({ name, domain, city, employees, funding, contact, role, index: i }));
 const companyByDomain = (domain) => companies.find((c) => c.domain === String(domain ?? '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, ''));
 const hash = (text) => parseInt(createHash('sha256').update(String(text)).digest('hex').slice(0, 8), 16);
 
 /** Each job's providers in balanced order, with what one attempt costs and how often it answers. */
 const PROVIDERS = {
-	'people.email.find': [['prospeo', 0.0042, 0.62, 640], ['hunter', 0.0049, 0.71, 520], ['leadmagic', 0.0061, 0.58, 880]],
+	'people.email.find': [['prospeo', 0.0042, 0.62, 640], ['hunter', 0.0049, 0.71, 520], ['apollo', 0.0061, 0.58, 880]],
 	'people.email.verify': [['bounceban', 0.0019, 0.97, 410], ['zerobounce', 0.0024, 0.95, 380]],
-	'people.phone.find': [['contactout', 0.021, 0.44, 1200], ['leadmagic', 0.028, 0.39, 950]],
-	'company.enrich': [['dropleads', 0.00145, 0.9, 300], ['companyenrich', 0.0098, 0.95, 700]],
-	'people.search': [['leadmagic', 0.00198, 0.8, 900]],
+	'people.phone.find': [['contactout', 0.021, 0.44, 1200], ['quickenrich', 0.028, 0.39, 950]],
+	'company.enrich': [['apollo', 0.00145, 0.9, 300], ['companyenrich', 0.0098, 0.95, 700]],
+	'people.search': [['apollo', 0.00198, 0.8, 900]],
+	'web.search': [['serper', 0.001, 0.98, 700]],
+	'web.scrape.markdown': [['firecrawl', 0.002, 0.95, 1100]],
 	'company.search': [['tomba', 0.0089, 0.9, 600]],
 };
 
@@ -52,7 +65,8 @@ function route(job, fallback, answers) {
 	for (const [n, [provider, price, , ms]] of providers.entries()) {
 		if (spent + price > cap + 1e-9) { capped = true; break; }
 		const outcome = answers(provider, n);
-		const charged = outcome === 'hit' || outcome === 'weak' ? price : n === 0 ? 0 : round(price / 4);
+		// Like the email and phone finders behind looot, a miss bills nothing; only an answer is charged.
+		const charged = outcome === 'hit' || outcome === 'weak' ? price : 0;
 		spent = round(spent + charged);
 		attempts.push({ n: n + 1, provider, endpointId: `${provider}-${job.replace(/\./g, '-')}`, outcome, chargedUsd: charged, ms: ms + (hash(provider + n) % 200), status: 200, reason: outcome === 'miss' ? 'no match for this input' : null });
 		if (outcome === 'hit' || outcome === 'weak' || fallback === false) break;
@@ -86,15 +100,15 @@ function runJob(endpointId, input, fallback, key) {
 	switch (job) {
 		case 'company.search': {
 			const walk = route(job, fallback, () => 'hit');
-			return finish(base, job, walk, { data: { companies: companies.map((c) => ({ name: c.name, website_url: c.domain, linkedin_url: `https://linkedin.com/company/${slug(c.name)}`, city: 'New York', state: 'New York', country: 'US', industry: INDUSTRIES[c.index % INDUSTRIES.length], description: `${c.name} builds ${INDUSTRIES[c.index % INDUSTRIES.length].toLowerCase()} software for small businesses.`, founded: String(2014 + (c.index % 6)), company_size: '51-250', funding_stage: 'series_b' })) }, meta: { page: input.page ?? 1, pages: 1, total: companies.length }, success: true });
+			return finish(base, job, walk, { data: { companies: companies.map((c) => ({ name: c.name, website_url: c.domain, linkedin_url: `https://linkedin.com/company/${slug(c.name)}`, city: c.city, state: c.city === 'New York' ? 'New York' : 'California', country: 'US', industry: INDUSTRIES[c.index], description: `${c.name}: ${INDUSTRIES[c.index].toLowerCase()}.`, company_size: '51-250', funding_stage: 'series_b' })) }, meta: { page: input.page ?? 1, pages: 1, total: companies.length }, success: true });
 		}
 		case 'people.search': {
 			const company = companyByDomain(input.domain);
 			const walk = route(job, fallback, () => (company ? 'hit' : 'miss'));
 			if (!company) return finish(base, job, walk, { data: [] });
-			const p = personFor(company);
-			const row = (first, last, title) => ({ full_name: `${first} ${last}`, first_name: first, last_name: last, title, profile_url: `https://www.linkedin.com/in/${first}${last}-${company.index}`.toLowerCase(), company_name: company.name, website: company.domain, country_code: 'US' });
-			return finish(base, job, walk, { data: [row('Casey', `Founder${company.index}`, 'Co-founder & CEO'), row(p.first, p.last, 'VP of Sales'), row('Robin', `Ops${company.index}`, 'Head of Operations')], returned_count: 3, resolved_company_domain: company.domain });
+			const [first, ...rest] = company.contact.split(' ');
+			const row = { full_name: company.contact, first_name: first, last_name: rest.join(' '), title: company.role, profile_url: `https://www.linkedin.com/in/${slug(company.contact)}-example`, company_name: company.name, website: company.domain, country_code: 'US' };
+			return finish(base, job, walk, { data: [row], returned_count: 1, resolved_company_domain: company.domain });
 		}
 		case 'people.email.find': {
 			const company = companyByDomain(input.domain);
@@ -102,8 +116,8 @@ function runJob(endpointId, input, fallback, key) {
 			const first = String(input.first_name ?? String(input.name ?? '').split(' ')[0] ?? '').toLowerCase();
 			const last = String(input.last_name ?? String(input.name ?? '').split(' ').slice(1).join('') ?? '').toLowerCase();
 			const email = `${first}${last ? `.${last}` : ''}@${input.domain}`;
-			// Every fifth company has nobody findable; every third needs the second provider.
-			const walk = route(job, fallback, (provider, n) => (idx % 5 === 4 ? 'miss' : idx % 3 === 0 && n === 0 ? 'miss' : 'hit'));
+			// Every fifth company has nobody findable; otherwise the first, second or third provider answers, by company.
+			const walk = route(job, fallback, (provider, n) => (idx % 5 === 4 ? 'miss' : n < idx % 3 ? 'miss' : 'hit'));
 			if (walk.outcome === 'miss') return finish(base, job, walk, { data: null }, { outcomeReason: 'No provider had an email for this person.' });
 			const nextSteps = [step('people.email.verify', 'Verify email', 0.0019, { email }, email), step('people.phone.find', 'Find phone', 0.021, { first_name: input.first_name, last_name: input.last_name, domain: input.domain }, `${email}:phone`)];
 			return finish(base, job, walk, { data: { email, status: 'found' } }, { normalized: { job, fields: { email }, verdict: 'hit' }, nextSteps });
@@ -116,7 +130,8 @@ function runJob(endpointId, input, fallback, key) {
 			return finish(base, job, walk, { data: { email, status } }, { normalized: { job, fields: { email, status }, verdict: walk.outcome } });
 		}
 		case 'people.phone.find': {
-			const h = hash(JSON.stringify(input)) % 3;
+			const company = companyByDomain(input.domain);
+			const h = company ? (company.index % 4 === 3 ? 0 : company.index % 2 === 0 ? 2 : 1) : hash(JSON.stringify(input)) % 3;
 			const walk = route(job, fallback, (provider, n) => (h === 0 ? 'miss' : n === 0 && h === 1 ? 'miss' : 'hit'));
 			if (walk.outcome === 'miss') return finish(base, job, walk, { data: null });
 			const phone = `+1 212 555 0${String(100 + (hash(JSON.stringify(input)) % 899)).padStart(3, '0')}`;
@@ -124,11 +139,25 @@ function runJob(endpointId, input, fallback, key) {
 		}
 		case 'company.enrich': {
 			const company = companyByDomain(input.domain);
-			const walk = route(job, fallback, (provider, n) => (!company ? 'miss' : company.index % 4 === 1 && n === 0 ? 'miss' : 'hit'));
+			const walk = route(job, fallback, () => (!company || company.index === 5 ? 'miss' : 'hit'));
 			if (!company) return finish(base, job, walk, { data: null });
-			const fields = { name: company.name, domain: company.domain, industry: INDUSTRIES[company.index % INDUSTRIES.length], employees: 80 + company.index * 23, city: 'New York', country: 'US', founded: 2014 + (company.index % 6), funding_total: (18 + company.index * 7) * 1e6, funding_stage: 'Series B', description: `${company.name} builds ${INDUSTRIES[company.index % INDUSTRIES.length].toLowerCase()} software for small businesses.`, linkedin_url: `https://linkedin.com/company/${slug(company.name)}` };
+			const fields = { name: company.name, domain: company.domain, industry: INDUSTRIES[company.index], employees: company.employees, city: company.city, country: 'US', funding_total: company.funding, description: `${company.name}: ${INDUSTRIES[company.index].toLowerCase()}.`, linkedin_url: `https://linkedin.com/company/${slug(company.name)}` };
 			const nextSteps = [step('people.search', 'Find decision makers', 0.004, { domain: company.domain, job_title: 'VP of Sales' }, company.domain), step('company.technographics', 'Tech stack', 0.012, { domain: company.domain }, `${company.domain}:tech`)];
 			return finish(base, job, walk, { data: fields }, { normalized: { job, fields, verdict: 'hit' }, nextSteps });
+		}
+		case 'web.search': {
+			const company = companies.find((c) => String(input.query ?? '').toLowerCase().includes(c.domain) || String(input.query ?? '').toLowerCase().includes(c.name.toLowerCase()));
+			const walk = route(job, fallback, () => (company ? 'hit' : 'miss'));
+			if (!company) return finish(base, job, walk, { data: [] });
+			return finish(base, job, walk, { data: [
+				{ url: `https://${company.domain}/pricing`, title: `Pricing | ${company.name}`, snippet: `Compare ${company.name} plans and prices.` },
+				{ url: `https://${company.domain}/`, title: company.name, snippet: `${company.name} home page.` },
+			] });
+		}
+		case 'web.scrape.markdown': {
+			const company = companyByDomain(String(input.url ?? '').replace(/^https?:\/\//, ''));
+			const walk = route(job, fallback, () => (company ? 'hit' : 'miss'));
+			return finish(base, job, walk, { data: { url: input.url, title: company ? `Pricing | ${company.name}` : 'Page', markdown: company ? `# ${company.name} pricing\n\nFree, Pro and Enterprise plans, billed monthly or yearly.` : '' } });
 		}
 		default: {
 			if (endpointId === 'mock-company-enrich') {
@@ -240,13 +269,23 @@ if (process.argv.includes('--openai')) {
 			const completion = (message, finishReason = 'stop') => json(res, 200, { id: `chatcmpl-${Date.now()}`, object: 'chat.completion', created: 0, model: 'mock-model', choices: [{ index: 0, message, finish_reason: finishReason }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } });
 			const call = (name, args, i = 0) => ({ id: `call_${Date.now()}_${i}`, type: 'function', function: { name, arguments: JSON.stringify(args) } });
 			if (tools.includes('searchPeople')) {
-				if (!toolMessages.length) return completion({ role: 'assistant', content: null, tool_calls: [call('findCompanies', { query: 'Series B fintech companies in New York' })] }, 'tool_calls');
+				if (!toolMessages.length) return completion({ role: 'assistant', content: null, tool_calls: [call('findCompanies', { query: 'Developer-tools and SaaS companies in the US' })] }, 'tool_calls');
 				if (toolMessages.length === 1) {
 					let found = [];
 					try { found = JSON.parse(toolMessages[0].content).companies ?? []; } catch { /* nothing */ }
-					return completion({ role: 'assistant', content: null, tool_calls: found.map((c, i) => call('searchPeople', { job_title: 'VP of Sales', domain: c.domain, limit: 10 }, i)) }, 'tool_calls');
+					return completion({ role: 'assistant', content: null, tool_calls: found.map((c, i) => call('searchPeople', { job_title: companyByDomain(c.domain)?.role ?? 'VP of Sales', domain: c.domain, limit: 10 }, i)) }, 'tool_calls');
 				}
-				return completion({ role: 'assistant', content: 'Found VPs of Sales at the Series B fintech companies.' });
+				return completion({ role: 'assistant', content: 'Found revenue and growth leaders at developer-tools and SaaS companies.' });
+			}
+			// An AI column with web research: search, read the pricing page, then answer with that page as the source.
+			if (tools.includes('searchWeb')) {
+				const text = JSON.stringify(messages.map((m) => m.content));
+				const domain = text.match(/Website:\s*([a-z0-9.-]+\.[a-z]{2,})/i)?.[1] ?? companies.find((c) => text.includes(c.domain))?.domain ?? 'example.com';
+				if (!toolMessages.length) return completion({ role: 'assistant', content: null, tool_calls: [call('searchWeb', { query: `${domain} pricing` })] }, 'tool_calls');
+				if (toolMessages.length === 1) return completion({ role: 'assistant', content: null, tool_calls: [call('readPage', { url: `https://${domain}/pricing`, focus: 'plans and prices' })] }, 'tool_calls');
+				const valueType = request.response_format?.json_schema?.schema?.properties?.value?.type;
+				const boolean = (Array.isArray(valueType) ? valueType : [valueType]).includes('boolean');
+				return completion({ role: 'assistant', content: JSON.stringify({ value: boolean ? true : `Yes: ${domain}/pricing`, confidence: 0.94, sources: [`https://${domain}/pricing`] }) });
 			}
 			if (request.response_format?.type === 'json_schema') {
 				const text = JSON.stringify(messages.map((m) => m.content));

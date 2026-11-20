@@ -70,7 +70,7 @@ Use a dedicated migrated development database for browser tests. The self-hosted
 
 `scripts/mock-openai.mjs` provides an OpenAI-compatible fixture server on `http://localhost:4545/v1` for manual local testing. It is synthetic, not a live-model quality check. Use test keys and synthetic rows.
 
-`scripts/mock-moltsets.mjs` stands in for the MoltSets API on `http://127.0.0.1:4547` (set `MOLTSETS_API_URL` to it and use any `ms_` key). It answers work emails, mobiles and people, reports `records_remaining_5h`, and returns not_found for some rows so the looot fallback runs.
+`scripts/mock-moltsets.mjs` stands in for the MoltSets API on `http://127.0.0.1:4547` (set `MOLTSETS_API_URL` to it and use any `ms_` key). It answers the account lookup and work emails by name for five of the demo contacts (with grades A, B, C, D and F), returns not_found for everyone else so the looot fallback runs, answers 429 `fair_use_limit_exceeded` for names starting with "Spent", and reports `records_remaining_5h`. Mobile and profile lookups always answer not_found.
 
 ## Database changes
 

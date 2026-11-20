@@ -43,14 +43,14 @@ export class McpStore {
 		return this.database.transaction(async (sql, id) => {
 			const { rows } = await sql.query('SELECT version FROM looot_tables.mcp_keys WHERE workspace_id=$1', [id]);
 			if (expectedVersion === undefined ? rows.length > 0 : rows[0]?.version !== expectedVersion) throw new WorkspaceError('The organization key changed. Refresh before creating or rotating it.', 409);
-			const secret = `enr_mcp_${randomBytes(32).toString('base64url')}`;
+			const secret = `lt_mcp_${randomBytes(32).toString('base64url')}`;
 			const info = { prefix: secret.slice(0, 16), version: randomUUID(), createdAt: Date.now(), recoverable: true };
 			await sql.query('INSERT INTO looot_tables.mcp_keys (workspace_id,key_hash,prefix,version,created_at,encrypted_secret) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (workspace_id) DO UPDATE SET key_hash=excluded.key_hash,prefix=excluded.prefix,version=excluded.version,created_at=excluded.created_at,encrypted_secret=excluded.encrypted_secret', [id, hashMcpSecret(secret), info.prefix, info.version, info.createdAt, encryptSecret(this.encryptionKey(), secret, [id, info.version])]);
 			return { ...info, secret };
 		}, { workspace: actor });
 	}
 	async authenticate(header: string | null): Promise<Account> {
-		const match = /^Bearer (enr_mcp_[A-Za-z0-9_-]{43})$/i.exec(header ?? '');
+		const match = /^Bearer (lt_mcp_[A-Za-z0-9_-]{43})$/i.exec(header ?? '');
 		if (!match) throw new WorkspaceError('An organization MCP API key is required.', 401);
 		const entry = (await this.database.read('SELECT w.issuer, w.organization_id, w.name FROM looot_tables.mcp_keys k JOIN looot_tables.workspaces w ON w.id=k.workspace_id WHERE k.key_hash=$1', [hashMcpSecret(match[1])])).rows[0];
 		if (!entry) throw new WorkspaceError('Invalid organization MCP API key.', 401);

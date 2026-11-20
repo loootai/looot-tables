@@ -174,7 +174,7 @@ export function loadSheet(sheetId: string): Promise<boolean> {
 export const id = () => nanoid(12);
 
 export function newColumn(input: { name: string; type: Column['type']; op?: ColumnOp; width?: number; format?: ColumnFormat; categoryOptions?: string[]; categoryColors?: Record<string, string>; currency?: string; unit?: string; useGrouping?: boolean; decimalPlaces?: number; dateFormat?: Column['dateFormat'] }): Column {
-	return { id: id(), name: input.name, type: input.type, op: input.op, width: input.width ?? (input.type === 'enriched' ? 220 : 180), format: input.format ?? inferredFormat(input), categoryOptions: input.categoryOptions, categoryColors: input.categoryColors, currency: input.currency, unit: input.unit, useGrouping: input.useGrouping, decimalPlaces: input.decimalPlaces, dateFormat: input.dateFormat, createdAt: Date.now() };
+	return { id: id(), name: input.name, type: input.type, op: input.op, width: input.width ?? (input.type === 'enriched' ? 250 : 180), format: input.format ?? inferredFormat(input), categoryOptions: input.categoryOptions, categoryColors: input.categoryColors, currency: input.currency, unit: input.unit, useGrouping: input.useGrouping, decimalPlaces: input.decimalPlaces, dateFormat: input.dateFormat, createdAt: Date.now() };
 }
 
 export const SHEET_LIMIT_MESSAGE = `Your workspace can have up to ${MAX_SHEETS} sheets. Delete a sheet to create another.`;

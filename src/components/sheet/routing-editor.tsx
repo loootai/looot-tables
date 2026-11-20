@@ -8,6 +8,7 @@ import { formatUsd } from '@/lib/endpoint-map';
 import { PREFER_LABEL, routedJob, withRouting, type Prefer } from '@/lib/job-of';
 import type { Column, ColumnOp } from '@/lib/types';
 import { useJobStats } from './use-job-stats';
+import { ProviderMark } from './provider-mark';
 
 const CHOICES: Prefer[] = ['cheapest', 'reliable', 'fastest', 'balanced'];
 
@@ -39,15 +40,15 @@ export function RoutingEditor({ column, anchor, onClose, onSave }: { column: Col
 					{CHOICES.map((choice) => <button key={choice} type="button" role="radio" aria-checked={prefer === choice} onClick={() => setPrefer(choice)} className={clsx('h-7 rounded-md text-caption font-medium transition-colors', prefer === choice ? 'bg-surface text-fg shadow-sm' : 'text-fg-subtle hover:text-fg')}>{PREFER_LABEL[choice]}</button>)}
 				</div>
 				<ol aria-label="Providers in the order they are tried" className="flex flex-col">
-					<li aria-hidden className="grid grid-cols-[16px_1fr_44px_44px_56px_32px] items-center gap-2 px-1 pb-1 text-[10.5px] text-fg-subtle"><span /><span>Provider</span><span className="text-right">Hits</span><span className="text-right">p50</span><span className="text-right">Per call</span><span /></li>
+					<li aria-hidden className="grid grid-cols-[16px_1fr_40px_40px_56px_32px] items-center gap-2 px-1 pb-1 text-[10.5px] text-fg-subtle"><span /><span>Provider</span><span className="text-right">Hits</span><span className="text-right">p50</span><span className="text-right">Per call</span><span /></li>
 					{!stats && <li className="px-1 py-3 text-caption text-fg-subtle">Reading measured numbers from looot…</li>}
 					{stats && !providers.length && <li className="px-1 py-3 text-caption text-fg-subtle">No provider for this job can run now.</li>}
 					{providers.map((provider) => {
 						const enabled = !exclude.includes(provider.endpointId);
 						const order = on.findIndex((entry) => entry.endpointId === provider.endpointId);
-						return <li key={provider.endpointId} data-route-provider={provider.provider} className={clsx('grid grid-cols-[16px_1fr_44px_44px_56px_32px] items-center gap-2 rounded-md px-1 py-1.5', !enabled && 'opacity-45')}>
+						return <li key={provider.endpointId} data-route-provider={provider.provider} className={clsx('grid grid-cols-[16px_1fr_40px_40px_56px_32px] items-center gap-2 rounded-md px-1 py-1.5', !enabled && 'opacity-45')}>
 							<span className="num text-[10.5px] text-fg-subtle">{enabled ? order + 1 : '–'}</span>
-							<span className="truncate text-body-sm text-fg" title={provider.endpointId}>{provider.provider}</span>
+							<span className="flex min-w-0 items-center gap-1.5" title={provider.endpointId}><ProviderMark name={provider.provider} size="sm" /><span className="truncate text-body-sm text-fg">{provider.provider}</span></span>
 							<span className="num text-right text-[11px] text-fg">{provider.rate !== null ? `${Math.round(provider.rate * 100)}%` : '—'}</span>
 							<span className="num text-right text-[11px] text-fg-muted">{provider.p50Ms !== null ? `${(provider.p50Ms / 1000).toFixed(1)}s` : '—'}</span>
 							<span className="num text-right text-[11px] text-fg">{provider.priceUsd !== null ? formatUsd(provider.priceUsd) : '—'}</span>

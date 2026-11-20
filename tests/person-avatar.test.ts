@@ -22,3 +22,8 @@ test('missing or invalid photos render the person icon without an image request'
   assert.equal(profileUrl(src), null);
  }
 });
+
+test('a path on this deployment is a photo; a protocol-relative or backslash path is not', () => {
+ assert.equal(profileUrl('/demo/people/maya-rios.jpg'), '/demo/people/maya-rios.jpg');
+ for (const src of ['//evil.example/a.jpg', '/\\evil.example/a.jpg', '/a b.jpg']) assert.equal(profileUrl(src), null, src);
+});

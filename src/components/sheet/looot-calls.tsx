@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { useState } from 'react';
 import { Flag } from 'lucide-react';
 import { formatUsd } from '@/lib/endpoint-map';
+import { ProviderMark } from './provider-mark';
 import { reportBadResult } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import type { LoootCallMeta, MoltSetsCallMeta } from '@/lib/types';
@@ -16,9 +17,9 @@ function Outcome({ outcome }: { outcome: string }) {
 	return <span data-outcome={outcome} className={clsx('rounded-full px-1.5 text-[10.5px] font-medium leading-[18px]', OUTCOME_TONE[outcome] ?? 'bg-neutral-5 text-fg-subtle')}>{outcome}</span>;
 }
 
-/** A provider's monogram tile: no third-party logo is fetched. */
+/** A provider's logo, or its monogram when none ships with the app. */
 function ProviderTile({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
-	return <span aria-hidden className={clsx('grid shrink-0 place-items-center rounded-md bg-blue-20 font-semibold uppercase text-brand', size === 'md' ? 'size-7 text-caption' : 'size-5 text-[10px]')}>{name.slice(0, 2)}</span>;
+	return <ProviderMark name={name} size={size} />;
 }
 
 const ms = (value?: number) => value === undefined ? '' : value >= 1000 ? `${(value / 1000).toFixed(1)} s` : `${value} ms`;

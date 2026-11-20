@@ -1,13 +1,14 @@
 import clsx from 'clsx';
 
+/** The looot tables mark: a sheet whose last cell is filled. */
 export function Logo({ size = 20, className }: { size?: number; className?: string }) {
 	return (
-		<svg width={size} height={size} viewBox="0 0 22 22" aria-hidden className={clsx('shrink-0', className)}>
-			<rect x="1" y="1" width="20" height="20" rx="5" fill="var(--color-brand)" />
-			<rect x="5" y="5" width="5" height="5" rx="1" fill="#fff" />
-			<rect x="12" y="5" width="5" height="5" rx="1" fill="#fff" opacity="0.55" />
-			<rect x="5" y="12" width="5" height="5" rx="1" fill="#fff" opacity="0.55" />
-			<rect x="12" y="12" width="5" height="5" rx="1" fill="#fff" />
+		<svg width={size} height={size} viewBox="0 0 32 32" aria-hidden className={clsx('shrink-0', className)}>
+			<rect width="32" height="32" rx="7" fill="var(--color-brand)" />
+			<rect x="6" y="7" width="20" height="4" rx="1.5" fill="var(--color-brand-fg)" opacity="0.35" />
+			<rect x="6" y="14" width="20" height="4" rx="1.5" fill="var(--color-brand-fg)" opacity="0.35" />
+			<rect x="6" y="21" width="9" height="4" rx="1.5" fill="var(--color-brand-fg)" opacity="0.35" />
+			<rect x="17" y="21" width="9" height="4" rx="1.5" fill="var(--color-brand-fg)" />
 		</svg>
 	);
 }

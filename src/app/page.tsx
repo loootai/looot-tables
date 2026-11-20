@@ -5,6 +5,7 @@ import { GithubIcon, Logo } from '@/components/ui/logo';
 import { DOCS_URL, GITHUB_URL, MOLTSETS_URL, SITE_DESCRIPTION, SITE_LEDE, SITE_TITLE } from '@/lib/constants';
 import { siteUrl } from '@/lib/server/deployment';
 import { HeroSheet } from '@/components/landing/hero-sheet';
+import { PoweredBy } from '@/components/ui/powered-by';
 
 export const metadata: Metadata = {
 	title: { absolute: SITE_TITLE },
@@ -90,15 +91,15 @@ export default function Landing() {
 					</nav>
 				</header>
 
-				<main className="mx-auto flex w-full max-w-[1180px] flex-col items-center px-5 pt-6 pb-14 text-center md:px-12 md:pt-8 md:pb-20">
+				<main className="mx-auto flex w-full max-w-[1180px] flex-col items-center px-5 pt-4 pb-14 text-center md:px-12 md:pt-5 md:pb-20">
 					<p className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-caption text-fg-muted">
 						<span className="num text-brand">0 API keys</span><span aria-hidden className="h-3 w-px bg-line-strong" />one looot token runs every lookup
 					</p>
-					<h1 className="mt-5 max-w-[860px] text-[clamp(2.2rem,1.2rem+2.6vw,3.3rem)] leading-[1.05] font-semibold tracking-[-0.035em] text-balance">
+					<h1 className="mt-4 max-w-[920px] text-[clamp(2rem,1.1rem+2vw,2.75rem)] leading-[1.05] font-semibold tracking-[-0.035em] text-balance">
 						The open-source enrichment sheet that shows <span className="text-brand">who answered and what it cost.</span>
 					</h1>
-					<p className="mt-5 max-w-[640px] text-[1.0625rem] leading-relaxed text-pretty text-fg-muted md:text-[1.1875rem]">{SITE_LEDE} Every cell keeps its receipt: the providers looot tried, in order, with the price and time of each.</p>
-					<div className="mt-8 flex w-full max-w-[350px] flex-col gap-2.5 sm:w-auto sm:max-w-none sm:flex-row sm:gap-3">
+					<p className="mt-4 max-w-[720px] text-[1.0625rem] leading-relaxed text-pretty text-fg-muted">{SITE_LEDE} Every cell keeps its receipt: the providers looot tried, in order, with the price and time of each.</p>
+					<div className="mt-6 flex w-full max-w-[350px] flex-col gap-2.5 sm:w-auto sm:max-w-none sm:flex-row sm:gap-3">
 						<a href={`${GITHUB_URL}#self-hosting`} target="_blank" rel="noopener noreferrer" data-track="landing_cta" data-cta="self-host" className={primaryButton}>
 							Self-host it <ArrowRight aria-hidden className="size-4" strokeWidth={2} />
 						</a>
@@ -106,10 +107,10 @@ export default function Landing() {
 							<GithubIcon className="size-[17px]" /> GitHub
 						</a>
 					</div>
-					<p className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-body-sm text-fg-subtle">
-						<span>Open source, MIT</span><span aria-hidden>·</span><span>Billed to your own looot balance</span><span aria-hidden>·</span><span>Spend capped on the server</span>
+					<p className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-body-sm text-fg-subtle">
+						<span>Open source, MIT</span><span aria-hidden>·</span><span>Spend capped on the server</span><span aria-hidden>·</span><PoweredBy />
 					</p>
-					<div className="mt-10 w-full"><HeroSheet /></div>
+					<div className="mt-7 w-full"><HeroSheet /></div>
 				</main>
 			</div>
 
@@ -190,6 +191,7 @@ export default function Landing() {
 						<Logo size={18} />
 						<span className="font-semibold tracking-[-0.01em]">looot tables</span>
 						<span className="text-fg-subtle">· MIT license</span>
+						<PoweredBy className="ml-2 font-normal text-fg-subtle" />
 					</div>
 					<div className="flex flex-wrap items-center gap-x-5 gap-y-2">
 						<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="hover:text-fg">GitHub</a>

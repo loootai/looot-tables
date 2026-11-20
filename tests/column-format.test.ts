@@ -8,6 +8,9 @@ test('currency, percentages and units keep numeric values separate from display'
 	assert.equal(cellFromInput('$1,234.50', { format: 'currency' }).v, 1234.5);
 	assert.equal(cellFromInput('EUR 1234.50', { format: 'currency', currency: 'EUR' }).v, 1234.5);
 	assert.equal(formatColumnNumber(1234.5, { format: 'currency' }), '$1,234.50');
+	assert.equal(formatColumnNumber(18_000_000, { format: 'currency' }), '$18M', 'funding reads as $18M, not $18,000,000.00');
+	assert.equal(formatColumnNumber(1_250_000_000, { format: 'currency' }), '$1.3B');
+	assert.equal(formatColumnNumber(18_000_000, { format: 'currency', decimalPlaces: 2 }), '$18,000,000.00', 'a chosen decimal count keeps the full amount');
 	assert.equal(formatColumnNumber(1234.5, { format: 'currency', currency: 'EUR' }), '€1,234.50');
 	assert.equal(formatColumnNumber(1234, { format: 'currency', currency: 'JPY' }), '¥1,234');
 	assert.equal(cellFromInput('25%', { format: 'percent' }).v, 0.25);
