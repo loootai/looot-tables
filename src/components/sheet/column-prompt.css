@@ -1,0 +1,25 @@
+.column-prompt .cm-editor { border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); color: var(--color-fg); font-size: var(--text-body-sm); }
+.column-prompt .cm-editor.cm-focused { outline: none; border-color: var(--color-brand); box-shadow: 0 0 0 3px rgb(37 99 235 / .12); }
+.column-prompt .cm-content { min-height: calc(var(--prompt-lines) * 1.5em + 20px); padding: 10px 14px; font-family: inherit; line-height: 1.5; }
+.column-prompt .cm-line { padding: 0; }
+.column-prompt .cm-placeholder { color: var(--color-fg-subtle); }
+.column-prompt-compose .cm-content { padding-bottom: 48px; }
+.column-prompt .cm-scroller { font-family: inherit; overflow: visible; }
+.column-prompt-pill { display: inline; padding: 2px 7px; border: 1px solid color-mix(in srgb, var(--color-brand) 24%, transparent); border-radius: 6px; background: var(--color-blue-10); color: var(--color-brand); font-size: .9em; white-space: nowrap; }
+.column-prompt .cm-tooltip-autocomplete { z-index: 100; overflow: hidden; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-surface); color: var(--color-fg); box-shadow: var(--shadow-floating); }
+.column-prompt .cm-tooltip-autocomplete > ul { max-height: 200px; font-family: inherit; }
+.column-prompt .cm-tooltip-autocomplete > ul > li { padding: 8px 12px; }
+.column-prompt .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--color-blue-10); color: var(--color-brand); }
+.column-prompt .cm-completionDetail { color: var(--color-fg-subtle); font-size: 12px; }
+
+.column-prompt { min-width: 0; }
+.column-prompt .cm-editor { max-width: 100%; }
+.column-prompt .cm-tooltip-autocomplete > ul { max-width: calc(100vw - 32px); }
+@media (max-width: 767px) and (pointer: coarse) {
+  .column-prompt .cm-editor { font-size: 16px; }
+}
+
+/* Plain stand-in while CodeMirror loads; borrows the editor's classes so nothing shifts. */
+.column-prompt-plain { display: block; width: 100%; resize: none; border: 0; background: transparent; color: inherit; font: inherit; outline: none; }
+.column-prompt-plain::placeholder { color: var(--color-fg-subtle); }
+.column-prompt .cm-editor:has(.column-prompt-plain:focus) { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgb(37 99 235 / .12); }

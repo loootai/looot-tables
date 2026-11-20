@@ -1,0 +1,3 @@
+# Keep the shared dialog as a custom modal, not a native `<dialog>`
+
+`src/components/ui/dialog.tsx` traps focus, handles Escape and locks scrolling itself instead of calling `showModal()`. A native modal makes everything outside the dialog's subtree inert, and several overlays used inside dialogs render into `document.body`: CodeMirror tooltips in the formula builder, help tooltips, the country picker, the drag overlay in the format dialog, and toasts and screen-reader announcements fired from dialog flows. Moving them all into the top layer (Popover API, or portaling into the open dialog) is a cross-cutting change, so we keep the custom modal until those overlays move first. React Doctor's `prefer-html-dialog` finding on this file is expected.

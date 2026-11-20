@@ -1,0 +1,35 @@
+title = "looot tables secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "looot-tables-mcp-key"
+description = "looot tables full-workspace MCP bearer key"
+regex = '''\b(lt_mcp_[A-Za-z0-9_-]{43})(?:[^A-Za-z0-9_-]|$)'''
+secretGroup = 1
+entropy = 3.5
+keywords = ["lt_mcp_"]
+
+[[rules]]
+id = "moltsets-api-key"
+description = "MoltSets API key"
+regex = '''\b(ms_[A-Za-z0-9_-]{24,})(?:[^A-Za-z0-9_-]|$)'''
+secretGroup = 1
+entropy = 3.5
+keywords = ["ms_"]
+
+[[rules]]
+id = "neon-realtime-secret"
+description = "Neon Realtime server secret"
+regex = '''\b(nrt_live_1[A-Za-z0-9_-]{24,})(?:[^A-Za-z0-9_-]|$)'''
+secretGroup = 1
+entropy = 3.5
+keywords = ["nrt_live_1"]
+
+[[allowlists]]
+description = "Placeholder keys in test fixtures"
+regexTarget = "secret"
+regexes = [
+  '''^apollo-key-12345$''',
+]

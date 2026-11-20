@@ -1,0 +1,1 @@
+looot tables: every cell is a looot job, and you see who answered and what it cost. Rows for Stripe, Linear and Intercom show a work email from Prospeo at $0.004, one from MoltSets at $0, and a miss after 3 providers at $0.

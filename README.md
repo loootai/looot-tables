@@ -1,159 +1,245 @@
-<p align="center"><img src="docs/media/banner.png" alt="looot tables: ten companies enriched with six columns of data from looot, with the price shown before each run" width="100%"></p>
+<p align="center">
+  <img src=".github/assets/banner.png" alt="looot tables, an open-source enrichment sheet where every cell is a looot job with its provider and cost" width="100%" />
+</p>
 
-<p align="center"><sub>Logos and names belong to their owners. Public data from a live run on 2026-10-14. No affiliation.</sub></p>
+<p align="center">
+  Powered by
+  <a href="https://looot.ai"><img src="public/providers/looot.svg" alt="" width="16" height="16" /> looot</a>
+  +
+  <a href="https://moltsets.com"><img src="public/providers/moltsets.svg" alt="" width="16" height="16" /> MoltSets</a>
+</p>
 
-<table>
-<tr>
-<td><img src="docs/media/card-table.png" alt="A table of ten companies with industry, HQ, country, employees, founded and tech stack columns"></td>
-<td><img src="docs/media/card-add-column.png" alt="Searching the looot catalog and mapping an operation input to a column"></td>
-</tr>
-<tr>
-<td><img src="docs/media/card-cost.png" alt="Cost per column from the live run, 60 calls, $0.1705"></td>
-<td><img src="docs/media/card-dark.png" alt="The same table in dark theme and on a phone"></td>
-</tr>
-</table>
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-004e32?style=flat-square" alt="MIT license" /></a>
+  <a href="docs/mcp.md"><img src="https://img.shields.io/badge/MCP-server-004e32?style=flat-square" alt="MCP server" /></a>
+  <a href="#self-hosting"><img src="https://img.shields.io/badge/self--host-Node%2022%20%2B%20Postgres-004e32?style=flat-square" alt="Self-host with Node 22 and Postgres" /></a>
+</p>
 
-<p align="center"><img src="docs/media/demo.gif" alt="Walkthrough of the table, the add column panel and the cost per column" width="760"></p>
+looot tables is an open-source spreadsheet for sales and growth teams who build lead lists and enrich them. You describe the companies or people you want, it finds the rows, and each new column fills every row with a work email, a phone, company data or an AI answer. Every outside lookup runs as a [looot](https://looot.ai) job on your own looot balance, and each cell keeps a receipt with the providers looot tried, in order, with the price and time of each. If you pay for a [MoltSets](https://moltsets.com) plan, work email and phone columns ask MoltSets first at $0 per row and send only the misses to looot.
 
-<p align="center"><a href="docs/media/demo.mp4">Watch the walkthrough as MP4</a></p>
+## Tour
 
-# looot-tables
+Every screenshot below comes from a production build running against the local stand-ins in `scripts/`. The ten companies and their logos are real. The people are fictional, and every email, phone, headcount, funding figure and price is invented by the stand-ins.
 
-[![License](https://img.shields.io/github/license/loootai/looot-tables)](LICENSE) [![Release](https://img.shields.io/github/v/release/loootai/looot-tables)](https://github.com/loootai/looot-tables/releases) [![Docs](https://img.shields.io/badge/docs-docs.looot.ai-12A06A)](https://docs.looot.ai)
+<img src="docs/media/01-hero.png" alt="A sheet of 10 contacts with Industry, Funding, Work email and Phone columns filled" width="100%" />
 
-Open-source Clay-style enrichment tables, powered by [looot](https://looot.ai) and Supabase.
+Ten contacts at ten companies, with Industry, Funding, Work email and Phone filled in. Each email cell shows a grade (A to F from MoltSets, or Valid, Risky, Catch-all and Invalid from a looot check) and the logo of the provider that answered. The bottom bar reads "Spent $0.231 on this sheet · 87% found" next to the sheet's cap, "Cap $5.00 · $0.231 used".
 
-## Install for agents
+### Find rows
+
+<img src="docs/media/12-find-rows.png" alt="A people search filling a new sheet row by row" width="100%" />
+
+Type "Revenue and growth leaders at developer-tools and SaaS companies in the US", pick People, and press the arrow. The model finds companies through the looot `company.search` job, then people at each one through `people.search`, and rows stream in with name, title, company, website and LinkedIn. The header counts them as they land ("Added 1 (7 of 20)").
+
+<img src="docs/media/13-import-csv.png" alt="The Import a CSV dialog with a pasted list and a preview" width="100%" />
+
+Or start from a list you already have. Drop or paste a CSV, name the sheet, and the dialog previews the first rows and counts them ("10 rows · 3 columns") before you import. The first row becomes the column headers.
+
+### Research
+
+<img src="docs/media/14-research-running.png" alt="An AI column researching each row while the bottom bar counts progress" width="100%" />
+
+An AI column asks "Does {{Company}} publish a public pricing page?" for every row. Four cells show "Researching…" at a time (the parallel setting), the rest wait as "Queued", and finished rows already show answers such as "Yes: stripe.com/pricing". The header shows the estimate, about $0.0040 per row.
+
+<img src="docs/media/15-research-answer.png" alt="A finished research cell open with confidence, cost, the looot runs behind it and its source" width="100%" />
+
+Open a finished cell to see the answer, a 0.94 confidence, the cost ($0.0030) and the time (2.8 s). The receipt lists the two looot runs behind it, a `web.search` for $0.0010 and a `web.scrape.markdown` page read for $0.0020, and the source link the answer cites.
+
+### Contact data: MoltSets first, then looot
+
+<img src="docs/media/07-moltsets-key-and-meter.png" alt="The MoltSets key dialog on the Configuration page, with the plan meter in the sidebar" width="100%" />
+
+Configuration lists each connection: looot and MoltSets keys saved in this browser, OpenAI from the deployment, TypeSafe not connected. "Replace key" opens this dialog for a MoltSets `ms_` key. Once a key is connected, the sidebar shows the records left in the current 5 hour window (14,995) and the phone tokens left (98) under the looot balance.
+
+<img src="docs/media/03-column-filling.png" alt="The Work email column filling, with provider logos in the running cells" width="100%" />
+
+The Work email column filling. Rows MoltSets answered are done right away; the others walk looot's email providers, and each running cell shows the provider it is asking and its step ("apollo 3/3", "hunter 2/3"). The bottom bar reads "Enriching 5/10" and a Stop button ends the run.
+
+<img src="docs/media/08-email-grades.png" alt="Work email, Phone and research columns side by side with grades and provider logos" width="100%" />
+
+Emails MoltSets found carry its risk grade: A and B green, C amber, D red, F grey. Emails looot found are checked in the same cell and show Valid, Risky, Catch-all or Invalid. The logo at the end of each cell is the provider that answered, and a miss reads "Not found · $0" when nothing was charged.
+
+<img src="docs/media/16-phone-lookup.png" alt="A phone cell's receipt: MoltSets miss, ContactOut miss, QuickEnrich hit" width="100%" />
+
+A phone cell's receipt. MoltSets could not match a LinkedIn profile ($0), then looot asked ContactOut (miss, $0, 1.2 s) and QuickEnrich, which found the number for $0.028 in 1.1 s.
+
+### Cost and control
+
+<img src="docs/media/02-run-quote.png" alt="The Run button quoting the most a run can cost, with the run menu open" width="100%" />
+
+Before anything runs, the Run button says what it will do and the most it can cost: "Run 10 cells · up to $0.12". The menu next to it runs only unfinished cells or re-runs the visible rows, and the box beside it shows the sheet's cap and what it has used ("Cap $5.00 · $0.35 used").
+
+<img src="docs/media/06-unpack-and-next-steps.png" alt="Industry, Headcount, HQ and Funding columns, plus two faint next-step columns" width="100%" />
+
+One company lookup per row filled Industry. Headcount, HQ and Funding were unpacked from the answers it already holds, so they ran nothing and cost $0. The two faint columns on the right are next steps looot suggested, "Find decision makers $0.0040/row" and "Tech stack $0.012/row". Neither runs until you click it.
+
+### Receipts and routing
+
+<img src="docs/media/04-receipt-fallback.png" alt="A work email receipt: MoltSets miss, then prospeo, hunter and apollo" width="100%" />
+
+Open any cell for its receipt. Here MoltSets had no address on the plan ($0, "MoltSets does not charge for a miss", 14,996 records left this window). looot then asked prospeo (miss, $0, 754 ms) and hunter (miss, $0, 671 ms), and apollo found it for $0.0061 in 896 ms. A verify run follows below it, and every run has a "Report bad result" link.
+
+<img src="docs/media/05-routing-editor.png" alt="The routing editor for the Work email column" width="100%" />
+
+The "Balanced" pill on a column header opens its routing. Pick Cheapest, Reliable, Fastest or Balanced, see each provider's hit rate, median time and price per call (prospeo 62%, 0.6 s, $0.0042), and switch a provider off to skip it. looot asks the next provider only after a miss.
+
+### Self-host and MCP
+
+<img src="docs/media/17-mcp.png" alt="Agent access with an agent key and the MCP config" width="100%" />
+
+Configuration → Agent access creates one agent key for the workspace and shows the config to paste into Claude Code, Cursor or another MCP client. On a self-hosted copy the agent also sends `x-openai-key` and `x-looot-key` headers, because keys saved in the browser never leave it.
+
+<img src="docs/media/18-export.png" alt="The Export menu with CSV, Excel and JSON" width="100%" />
+
+Export the sheet as CSV, Excel or JSON, with or without each cell's confidence and sources. Hidden columns stay out ("Exporting all 10 rows · 5 hidden columns excluded").
+
+<img src="docs/media/10-phone.png" alt="The sheet and a cell receipt on a 390px phone screen" width="100%" />
+
+On a 390px phone the sheet keeps search, Find rows, the spend line and the Run button, and a cell's receipt opens as a full-width panel.
+
+<img src="docs/media/11-landing.png" alt="The looot tables landing page" width="100%" />
+
+The landing page that ships with the app. Its hero sheet and receipt fit above the fold at 1440 by 900.
+
+<img src="docs/media/09-dark-hero.png" alt="The same sheet in dark mode" width="100%" />
+
+The same sheet in dark mode, which follows your system setting.
+
+## Open-source Loopster alternative: MoltSets + looot
+
+Loopster sells a table of enrichment columns for a flat monthly fee. looot tables gives you the table for $0 under MIT. For contact data you can bring a MoltSets plan, which charges a flat monthly fee with limits per window. Everything else goes to looot, which bills each hit to a prepaid balance.
+
+Prices read 2026-11-20 from their public pricing pages. Both vendors change them, so check before you decide.
+
+| | Loopster | MoltSets |
+| --- | --- | --- |
+| Plans | Launch $179/mo, Scale $449/mo, Unlimited $1,299/mo | Solo $27/mo, Pro $97/mo, plus a free tier and larger plans |
+| Limits | Requests per day | Records and requests per rolling 5 hours and per week |
+| Work emails | In the plan | $0 per row on the plan |
+| Mobiles | On Scale and Unlimited | Not in the plan. Separate phone tokens, from $27 for 180 ($0.15 each) |
+
+An example. A team finds about 10,000 work emails and 2,000 mobiles a month.
+
+| | Loopster Scale | MoltSets Pro + looot + looot tables |
+| --- | --- | --- |
+| Table | In the plan | $0 (MIT) |
+| Flat fee | $449/mo | $97/mo |
+| 10,000 work emails | In the plan | $0 per row on MoltSets while the window has room. Misses go to the looot email job, billed per hit |
+| 2,000 mobiles | In the plan | About $300 in phone tokens at $0.15 each, or the looot phone job billed per hit |
+| Everything else | Loopster's vendor wallet | looot jobs, billed per hit |
+
+looot prices differ by provider and change, so the table shows no looot total. The app quotes the most a run can cost before it starts.
+
+How the contact columns use MoltSets:
+
+- A work email or phone column has a source setting: "MoltSets then looot" (the default once a key is connected), "looot only" or "MoltSets only".
+- A MoltSets hit is the answer and looot is never called. A not_found, a used-up window, spent phone tokens or an error sends the row to the looot job. The receipt shows the MoltSets attempt at $0 first, then each looot attempt with its price.
+- After MoltSets reports a used-up window, the app stops asking it until the window reopens and sends those rows to looot.
+- MoltSets finds a mobile from a LinkedIn URL. Without one, it first looks up the profile by name and company, and uses it only if it is the single match or carries the same name.
+- Columns that ask MoltSets first run cell by cell. Columns set to "looot only" with 10 cells or more go to looot in batches of up to 500 rows.
+
+MoltSets people search, company search and personal email are not wired into columns yet.
+
+## Quick start
+
+You need Node.js 22 (`.nvmrc` pins 22.23.4), a Postgres database, a funded looot token and an OpenAI key.
 
 ```bash
-git clone https://github.com/loootai/looot-tables.git
-claude mcp add --transport http looot https://api.looot.ai/mcp
+git clone https://github.com/loootai/looot-tables
+cd looot-tables
+nvm use
+npm ci
+cp .env.example .env.local   # set DATABASE_URL, e.g. postgres://localhost:5432/looot_tables
+npm run db:migrate
+npm run dev
 ```
 
-See also: [awesome-looot-use-cases](https://github.com/loootai/awesome-looot-use-cases) (copy-paste recipes) and [awesome-gtm](https://github.com/loootai/awesome-gtm) (open-source GTM tools).
+Open [localhost:3000/app](http://localhost:3000/app). The setup dialog asks for your looot token and OpenAI key, plus a MoltSets key if you have one. Keys you enter stay in your browser and go only to your own deployment's API routes.
 
-Import a CSV, add a column that runs a looot operation (work email, company data, Google results, LinkedIn profiles, and about 2,500 more endpoints), pick which rows to run, see the cost first, confirm. Each result is stored in its cell with its status and cost. Export the table as CSV when you are done.
+### Try it with no keys
 
-It is a small Next.js app (App Router, TypeScript) with a Supabase Postgres database. There is one table of data per sheet and no background workers. The looot token stays on the server.
-
-## What you can do
-
-- Create a table or import a CSV (one input column per header).
-- Search the looot catalog in plain words, inspect an operation to see its inputs and price, and add it as an enrichment column.
-- Map each operation input to your columns with templates such as `{{Company website}}` or `https://{{Domain}}`. Inputs with a matching column name are filled in for you.
-- Select rows and press Run column. The app shows the estimated cost and asks you to confirm before it spends anything.
-- Cells show `pending`, `done` or `error`, plus the cost of that call. A cell that finished too slowly for one request stays `pending`; run the column again and it is read back without paying twice.
-- Export the table, results included, as CSV.
-
-## Quickstart
-
-You need Node 20 or newer, a free Supabase project, and a looot account.
-
-1. Create a Supabase project in the Supabase dashboard. Under Authentication, create your own user (email and password) and turn off public sign-ups (see Access below).
-2. Get a looot agent token. In the looot dashboard open Settings, Agent tokens, create one, and tick `catalog.read`, `runs.read`, `runs.execute` and `usage.read`. Top up the balance from $5.
-3. Clone and install.
-
-   ```bash
-   git clone https://github.com/loootai/looot-tables.git
-   cd looot-tables
-   npm install
-   ```
-
-4. Run the migration with the Supabase CLI.
-
-   ```bash
-   supabase login
-   supabase link --project-ref YOUR_PROJECT_REF
-   supabase db push
-   ```
-
-   `supabase db push` applies `supabase/migrations/20261008000000_init.sql`. You can also paste that file into the SQL editor.
-
-5. Copy `.env.example` to `.env.local` and fill it in.
-
-   | Variable | Value |
-   | --- | --- |
-   | `NEXT_PUBLIC_SUPABASE_URL` | Project URL from Project Settings, API |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | The anon (public) key from the same page |
-   | `LOOOT_TOKEN` | The looot agent token. Server only. |
-   | `LOOOT_API_URL` | Optional. Defaults to `https://api.looot.ai`. |
-
-6. Start it.
-
-   ```bash
-   npm run dev
-   ```
-
-   Open http://localhost:3000, sign in, and import a CSV.
-
-## Deploy to Vercel
-
-Use the button text below in any README or page.
-
-[Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Floootai%2Flooot-tables&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,LOOOT_TOKEN&project-name=looot-tables)
-
-Set the three environment variables when Vercel asks. Mark `LOOOT_TOKEN` as sensitive. The run endpoint allows up to 60 seconds, which needs a Vercel plan that supports it; on a shorter limit, rows that do not finish stay `pending` and you run the column again.
-
-## How billing works
-
-looot is prepaid. You top up a balance (from $5) and every call draws from it. There is no subscription and no per-seat fee, and this app adds no markup.
-
-- The price of an operation is shown when you pick it, and stored on the column.
-- Before every run the app shows `rows x price per row` and asks you to confirm. The server refuses a run if the confirmed amount is lower than its own estimate.
-- A failed call costs nothing. The cost on each cell is what looot actually charged for that call, and the header shows the table's total spend.
-- Every run carries an idempotency key built from the column, row and input, so pressing Run twice never pays twice for the same input.
-- If the balance runs out, the remaining cells show an error and nothing else is charged. Top up and run again.
-
-## Access and security
-
-The schema uses one simple rule: any signed-in user can read and write every table (`using (true)` for the `authenticated` role, with row level security on). That fits a single person or a small team sharing one workspace. It is not multi-tenant. To keep it private, create your user by hand and disable sign-ups in Authentication, Providers, Email. If you need separate workspaces per user, add an `owner_id uuid default auth.uid()` column to `tables` and change the policies to `owner_id = auth.uid()`.
-
-The looot token is read from `LOOOT_TOKEN` in server code only (`src/lib/looot.ts`, route handlers under `src/app/api`). The browser never sees it. The server routes check your Supabase session before they call looot.
-
-## How it works
-
-```
-browser  --supabase-js (anon key, your session, RLS)-->  Postgres   tables, columns, rows, cells
-browser  --/api/looot/search, /api/looot/inspect------->  server  --LOOOT_TOKEN-->  api.looot.ai
-browser  --/api/tables/run (6 rows per request)-------->  server  --POST /v1/runs?wait=15, poll GET /v1/runs/{id}-->  api.looot.ai
-```
-
-- `src/lib/mapping.ts` turns a row into an operation input from the column's `input_map`.
-- `src/lib/cost.ts` estimates cost. `src/lib/csv.ts` imports and exports CSV.
-- `src/lib/runner.ts` runs a column over rows with 3 in parallel, polls slow runs, and writes each cell.
-- `src/lib/looot.ts` is the REST client: search, inspect, run, get run, balance.
-
-## Live run
-
-Run on 2026-10-14 against the production looot API. The table holds ten companies from looot's own market (Clay, Apollo.io, Apify, Firecrawl, Exa, Tavily, Bright Data, ZoomInfo, People Data Labs, Coresignal). Everything in the images comes from this run, so there is no "Demo data".
-
-- 6 enrichment columns, 10 rows each, 60 calls, $0.1705 charged (read from the run cost on each cell).
-- Industry, HQ city, Country, Employees and Founded use `dropleads-company-enrich` at $0.00145 per call. Tech stack uses `companyenrich-companies-enrich-get` at $0.0098 per call.
-- 3 extra probe calls ($0.0132) picked the operations before the grid run. Total for the whole session was $0.1837 over 63 calls.
-- All 60 cells finished with status `done`. Two cells came back empty (Founded for Firecrawl and Exa). The provider has no founding year for them, and the cell still shows the charge.
-- Industry is the same value for all ten ("information technology & services"). That is what the provider returns, so it is a weak column for this list.
-- Employees are the provider's own numbers and can disagree with other sources. Clay shows 610 here, while another operation reported the 1K-5K band.
-- Slow runs (a few Tech stack and Founded calls) were `pending` for a while before they settled, and the app polled them until they finished.
-- The Supabase side was a small local stand-in for the REST and auth endpoints, because the run used no Docker. The app code and the looot calls were the real ones.
-
-One fix came out of this run. `dropleads-company-enrich` declares its inputs as arrays, and the input mapper sent a plain string, so the call would be refused. `coerceValue` now wraps a single value in a list when the operation declares an array input. A test covers it.
-
-## Development
+The stand-ins answer like looot, OpenAI and MoltSets with invented data, and no call costs money. You still need the Postgres database from above.
 
 ```bash
-npm test          # vitest: input mapping, cost, CSV, run flow with mocked HTTP
-npm run typecheck
+node scripts/mock-looot.mjs --openai   # looot on :4546, an OpenAI-compatible model on :4545
+node scripts/mock-moltsets.mjs         # MoltSets on :4547
+
+LOOOT_API_URL=http://127.0.0.1:4546 \
+MOLTSETS_API_URL=http://127.0.0.1:4547 \
+OPENAI_BASE_URL=http://127.0.0.1:4545/v1 \
+OPENAI_API_KEY=sk-local \
+LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD=true \
+npm run dev
+```
+
+Enter any looot token and any key that starts with `ms_`. The looot stand-in starts with a $25 balance and walks fallback routes across several providers. The MoltSets stand-in finds work emails for Maya Rios, Marcus Bell, Yuki Tanaka, Ingrid Larsen and Amara Okafor (grades A, B, C, D and F), returns not_found for other names so the looot fallback runs, and answers any name starting with "Spent" as a used-up window. `scripts/mock-looot.mjs` lists the demo companies and contacts. The app accepts these loopback addresses only outside production, unless `LOOOT_TABLES_ALLOW_LOCAL_BASE_URL=true`.
+
+## How costs and caps work
+
+- **Quote before the run.** The Run button carries the most a run can spend, such as "Run 10 cells · up to $0.12". Runs above $0.50 or 50 cells ask you to confirm.
+- **Cap per cell.** Each cell is sent with `fallback.maxCostUsd` set to three times the column's usual price, so a fallback route has room for a few providers and no more.
+- **Cap per sheet.** Every sheet starts with a $5.00 cap. The server holds a cell's cap before sending it and refuses any cell that would take the sheet past the cap. You can raise it.
+- **Halt after 20 misses.** A column stops after 20 misses or errors in a row. Check its inputs, then resume it.
+- **Try 5 rows.** A new column offers "Try 5 rows" before the whole column.
+- **Receipt per cell.** Open a cell to see the outcome, each provider attempt with its price and time, and the run id. A miss shows the amount looot charged for it, which is $0 when no provider billed.
+- **No double charge.** Each cell attempt keeps one idempotency key for all its retries, so a resend after a timeout gets the run looot already has.
+
+## Self-hosting
+
+Any Postgres works. The app uses Neon's driver for `*.neon.tech` hosts and the normal Postgres driver for everything else. Run `npm run db:migrate` before you start the app; the tables live in the `looot_tables` schema. On Vercel, `vercel.json` runs the migrations before each production build. See the [deployment guide](docs/deploy.md).
+
+Each browser gets a private workspace tied to a cookie. A workspace holds up to 10 sheets of 1,000 rows each, set in [src/lib/workspace.ts](src/lib/workspace.ts). Self-hosted copies have no accounts, so restrict access at your host or network to keep an instance private.
+
+### Environment variables
+
+[.env.example](.env.example) lists every option with comments.
+
+| Variable | What it does |
+| --- | --- |
+| `DATABASE_URL` | Postgres connection string. Required. |
+| `DATABASE_DRIVER` | `neon` or `postgres` to force a driver. |
+| `LOOOT_TABLES_MCP_ENCRYPTION_SECRET` | 32+ random characters. Encrypts MCP keys and saved provider keys. Keep it identical on every server that shares the database. |
+| `LOOOT_TOKEN` | Server-side looot token. Every run is billed to its balance. |
+| `OPENAI_API_KEY` | Server-side OpenAI key. |
+| `TYPESAFE_API_KEY` | Optional server-side TypeSafe key for true/false and category columns. |
+| `MOLTSETS_API_KEY` | Optional server-side MoltSets key. Contact columns try it before looot. |
+| `LOOOT_TABLES_PASSWORD` | The server-side keys above are used only when the browser sends this password. |
+| `LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD` | `true` lets anyone with the URL spend the server keys. Off by default. |
+| `LOOOT_API_URL` | Reach looot through a proxy or a stand-in instead of `https://api.looot.ai`. |
+| `MOLTSETS_API_URL` | Reach MoltSets through a proxy or a stand-in instead of `https://api.moltsets.com`. The MoltSets key goes only to this address. |
+| `OPENAI_BASE_URL` | An OpenAI-compatible server, used with the server-side OpenAI key. |
+| `LOOOT_TABLES_ALLOW_LOCAL_BASE_URL` | `true` allows a loopback or private base URL in production. |
+| `OPENAI_MODEL` | Default model when the browser does not pick one. |
+| `NEON_REALTIME_URL`, `NEON_REALTIME_SECRET`, `LOOOT_TABLES_REALTIME_ENABLED` | Live updates through Neon Realtime. Without them the app polls every 30 seconds. See [docs/realtime.md](docs/realtime.md). |
+| `NEXT_PUBLIC_SITE_URL` | Public origin for canonical and Open Graph URLs. |
+| `LOOOT_TABLES_ALLOW_INDEXING` | `true` lets search engines index the deployment. Off by default. |
+| `NEXT_PUBLIC_DATABUDDY_CLIENT_ID` | Optional product analytics. Never sends sheet contents, prompts or keys. |
+
+### MCP server
+
+The app serves a Streamable HTTP MCP endpoint at `/mcp`. Claude Code, Cursor and other MCP clients can read, edit and enrich your sheets with an agent key from Configuration → Agent access. Setup and tools are in [docs/mcp.md](docs/mcp.md).
+
+## Development and tests
+
+```bash
+npm run lint
+npm run typecheck              # generates Next.js route types, then runs tsc
+npm test                       # unit and server tests on embedded PGlite, no keys needed
 npm run build
+npm run test:browser           # Playwright, needs a migrated dev database
+npm run test:self-hosted       # starts its own server on port 3107
 ```
 
-Tests make no network calls. Turn on the leak scanner hook once per clone with `git config core.hooksPath .githooks`.
+Architecture, migrations and the stand-ins are covered in [docs/development.md](docs/development.md). Column operations and formulas are in [docs/usage.md](docs/usage.md), and the email and phone columns in [docs/email-enrichment.md](docs/email-enrichment.md).
 
-## Limits in v0.1.0
+## Contributing
 
-- The grid loads the whole table into the browser. It is fine for a few thousand rows.
-- No formulas, no per-cell editing UI beyond double-click on input cells, no waterfall across several operations in one column. A looot `job:` id already lets looot pick the provider for you.
-- Result fields are picked with a dot path such as `data.0.email`. If you leave it empty, the whole result is stored as JSON.
+Open an [issue](https://github.com/loootai/looot-tables/issues/new) for bugs and ideas. [CONTRIBUTING.md](CONTRIBUTING.md) explains how issues are handled.
+
+## Security
+
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. Third-party notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

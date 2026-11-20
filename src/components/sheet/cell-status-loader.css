@@ -1,0 +1,13 @@
+@keyframes cell-status-shimmer {
+	0%, 34%, 100% { opacity: .13; }
+	8% { opacity: var(--status-peak); }
+	15% { opacity: .3; }
+	23% { opacity: var(--status-echo); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cell-status-loader > i {
+		animation: none !important;
+		opacity: var(--status-rest, .5) !important;
+	}
+}

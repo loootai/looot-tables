@@ -1,0 +1,11 @@
+# looot tables
+
+> looot tables is a free, open-source (MIT) AI spreadsheet for data enrichment. Describe the companies or people you want and it finds them, then AI columns research every row with live web data, finding work emails and phones through looot.
+
+- Source: https://github.com/loootai/looot-tables
+- Data: every search, page read, company and people lookup, email and phone runs as a looot job (https://looot.ai) on the caller's own balance.
+- Reasoning: OpenAI. Optional calibrated decisions: TypeSafe.
+- Self-hosting: Node.js 22, a Postgres database, a looot token and an OpenAI key.
+- Limits: 10 sheets per workspace and 1,000 rows per sheet by default.
+- Flat-fee contact data: with a MoltSets key (https://moltsets.com), work emails try the MoltSets plan first at $0 a row, then looot on a miss.
+- License: MIT. Third-party notices: https://github.com/loootai/looot-tables/blob/main/THIRD_PARTY_NOTICES.md

@@ -1,12 +1,12 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2017",
     "lib": [
       "dom",
       "dom.iterable",
       "esnext"
     ],
-    "allowJs": false,
+    "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -33,7 +33,14 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    "**/*.mts",
+    ".next-browser/types/**/*.ts",
+    ".next-browser/dev/types/**/*.ts",
+    ".next-self-hosted-test/types/**/*.ts",
+    ".next-self-hosted-test/dev/types/**/*.ts",
+    ".next-mobile-test/types/**/*.ts",
+    ".next-mobile-test/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

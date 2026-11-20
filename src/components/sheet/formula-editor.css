@@ -1,0 +1,64 @@
+/* Shared formula editor and portaled CodeMirror helpers. */
+.formula-editor { height: 100%; }
+.formula-editor .cm-editor { height: 100%; background: transparent; font-size: 13px; color: var(--color-fg); }
+.formula-editor .cm-editor.cm-focused { outline: none; }
+.formula-editor .cm-scroller { font-family: var(--font-sans); line-height: var(--text-body-sm--line-height); align-items: center; overflow: auto; scrollbar-width: none; }
+.formula-editor.formula-null .cm-scroller { font-family: var(--font-mono); }
+.formula-editor .cm-content { user-select: text; -webkit-user-select: text; align-self: center; padding: 0; min-height: 0; caret-color: var(--color-fg); }
+.formula-editor .cm-line { padding: 0; }
+.formula-bar-editor .cm-scroller { align-items: flex-start; scrollbar-width: thin; }
+.formula-bar-editor .cm-content { align-self: flex-start; padding: 7px 0; }
+.formula-bar-collapsed .cm-content { align-self: safe center; padding: 0; }
+.formula-bar-collapsed .cm-placeholder { white-space: nowrap; }
+.formula-editor .cm-placeholder { color: var(--color-fg-subtle); font-family: var(--font-sans); }
+.formula-editor .cm-selectionBackground { background: var(--color-blue-20) !important; }
+.formula-editor:has(.cm-content[contenteditable='false']) { opacity: .5; }
+.formula-token-function { color: #6d28d9; font-weight: 600; }
+.formula-token-number { color: #b45309; }
+.formula-token-string { color: #15803d; }
+.formula-token-boolean { color: #7e22ce; }
+.formula-token-operator, .formula-token-punctuation { color: #606060; }
+.formula-token-error { color: #b91c1c; text-decoration: underline wavy; }
+.formula-reference-0 { color: var(--color-brand); }
+.formula-reference-1 { color: #c2410c; }
+.formula-reference-2 { color: #0f766e; }
+.formula-reference-3 { color: #9333ea; }
+.formula-reference-4 { color: #be185d; }
+.formula-reference-5 { color: #4d7c0f; }
+body .cm-tooltip.formula-completions, body .cm-tooltip.formula-help, body .cm-completionInfo:has(.formula-help) {
+	z-index: 80; border: 1px solid var(--color-line); border-radius: var(--radius-shell);
+	background: var(--color-surface); color: var(--color-fg); box-shadow: var(--shadow-floating);
+	font-family: var(--font-sans);
+}
+.cm-tooltip.formula-completions > ul { width: min(320px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: min(260px, 35vh); font-family: var(--font-mono); font-size: 12px; padding: 4px !important; }
+body .cm-tooltip.formula-completions > ul > li { padding: 5px 8px !important; border-radius: 5px; display: flex; align-items: center; }
+.cm-tooltip.formula-completions > ul > li[aria-selected] { background: var(--color-blue-10); color: var(--color-brand); }
+.formula-completions .cm-completionLabel { flex-shrink: 0; }
+.formula-completions .cm-completionMatchedText { text-decoration: none; font-weight: 600; }
+.formula-completions .cm-completionDetail { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; color: var(--color-fg-subtle); font-family: var(--font-sans); font-size: 11px; margin-left: 12px; }
+.formula-help { width: min(360px, calc(100vw - 24px)); padding: 12px 14px; font-family: var(--font-sans); font-size: 12px; line-height: 1.55; white-space: normal; }
+.formula-help p { margin-top: 8px; color: var(--color-fg-muted); }
+.formula-help-signature { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
+.formula-help-signature > strong { color: #6d28d9; }
+.formula-help-active { background: var(--color-blue-10); color: var(--color-brand); font-weight: 600; border-radius: 3px; padding: 1px 3px; }
+.formula-help-parameter { border-top: 1px solid var(--color-line); padding-top: 8px; }
+.formula-help-example { margin-top: 9px; padding: 7px 8px; background: var(--color-neutral-5); border-radius: 5px; font-family: var(--font-mono); font-size: 11px; overflow-wrap: anywhere; }
+
+/* The info panel is positioned outside the list; clipping the list clips its docs. */
+body .cm-tooltip.formula-completions { overflow: visible; }
+
+body .cm-completionInfo:has(.formula-help) { padding: 0; box-sizing: border-box; }
+.cm-completionInfo .formula-help { width: 100%; }
+
+/* Formula builder starts at one line and grows as a long expression wraps. */
+.formula-editor.formula-builder-input { height: auto; min-height: 40px; }
+.formula-builder-input .cm-editor { height: auto; }
+.formula-builder-input .cm-scroller { max-height: 180px; align-items: flex-start; scrollbar-width: thin; }
+.formula-builder-input .cm-content { align-self: flex-start; padding: 10px 0; }
+.formula-builder-input .column-prompt-pill { font-family: var(--font-sans); }
+.formula-builder-prompt .column-prompt .cm-editor { border: 0; border-radius: 8px 8px 0 0; }
+
+@media (max-width: 767px) and (pointer: coarse) {
+  .formula-editor .cm-editor { font-size: 16px; }
+  body .cm-tooltip.formula-completions > ul > li { min-height: 44px; }
+}

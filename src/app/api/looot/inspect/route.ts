@@ -1,27 +1,19 @@
-import { NextResponse } from "next/server";
-import { errorResponse, requireUser } from "@/lib/api";
-import { loootFromEnv } from "@/lib/looot";
+import { NO_STORE_HEADERS, jsonError } from '@/lib/server/credentials';
+import { classifyFailure } from '@/lib/server/enrich-failure';
+import { routeAccess } from '@/lib/server/provider-access';
+import { inspectSummary } from '@/lib/server/looot-catalog';
 
-export async function GET(req: Request) {
-  const auth = await requireUser();
-  if (auth.response) return auth.response;
-  const id = new URL(req.url).searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
-  try {
-    const r = await loootFromEnv().inspect(id);
-    const props = r.inputSchema?.properties ?? {};
-    const required = r.inputSchema?.required ?? r.usageHints?.requiredInputFields ?? [];
-    return NextResponse.json({
-      endpointId: id,
-      priceUsd: typeof r.estimatedMaxCost === "number" ? r.estimatedMaxCost : null,
-      inputs: Object.entries(props).map(([name, p]) => ({
-        name,
-        type: p.type ?? "string",
-        description: p.description ?? "",
-        required: required.includes(name),
-      })),
-    });
-  } catch (e) {
-    return errorResponse(e);
-  }
+/** The inputs and price of one catalog endpoint. Free. */
+export async function GET(request: Request) {
+	const access = await routeAccess(request);
+	if (access instanceof Response) return access;
+	if (!access.key('looot')) return jsonError('Add your looot token in Configuration to inspect an endpoint.', 401);
+	const id = new URL(request.url).searchParams.get('id')?.trim();
+	if (!id || id.length > 200 || !/^[A-Za-z0-9:._-]+$/.test(id)) return jsonError('Provide an endpoint id.', 400);
+	try {
+		return Response.json(inspectSummary(id, await access.looot().inspect(id)), { headers: NO_STORE_HEADERS });
+	} catch (error) {
+		const outcome = classifyFailure(error, 'looot');
+		return jsonError(access.redact(error), outcome?.reason === 'credential_invalid' ? 401 : outcome?.reason === 'input_invalid' ? 404 : 502, outcome);
+	}
 }
