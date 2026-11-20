@@ -106,6 +106,8 @@ export function SheetGridArea({ sheetId, sheet, allRows, commands, content, sele
 					onMoveColumn={(columnId, toIndex) => void moveColumn(sheetId, columnId, toIndex).catch(report('Could not move column'))}
 					onResizeColumn={(columnId, width) => void updateColumn(sheetId, columnId, { width }).catch(report('Could not resize column'))}
 					onAddRow={() => void addEmptyRow(sheetId).catch(report('Could not add row.'))}
+					onRoutingMenu={(column, anchor) => overlays.setRouting({ column, anchor })}
+					onAddNextStep={(ghost) => void commands.addNextStep(ghost).then((column) => { if (column) actions.toast(`Added “${column.name}”. It runs when you click Run.`); }, report('Could not add this column'))}
 				/>
 			</RunPausedContext>
 			{blank && <BlankSheetHint top={HEADER_HEIGHT + (allRows.length + 1) * ROW_HEIGHT + 40} onFind={onFind} onImport={() => overlays.setImportOpen(true)} />}

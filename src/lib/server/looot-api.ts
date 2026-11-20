@@ -52,6 +52,27 @@ export interface Run {
 	error?: RunError | null;
 	replayed?: boolean;
 	route?: { servedBy?: string; outcome?: RunOutcome; chargedUsd?: number; capped?: boolean; attempts?: RouteAttempt[]; skipped?: Array<{ endpointId: string; code: string; reason: string }>; summary?: string };
+	/** Up to 3 priced follow-up jobs after a hit. Each carries the `run` arguments (with its suggestionId) that would run it. */
+	nextSteps?: Array<{ suggestionId?: string; job?: string; title?: string; priceUsd?: number | null; input?: Record<string, unknown>; run?: { endpointId?: string; input?: Record<string, unknown>; suggestionId?: string }; [key: string]: unknown }>;
+	[key: string]: unknown;
+}
+
+/** A rows batch: one run per row, keyed <idempotencyKey>:row:<index>. Send the same key again while `batch.complete` is false. */
+export interface BatchParams {
+	endpointId: 'job:people.email.find' | 'job:people.email.verify' | 'job:people.phone.find' | 'job:company.enrich';
+	rows: Array<Record<string, unknown>>;
+	idempotencyKey: string;
+	input?: Record<string, unknown>;
+	fallback?: boolean | FallbackOptions;
+	wait?: number;
+}
+
+/** The answer to a rows batch. The public docs name `batch.complete`, the rows and `summary`; each row is read as a run
+    with its `index`. */
+export interface BatchAnswer {
+	batch?: { complete?: boolean; [key: string]: unknown };
+	rows?: Array<Run & { index?: number }>;
+	summary?: { hits?: number; strongHits?: number; weak?: number; misses?: number; retryLater?: number; chargedMicros?: number; byProvider?: Record<string, number> };
 	[key: string]: unknown;
 }
 
@@ -72,6 +93,10 @@ export interface CatalogEndpoint {
 	access?: 'runs_now' | 'needs_your_account' | 'coming_soon';
 	estimatedPrice?: number | string | null;
 	job?: { id: string; title: string };
+	/** Measured: the useful-answer rate, decided runs and p50 latency. */
+	works?: { rate?: number | null; runs?: number; p50Ms?: number | null; thin?: boolean };
+	/** The price divided by works.rate: what one useful answer costs. */
+	costPerSuccessUsd?: number | null;
 	[key: string]: unknown;
 }
 
@@ -138,8 +163,23 @@ export class Looot {
 		return this.#request('GET', `/v1/runs/${encodeURIComponent(runId)}`);
 	}
 
-	/** Free. Ranked catalog search. */
-	search(params: { q: string; limit?: number }): Promise<SearchResult> {
+	/** Paid. A rows batch (see `BatchParams`). */
+	batch({ wait, ...body }: BatchParams): Promise<BatchAnswer> {
+		return this.#request('POST', '/v1/runs', { query: { wait }, body });
+	}
+
+	/** Free. The most a rows batch can cost; runs nothing. */
+	quote(params: Omit<BatchParams, 'wait'>): Promise<Record<string, unknown>> {
+		return this.#request('POST', '/v1/runs', { body: { ...params, quoteOnly: true } });
+	}
+
+	/** Free. Tell looot a result was wrong, with the run it came from. */
+	feedback(body: { kind: 'bug' | 'idea' | 'praise' | 'question'; message: string; runId?: string; endpointId?: string; rating?: number }): Promise<{ feedbackId?: string; status?: string }> {
+		return this.#request('POST', '/v1/feedback', { body });
+	}
+
+	/** Free. Ranked catalog search; `capability` lists one job's providers with their measured numbers. */
+	search(params: { q: string; limit?: number; capability?: string; prefer?: Prefer }): Promise<SearchResult> {
 		return this.#request('GET', '/v1/catalog/search', { query: params });
 	}
 

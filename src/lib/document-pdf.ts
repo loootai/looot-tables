@@ -16,7 +16,7 @@ function inline(tokens: Token[]): ContentText[] {
 			case 'strong': return [{ text: inline(token.tokens), bold: true }];
 			case 'em': return [{ text: inline(token.tokens), font: 'Roboto', italics: true }];
 			case 'del': return [{ text: inline(token.tokens), decoration: 'lineThrough' }];
-			case 'link': return [{ text: inline(token.tokens), link: safeLink(token.href), color: '#2563eb' }];
+			case 'link': return [{ text: inline(token.tokens), link: safeLink(token.href), color: '#1f5c45' }];
 			case 'br': return [{ text: '\n' }];
 			case 'html': return [];
 			default: return [{ text: 'text' in token ? String(token.text) : token.raw }];

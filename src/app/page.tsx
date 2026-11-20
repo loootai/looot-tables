@@ -5,6 +5,7 @@ import { ArrowRight } from 'lucide-react';
 import { GithubIcon, Logo } from '@/components/ui/logo';
 import { CONTEXT_DEV_URL, DOCS_URL, ENRICHABLE_URL, GITHUB_URL, SITE_DESCRIPTION, SITE_LEDE, SITE_TITLE } from '@/lib/constants';
 import { siteUrl } from '@/lib/server/deployment';
+import { HeroSheet } from '@/components/landing/hero-sheet';
 
 export const metadata: Metadata = {
 	title: { absolute: SITE_TITLE },
@@ -67,12 +68,8 @@ function structuredData() {
 	};
 }
 
-/** Faint sample cells laid on the background grid: one finished column, one still researching. */
-const DOMAINS = ['sunnova.com', 'tesla.com', 'nextracker.com', 'sunrun.com', 'enphase.com', 'aurorasolar.com', 'firstsolar.com', 'sunpower.com', 'arcadia.com', 'palmetto.com', 'solaredge.com'];
-const CEOS = ['John Berger', 'Elon Musk', 'Dan Shugar', 'Mary Powell', 'Badri Kothandaraman'];
-
-const primaryButton = 'inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-brand px-6 text-[1rem] font-medium text-white shadow-[0_1px_2px_rgb(37_99_235/0.3),0_8px_24px_-8px_rgb(37_99_235/0.55)] transition-[background-color,scale] duration-150 hover:bg-brand-hover active:scale-[0.98] motion-reduce:active:scale-100';
-const secondaryButton = 'inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-surface px-[22px] text-[1rem] font-medium shadow-[inset_0_0_0_1px_#d9d9d9] transition-[box-shadow,scale] duration-150 hover:shadow-[inset_0_0_0_1px_var(--color-fg)] active:scale-[0.98] motion-reduce:active:scale-100';
+const primaryButton = 'inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-brand px-6 text-[1rem] font-medium text-brand-fg shadow-[0_1px_2px_oklch(0.37_0.09_163/0.3),0_8px_24px_-8px_oklch(0.37_0.09_163/0.5)] transition-[background-color,scale] duration-150 hover:bg-brand-hover active:scale-[0.98] motion-reduce:active:scale-100';
+const secondaryButton = 'inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-surface px-[22px] text-[1rem] font-medium shadow-[inset_0_0_0_1px_var(--color-line-strong)] transition-[box-shadow,scale] duration-150 hover:shadow-[inset_0_0_0_1px_var(--color-fg)] active:scale-[0.98] motion-reduce:active:scale-100';
 const inlineLink = 'font-medium text-fg underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-fg';
 
 export default function Landing() {
@@ -80,9 +77,8 @@ export default function Landing() {
 		<div className="bg-surface text-fg">
 			<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData()).replace(/</g, '\\u003c') }} />
 
-			<div className="relative isolate flex min-h-dvh flex-col overflow-hidden">
-				<SheetBackdrop />
-				<header className="flex items-center justify-between gap-4 px-5 pt-5 pb-3 md:px-12 md:pt-7 short:pt-3 short:pb-1">
+			<div className="relative isolate overflow-hidden border-b border-line bg-canvas">
+				<header className="mx-auto flex w-full max-w-[1180px] items-center justify-between gap-4 px-5 pt-5 pb-3 md:px-12 md:pt-7">
 					<Link href="/" className="flex items-center gap-2.5 rounded-md" aria-label="looot tables home">
 						<Logo size={24} />
 						<span className="text-[17px] font-semibold tracking-[-0.01em]">looot tables</span>
@@ -90,32 +86,35 @@ export default function Landing() {
 					<nav aria-label="Site" className="flex items-center gap-1 text-body text-fg-muted">
 						<a href="#how-it-works" className="hidden rounded-md px-2.5 py-1.5 transition-colors hover:text-fg sm:block">How it works</a>
 						<a href="#faq" className="hidden rounded-md px-2.5 py-1.5 transition-colors hover:text-fg sm:block">FAQ</a>
+						<Link href="/app" className="hidden rounded-md px-2.5 py-1.5 transition-colors hover:text-fg sm:block">Open the app</Link>
 						<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 transition-colors hover:text-fg">
 							<GithubIcon className="size-4" /> GitHub
 						</a>
 					</nav>
 				</header>
 
-				<main className="flex flex-1 flex-col items-center justify-center px-5 pb-8 text-center md:px-12 short:pb-3">
-					<h1 className="max-w-[840px] text-[clamp(2.5rem,1.4rem+3.6vw,4.25rem)] leading-[1.06] font-medium tracking-[-0.035em] text-balance short:text-[2.25rem]">
-						A spreadsheet that <span className="text-brand">enriches itself</span> from the internet.
+				<main className="mx-auto flex w-full max-w-[1180px] flex-col items-center px-5 pt-6 pb-14 text-center md:px-12 md:pt-8 md:pb-20">
+					<p className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-caption text-fg-muted">
+						<span className="num text-brand">0 API keys</span><span aria-hidden className="h-3 w-px bg-line-strong" />one looot token runs every lookup
+					</p>
+					<h1 className="mt-5 max-w-[860px] text-[clamp(2.2rem,1.2rem+2.6vw,3.3rem)] leading-[1.05] font-semibold tracking-[-0.035em] text-balance">
+						The open-source enrichment sheet that shows <span className="text-brand">who answered and what it cost.</span>
 					</h1>
-					<p className="mt-5 max-w-[600px] text-[1.0625rem] leading-relaxed text-pretty text-fg-muted md:mt-6 md:text-[1.1875rem] short:mt-3 short:text-[1rem]">{SITE_LEDE}</p>
-					<div className="mt-8 flex w-full max-w-[350px] flex-col gap-2.5 sm:w-auto sm:max-w-none sm:flex-row sm:gap-3 short:mt-5">
-						<Link href="/app" data-track="landing_cta" data-cta="start" className={`${primaryButton} short:h-11`}>
-							Start enriching <ArrowRight aria-hidden className="size-4" strokeWidth={2} />
-						</Link>
-						<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" data-track="landing_cta" data-cta="github" className={`${secondaryButton} short:h-11`}>
-							<GithubIcon className="size-[17px]" /> View on GitHub
+					<p className="mt-5 max-w-[640px] text-[1.0625rem] leading-relaxed text-pretty text-fg-muted md:text-[1.1875rem]">{SITE_LEDE} Every cell keeps its receipt: the providers looot tried, in order, with the price and time of each.</p>
+					<div className="mt-8 flex w-full max-w-[350px] flex-col gap-2.5 sm:w-auto sm:max-w-none sm:flex-row sm:gap-3">
+						<a href={`${GITHUB_URL}#self-host`} target="_blank" rel="noopener noreferrer" data-track="landing_cta" data-cta="self-host" className={primaryButton}>
+							Self-host it <ArrowRight aria-hidden className="size-4" strokeWidth={2} />
+						</a>
+						<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" data-track="landing_cta" data-cta="github" className={secondaryButton}>
+							<GithubIcon className="size-[17px]" /> GitHub
 						</a>
 					</div>
+					<p className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-body-sm text-fg-subtle">
+						<span>Open source, MIT</span><span aria-hidden>·</span><span>Billed to your own looot balance</span><span aria-hidden>·</span><span>Spend capped on the server</span>
+					</p>
+					<div className="mt-10 w-full"><HeroSheet /></div>
+					<div className="mt-8 text-body-sm text-fg-subtle"><BuiltOnEnrichable /></div>
 				</main>
-
-				<div className="flex flex-col items-center justify-center gap-1.5 px-5 pb-7 text-body-sm text-fg-subtle sm:flex-row sm:gap-3.5 md:pb-8 short:pb-3">
-					<span>Free and open source (MIT)</span>
-					<span aria-hidden className="hidden h-3.5 w-px bg-line-strong sm:block" />
-					<BuiltOnEnrichable />
-				</div>
 			</div>
 
 			<Section id="what-is-looot-tables" title="What is looot tables?">
@@ -225,31 +224,5 @@ function BuiltOnEnrichable() {
 		<a href={ENRICHABLE_URL} target="_blank" rel="noopener" className="inline-flex items-center gap-[7px] rounded-md hover:text-fg">
 			Built on Enrichable by <Image src="/providers/context.svg" alt="" width={20} height={14} unoptimized /> <span className="font-semibold tracking-[-0.01em] text-fg">Context.dev</span>
 		</a>
-	);
-}
-
-function SheetBackdrop() {
-	return (
-		<div aria-hidden data-nosnippet className="sheet-backdrop pointer-events-none absolute inset-0 -z-10 select-none">
-			<div className="sheet-backdrop-column left-[calc(50%-630px)]">
-				<span className="sheet-backdrop-head">Website</span>
-				{DOMAINS.map((domain) => (
-					<span key={domain}>{domain}</span>
-				))}
-			</div>
-			<div className="sheet-backdrop-column left-[calc(50%+450px)]">
-				<span className="sheet-backdrop-head">
-					<i className="sheet-backdrop-dot" /> CEO
-				</span>
-				{CEOS.map((ceo, index) => (
-					<span key={ceo} className="sheet-backdrop-arrival" style={{ animationDelay: `${300 + index * 140}ms` }}>
-						{ceo}
-					</span>
-				))}
-				<span className="sheet-backdrop-active">
-					<i className="sheet-backdrop-dot" /> Researching…
-				</span>
-			</div>
-		</div>
 	);
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { RoutingEditor } from './routing-editor';
 import { ConfirmDialog, NameDialog } from '@/components/ui/dialog';
 import { FloatingMenu } from '@/components/ui/menu';
 import { updateSheet } from '@/lib/db';
@@ -8,7 +9,7 @@ import { populateRunner } from '@/lib/populate-runner';
 import { uniqueName } from '@/lib/references';
 import type { RunScope } from '@/lib/run-scope';
 import type { SheetCommands } from '@/lib/sheet-commands';
-import type { Column, Row, Sheet } from '@/lib/types';
+import type { Column, ColumnOp, Row, Sheet } from '@/lib/types';
 import type { RefObject } from 'react';
 import { ColumnEditorDialog } from './column-editor';
 import { ColumnFormatDialog } from './column-format-dialog';
@@ -22,13 +23,14 @@ import type { SheetMenuItems } from './use-sheet-menus';
 import type { EditorState, FormulaBuilderState, SheetOverlayState } from './use-sheet-overlays';
 
 /** The column, Add column, cell and row menus. */
-export function SheetMenus({ overlays, menus }: { overlays: SheetOverlayState; menus: SheetMenuItems }) {
-	const { columnMenu, addColumnMenu, cellMenu, rowMenu } = overlays;
+export function SheetMenus({ overlays, menus, onSaveRouting }: { overlays: SheetOverlayState; menus: SheetMenuItems; onSaveRouting?: (column: Column, op: ColumnOp) => Promise<void> }) {
+	const { columnMenu, addColumnMenu, cellMenu, rowMenu, routing } = overlays;
 	return <>
 		{columnMenu && <FloatingMenu anchor={columnMenu.anchor} items={menus.columnMenuItems(columnMenu.column)} onClose={() => overlays.setColumnMenu(null)} width="w-60" />}
 		{addColumnMenu && <FloatingMenu anchor={addColumnMenu} items={menus.addColumnItems()} onClose={() => overlays.setAddColumnMenu(null)} />}
 		{cellMenu && <FloatingMenu anchor={cellMenu.anchor} onClose={() => overlays.setCellMenu(null)} width="w-64" items={menus.cellMenuItems(cellMenu.cell)} />}
 		{rowMenu && <FloatingMenu anchor={rowMenu.anchor} items={menus.rowMenuItems(rowMenu.row)} onClose={() => overlays.setRowMenu(null)} width="w-60" />}
+		{routing && onSaveRouting && <RoutingEditor key={routing.column.id} column={routing.column} anchor={routing.anchor} onClose={() => overlays.setRouting(null)} onSave={(op) => onSaveRouting(routing.column, op)} />}
 	</>;
 }
 

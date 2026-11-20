@@ -10,10 +10,12 @@ import type { FormulaCopy, FormulaRequest, FormulaResult } from './formulas';
 import { missingProviders } from './operations';
 import type { Provider } from './organization-settings';
 import { findColumn, opDependencies, uniqueName } from './references';
-import { estimateCells, type RunEstimate } from './run-cost';
+import { BATCH_MIN_CELLS, batchJob, estimateCells, type RunEstimate } from './run-cost';
 import { serverNow } from './server-clock';
+import { unpackableFields, unpackColumns } from './unpack';
+import { ghostColumnOp, type GhostColumn } from './next-steps';
 import { runner, type CancelFilter, type PendingStatus, type RunHalt, type RunnerSnapshot } from './runner';
-import type { Cell, Column, ColumnOp, Row, Sheet } from './types';
+import type { Cell, CellValue, Column, ColumnOp, Row, Sheet } from './types';
 
 /* One sheet's intent-level actions. Every mutation stops this tab's queued or running work on the cells it touches
    first, so a finishing run can never overwrite (or resurrect) what the user just changed. Runs are planned before
@@ -27,6 +29,8 @@ export interface RunnerPort {
 	isPending(rowId: string, columnId: string, sheetId: string): boolean;
 	/** `unfinished`: a "Run unfinished" run, which never runs a cell that has finished by the time it starts. */
 	enqueue(sheetId: string, rows: Row[], columns: Column[], options: { limitToRows?: boolean; optimisticStart?: boolean; unfinished?: boolean }): Promise<number>;
+	/** A batchable column's rows through looot's rows batch. Optional: without it every column runs cell by cell. */
+	enqueueBatch?(sheetId: string, rows: Row[], column: Column, options: { fresh?: boolean }): Promise<number>;
 	cancel(filters: CancelFilter[]): Promise<void>;
 	supersede(sheetId: string, columnId: string): Promise<string[]>;
 	resume(sheetId: string): void;
@@ -52,6 +56,7 @@ const browserRunner: RunnerPort = {
 	getSnapshot: () => runner.getSnapshot(),
 	isPending: (rowId, columnId, sheetId) => runner.isPending(rowId, columnId, sheetId),
 	enqueue: (sheetId, rows, columns, options) => runner.enqueue(sheetId, rows, columns, options),
+	enqueueBatch: (sheetId, rows, column, options) => runner.enqueueBatch(sheetId, rows, column, options),
 	cancel: (filters) => runner.cancel(filters),
 	supersede: (sheetId, columnId) => runner.supersede(sheetId, columnId),
 	resume: (sheetId) => runner.resume(sheetId),
@@ -87,7 +92,8 @@ export interface SheetRunStatus { queued: number; running: number; pending: numb
     `all`: every cell. */
 export type RunMode = 'unfinished' | 'outdated' | 'all';
 export type RunPlan =
-	| { kind: 'run'; estimate: RunEstimate; execute: () => Promise<number> }
+	/** `groups` is what the server quotes: each column's operation and the rows' values by column name. */
+	| { kind: 'run'; estimate: RunEstimate; groups: Array<{ column: Column; op: ColumnOp; cells: number; records: Array<Record<string, CellValue>> }>; execute: () => Promise<number> }
 	| { kind: 'needs-keys'; providers: Provider[] }
 	/** `outdated`: an `unfinished` run found only finished cells, some of them outdated. `blocked`: only finished cells
 	    that cannot run (see `savedState`). */
@@ -96,8 +102,19 @@ export type RunPlan =
 export type ProviderReady = (provider: Provider) => boolean;
 /** `grid` is the sheet as saved, in sheet order: it decides which cells a mode selects (see `savedState`).
     `sheetColumns` lets a run also queue AI input cells in the same rows that have never run. */
+/** A contact column that tries MoltSets first runs cell by cell: looot's rows batch cannot ask MoltSets before looot. */
+function asksMoltSets(op: ColumnOp, ready: ProviderReady): boolean {
+	if (op.kind !== 'email-enrichment' && op.kind !== 'phone-find') return false;
+	return op.source === 'moltsets' || (op.source !== 'looot' && ready('moltsets'));
+}
+
 interface RunOptions { ready: ProviderReady; grid?: Grid; limitToRows?: boolean; optimistic?: boolean; sheetColumns?: readonly Column[] }
 type CellGroup = { column: Column; rows: Row[] };
+
+/** A row's values by column name, as a quote reads them. */
+function rowRecord(columns: readonly Column[], row: Row): Record<string, CellValue> {
+	return Object.fromEntries(columns.map((column) => [column.name, row.cells[column.id]?.v ?? null]));
+}
 
 const NO_CELLS: PendingCells = new Map();
 const IDLE: SheetRunStatus = { queued: 0, running: 0, pending: 0, cells: NO_CELLS };
@@ -230,8 +247,11 @@ export function createSheetCommands(sheetId: string, ports: { runner?: RunnerPor
 		return {
 			kind: 'run',
 			estimate: estimateCells(runs.map(({ column, rows }) => ({ cells: rows.length, op: column.op }))),
+			groups: runs.map(({ column, rows }) => ({ column, op: column.op!, cells: rows.length, records: rows.slice(0, 500).map((row) => rowRecord(options.sheetColumns ?? [], row)) })),
 			execute: async () => {
-				const added = await Promise.all(runs.map(({ column, rows }) => work.enqueue(sheetId, rows, [column], { limitToRows: options.limitToRows, optimisticStart: options.optimistic, unfinished: mode === 'unfinished' })));
+				const added = await Promise.all(runs.map(({ column, rows }) => work.enqueueBatch && batchJob(column.op) && !asksMoltSets(column.op!, options.ready) && rows.length >= BATCH_MIN_CELLS
+					? work.enqueueBatch(sheetId, rows, column, { fresh: mode === 'all' })
+					: work.enqueue(sheetId, rows, [column], { limitToRows: options.limitToRows, optimisticStart: options.optimistic, unfinished: mode === 'unfinished' })));
 				return added.reduce((sum, count) => sum + count, 0);
 			},
 		};
@@ -276,8 +296,32 @@ export function createSheetCommands(sheetId: string, ports: { runner?: RunnerPor
 			work.resume(sheetId);
 		},
 
-		/** Insert columns at `position` (default: last). */
-		addColumns: (columns: Column[], { kind, ...options }: AddColumnsOptions) => insert(columns, () => kind, options),
+		/** Insert columns at `position` (default: last). */		addColumns: (columns: Column[], { kind, ...options }: AddColumnsOptions) => insert(columns, () => kind, options),
+		/** "Unpack": sibling columns filled from the answers `column` already holds. Costs $0 and runs nothing. */
+		async unpackColumn(column: Column, rows: Row[]): Promise<number> {
+			const grid = await store.grid(sheetId);
+			if (!grid) return 0;
+			const fields = unpackableFields(column, rows);
+			if (!fields.length) return 0;
+			const names = grid.sheet.columns.map((entry) => entry.name);
+			const { columns, cells } = unpackColumns(column, rows, fields, (field) => {
+				const name = uniqueName(field.name, names);
+				names.push(name);
+				return newColumn({ name, type: 'source', width: 140, ...(field.format ? { format: field.format } : {}), ...(field.format === 'currency' ? { currency: 'USD', decimalPlaces: 0 } : {}) });
+			});
+			await insert(columns, () => 'unpack', { position: grid.sheet.columns.findIndex((entry) => entry.id === column.id) + 1 });
+			if (cells.length) await store.setCells(cells);
+			return columns.length;
+		},
+		/** A next-step ghost becomes a real column. It is only added: running it is the user's next click. */
+		async addNextStep(ghost: GhostColumn): Promise<Column | undefined> {
+			const grid = await store.grid(sheetId);
+			if (!grid) return undefined;
+			const { name, op } = ghostColumnOp(ghost, grid.sheet.columns);
+			const column = newColumn({ name: uniqueName(name, grid.sheet.columns.map((entry) => entry.name)), type: 'enriched', op });
+			await insert([column], () => 'next-step', {});
+			return column;
+		},
 		/** Change a column's name, format or operation. A new operation first stops the column's queued and running cells,
 		    which keep their previous values rather than finish with the old one; plan the column's run afterwards to
 		    include them. */

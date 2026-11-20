@@ -30,6 +30,15 @@ import { formatValue } from '@/lib/template';
 import { FormulaEditor } from './formula-editor';
 import { useFormulaRangeEditor } from './formula-range-context';
 import { activeDescendant, fillState, gridKeyDown, HEADER_HEIGHT, INDEX_WIDTH, ROW_HEIGHT, startCellDrag, startColumnDrag, type ActiveCell } from './grid-interactions';
+import { cellState, columnStats, fillPercent, type ColumnStats } from '@/lib/cell-state';
+import { ghostColumns, type GhostColumn } from '@/lib/next-steps';
+import { PREFER_LABEL, routedJob } from '@/lib/job-of';
+import { costPerCell } from '@/lib/run-cost';
+import { formatUsd } from '@/lib/endpoint-map';
+import { useJobStats } from './use-job-stats';
+
+const GHOST_WIDTH = 190;
+const NO_GHOSTS: GhostColumn[] = [];
 
 export type { ActiveCell } from './grid-interactions';
 
@@ -72,8 +81,11 @@ export interface GridProps {
 	onAddColumnValue: (rowId: string, value: string) => Promise<void>;
 	onMoveColumn: (columnId: string, toIndex: number) => void;
 	onResizeColumn: (columnId: string, width: number) => void;
-	onAddRow: () => void;
-	onFormulaBuilder?: (cell: ActiveCell, draft: string) => void;
+	onAddRow: () => void;	onFormulaBuilder?: (cell: ActiveCell, draft: string) => void;
+	/** Turn a next-step ghost column into a real column. It never runs on its own. */
+	onAddNextStep?: (ghost: GhostColumn) => void;
+	/** Open the routing editor of a job column. */
+	onRoutingMenu?: (column: Column, anchor: DOMRect) => void;
 }
 
 type EditConflict = { rowId: string; columnId: string; draft: string; current: string; company?: CompanySuggestion };
@@ -95,7 +107,7 @@ function useColumnPreview(sheetColumns: Column[]) {
 	return { columns, previewResize };
 }
 
-export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpen = false, loadingRows = false, arrivalTimes, sheet, sort, rows, rowNumbers, selected, onToggleRow, onToggleAll, active, range, onSelectRange, onFillCells, onClearCells, onActivate, onOpenCell, onEditCell, onColumnMenu, renamingColumnId, onSortColumn, onRenameColumn, onCancelRenameColumn, onRowMenu, onCellMenu, onAddEntityColumn, onAddColumn, onAddColumnValue, onMoveColumn, onResizeColumn, onAddRow, onFormulaBuilder, onRunCell }: GridProps) {
+export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpen = false, loadingRows = false, arrivalTimes, sheet, sort, rows, rowNumbers, selected, onToggleRow, onToggleAll, active, range, onSelectRange, onFillCells, onClearCells, onActivate, onOpenCell, onEditCell, onColumnMenu, renamingColumnId, onSortColumn, onRenameColumn, onCancelRenameColumn, onRowMenu, onCellMenu, onAddEntityColumn, onAddColumn, onAddColumnValue, onMoveColumn, onResizeColumn, onAddRow, onFormulaBuilder, onRunCell, onAddNextStep, onRoutingMenu }: GridProps) {
 	const referenceRows = useMemo(() => [...(allRows ?? rows)].sort((a, b) => a.order - b.order), [allRows, rows]);
 	const rangeEditor = useFormulaRangeEditor();
 	const [handoff, setHandoff] = useState({ loading: loadingRows, next: rows.length });
@@ -153,7 +165,10 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 		list.push(x);
 		return list;
 	}, [columns]);
-	const totalWidth = offsets[offsets.length - 1] + 160;
+	const stats = useMemo(() => new Map(columns.filter((column) => column.type === 'enriched').map((column) => [column.id, columnStats(column, referenceRows)])), [columns, referenceRows]);
+	const ghosts = useMemo(() => onAddNextStep ? ghostColumns(columns, referenceRows) : NO_GHOSTS, [onAddNextStep, columns, referenceRows]);
+	const totalWidth = offsets[offsets.length - 1] + ghosts.length * GHOST_WIDTH + 160;	const footerRef = useRef<HTMLDivElement>(null);
+	const [openedAt] = useState(() => Date.now());
 	const lastRowNumber = useMemo(() => rows.reduce((max, row) => Math.max(max, rowNumbers.get(row.id) ?? 0), 0), [rows, rowNumbers]);
 	useLayoutEffect(() => {
 		const starting = loadingRows && !wasLoading.current;
@@ -268,9 +283,10 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 
 	// A new pointer gesture must not inherit click suppression from the previous drag.
 	return (
-		<div ref={scrollRef} tabIndex={0} onPointerDownCapture={() => { suppressClickUntil.current = 0; }} onScroll={(event) => { if (loadingRows) { const node = event.currentTarget; followArrivals.current = node.scrollHeight - node.scrollTop - node.clientHeight < ROW_HEIGHT * 2; } }} onKeyDown={onKeyDown} onContextMenu={openContextMenu} onDragStart={(event) => event.preventDefault()} onClickCapture={(event) => { if (performance.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); suppressClickUntil.current = 0; } }} aria-multiselectable="true" aria-label="Sheet grid" role="grid" aria-activedescendant={activeDescendant(active, columns, (rowId) => virtualItems.some((item) => rows[item.index]?.id === rowId))} aria-busy={loadingRows} aria-rowcount={rowCount} aria-colcount={columns.length} className="scrollbar-thin relative min-h-0 min-w-0 flex-1 touch-auto select-none overflow-auto overscroll-contain bg-surface outline-none">
+		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+		<div ref={scrollRef} tabIndex={0} onPointerDownCapture={() => { suppressClickUntil.current = 0; }} onScroll={(event) => { if (footerRef.current) footerRef.current.style.transform = `translateX(${-event.currentTarget.scrollLeft}px)`; if (loadingRows) { const node = event.currentTarget; followArrivals.current = node.scrollHeight - node.scrollTop - node.clientHeight < ROW_HEIGHT * 2; } }} onKeyDown={onKeyDown} onContextMenu={openContextMenu} onDragStart={(event) => event.preventDefault()} onClickCapture={(event) => { if (performance.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); suppressClickUntil.current = 0; } }} aria-multiselectable="true" aria-label="Sheet grid" role="grid" aria-activedescendant={activeDescendant(active, columns, (rowId) => virtualItems.some((item) => rows[item.index]?.id === rowId))} aria-busy={loadingRows} aria-rowcount={rowCount} aria-colcount={columns.length} className="scrollbar-thin relative min-h-0 min-w-0 flex-1 touch-auto select-none overflow-auto overscroll-contain bg-surface outline-none">
 			<div style={{ width: totalWidth, height: HEADER_HEIGHT + virtualizer.getTotalSize() + ROW_HEIGHT + 24, position: 'relative' }}>
-				<GridHeader sheet={sheet} sort={sort} columns={columns} offsets={offsets} totalWidth={totalWidth} rows={rows} selected={selected} columnDrag={columnDrag} renamingColumnId={renamingColumnId} onToggleAll={onToggleAll} onAddColumn={onAddColumn} onStartDrag={beginColumnDrag} onColumnMenu={onColumnMenu} onResizeColumn={onResizeColumn} onPreviewResize={previewResize} onSortColumn={onSortColumn} onRenameColumn={onRenameColumn} onCancelRenameColumn={onCancelRenameColumn} />
+				<GridHeader stats={stats} ghosts={ghosts} onAddNextStep={onAddNextStep} onRoutingMenu={onRoutingMenu} sheet={sheet} sort={sort} columns={columns} offsets={offsets} totalWidth={totalWidth} rows={rows} selected={selected} columnDrag={columnDrag} renamingColumnId={renamingColumnId} onToggleAll={onToggleAll} onAddColumn={onAddColumn} onStartDrag={beginColumnDrag} onColumnMenu={onColumnMenu} onResizeColumn={onResizeColumn} onPreviewResize={previewResize} onSortColumn={onSortColumn} onRenameColumn={onRenameColumn} onCancelRenameColumn={onCancelRenameColumn} />
 
 				{/* Rows */}
 				{virtualItems.map((virtualRow) => {
@@ -311,7 +327,9 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 							onAddEntityColumn={onAddEntityColumn}
 							onCellMenu={openCellMenu}
 							onRunCell={onRunCell}
-						/>
+								ghostCount={ghosts.length}
+								openedAt={openedAt}
+							/>
 					);
 				})}
 
@@ -319,9 +337,27 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 				{fillHandle && <FillHandle formula={fill.formulaFill} left={offsets[fillHandle.right + 1] - 5} top={HEADER_HEIGHT + (fillHandle.bottom + 1) * ROW_HEIGHT - 5} onPointerDown={(event) => { event.stopPropagation(); beginCellDrag({ rowId: rows[fillHandle.bottom].id, columnId: columns[fillHandle.right].id }, event, true); }} />}
 				{editConflict && <EditConflictDialog conflict={editConflict} onClose={() => setEditConflict(null)} onKeep={() => { onEditCell(editConflict.rowId, editConflict.columnId, editConflict.draft, editConflict.company); setEditConflict(null); }} />}
 				<AddRowFooter top={HEADER_HEIGHT + virtualizer.getTotalSize()} totalWidth={totalWidth} firstColumnWidth={columns[0]?.width} onAddRow={onAddRow} />
+				</div>
 			</div>
+			<ColumnFooter ref={footerRef} columns={columns} stats={stats} totalWidth={totalWidth} />
 		</div>
 	);
+}
+
+/** Under each AI column: what it cost and how much came back filled. Cost lives here, never in the cells. */
+function ColumnFooter({ ref, columns, stats, totalWidth }: { ref: React.Ref<HTMLDivElement>; columns: Column[]; stats: ReadonlyMap<string, ColumnStats>; totalWidth: number }) {
+	if (!stats.size) return null;
+	return <div aria-label="Column totals" className="relative h-7 shrink-0 overflow-hidden border-t border-line bg-neutral-5">
+		<div ref={ref} className="flex h-full" style={{ width: totalWidth }}>
+			<div className="shrink-0" style={{ width: INDEX_WIDTH }} />
+			{columns.map((column) => {
+				const entry = stats.get(column.id);
+				return <div key={column.id} className="flex h-full shrink-0 items-center px-3 text-fg-subtle" style={{ width: column.width }}>
+					{entry && entry.settled > 0 && <span data-column-total className="num truncate text-[11px]">{formatUsd(entry.costUsd)} · {fillPercent(entry)} fill</span>}
+				</div>;
+			})}
+		</div>
+	</div>;
 }
 
 function FillHandle({ formula, left, top, onPointerDown }: { formula: boolean; left: number; top: number; onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void }) {
@@ -352,6 +388,10 @@ function AddRowFooter({ top, totalWidth, firstColumnWidth = 120, onAddRow }: { t
 /* ───────────────────────────── Header ───────────────────────────── */
 
 interface GridHeaderProps {
+	stats: ReadonlyMap<string, ColumnStats>;
+	ghosts: GhostColumn[];
+	onAddNextStep?: (ghost: GhostColumn) => void;
+	onRoutingMenu?: (column: Column, anchor: DOMRect) => void;
 	sheet: Sheet;
 	sort: Sort | null;
 	columns: Column[];
@@ -372,20 +412,21 @@ interface GridHeaderProps {
 	onCancelRenameColumn: () => void;
 }
 
-function GridHeader({ sheet, sort, columns, offsets, totalWidth, rows, selected, columnDrag, renamingColumnId, onToggleAll, onAddColumn, onStartDrag, onColumnMenu, onResizeColumn, onPreviewResize, onSortColumn, onRenameColumn, onCancelRenameColumn }: GridHeaderProps) {
+function GridHeader({ stats, ghosts, onAddNextStep, onRoutingMenu, sheet, sort, columns, offsets, totalWidth, rows, selected, columnDrag, renamingColumnId, onToggleAll, onAddColumn, onStartDrag, onColumnMenu, onResizeColumn, onPreviewResize, onSortColumn, onRenameColumn, onCancelRenameColumn }: GridHeaderProps) {
 	const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.id));
 	return (
 		<div role="row" className="sticky top-0 z-20 flex bg-neutral-5" style={{ height: HEADER_HEIGHT, width: totalWidth }}>
 			<div role="columnheader" className="sticky left-0 z-30 flex items-center justify-center border-r border-b border-line bg-neutral-5" style={{ width: INDEX_WIDTH, flexShrink: 0 }}>
-				<button type="button" role="checkbox" aria-checked={allSelected} aria-label="Select all rows" onClick={onToggleAll} className={clsx('grid size-4 place-items-center rounded-[4px] border transition-colors', allSelected ? 'border-brand bg-brand text-white' : 'border-line-strong bg-surface text-transparent hover:border-fg-subtle')}>
+				<button type="button" role="checkbox" aria-checked={allSelected} aria-label="Select all rows" onClick={onToggleAll} className={clsx('grid size-4 place-items-center rounded-[4px] border transition-colors', allSelected ? 'border-brand bg-brand text-brand-fg' : 'border-line-strong bg-surface text-transparent hover:border-fg-subtle')}>
 					<Check className="size-3" strokeWidth={3} />
 				</button>
 			</div>
 			{columnDrag && <div aria-hidden className="pointer-events-none absolute inset-y-0 z-40 w-0.5 bg-brand" style={{ left: offsets[columnDrag.boundary] - 1 }} />}
-			{columns.map((column) => (
-				<HeaderCell key={column.id} column={column} address={columnAddress(sheet.columns.findIndex((entry) => entry.id === column.id))} sort={sort?.columnId === column.id ? sort.dir : null} onStartDrag={onStartDrag} dragging={columnDrag?.columnId === column.id} onMenu={onColumnMenu} onResize={onResizeColumn} onPreviewResize={onPreviewResize} renaming={renamingColumnId === column.id} onSort={onSortColumn} onRename={onRenameColumn} onCancelRename={onCancelRenameColumn} />
+			{columns.map((column, index) => (
+					<HeaderCell key={column.id} frozen={index === 0} stats={stats.get(column.id)} onRoutingMenu={onRoutingMenu} column={column} address={columnAddress(sheet.columns.findIndex((entry) => entry.id === column.id))} sort={sort?.columnId === column.id ? sort.dir : null} onStartDrag={onStartDrag} dragging={columnDrag?.columnId === column.id} onMenu={onColumnMenu} onResize={onResizeColumn} onPreviewResize={onPreviewResize} renaming={renamingColumnId === column.id} onSort={onSortColumn} onRename={onRenameColumn} onCancelRename={onCancelRenameColumn} />
 			))}
-			<div className="flex h-full items-center border-b border-line" style={{ width: 160, flexShrink: 0 }}>
+			{ghosts.map((ghost) => <GhostHeader key={ghost.job} ghost={ghost} onAdd={onAddNextStep} />)}
+				<div className="flex h-full items-center border-b border-line" style={{ width: 160, flexShrink: 0 }}>
 				<button type="button" aria-haspopup="menu" onClick={(event) => onAddColumn(event.currentTarget.getBoundingClientRect())} className="flex h-full w-full items-center gap-1.5 px-3 text-caption text-fg-subtle transition-colors hover:bg-tint/[0.03] hover:text-fg">
 					<Plus className="size-3.5" strokeWidth={1.75} /> Add column <ChevronDown className="ml-auto size-3" strokeWidth={1.75} />
 				</button>
@@ -394,7 +435,17 @@ function GridHeader({ sheet, sort, columns, offsets, totalWidth, rows, selected,
 	);
 }
 
-const HeaderCell = memo(function HeaderCell({ column, address, sort, onStartDrag, dragging, onMenu, onResize, onPreviewResize, renaming, onSort, onRename, onCancelRename }: { column: Column; address: string; sort: 'asc' | 'desc' | null; onStartDrag: (columnId: string, event: ReactPointerEvent<HTMLButtonElement>) => void; dragging: boolean; onMenu: (column: Column, anchor: DOMRect) => void; onResize: (columnId: string, width: number) => void; onPreviewResize: (columnId: string, width: number) => void; renaming: boolean; onSort: (columnId: string) => void; onRename: (columnId: string, name: string) => void; onCancelRename: () => void }) {
+/** A next-step job looot suggested: faint and priced until a click makes it a column (which still waits for Run). */
+function GhostHeader({ ghost, onAdd }: { ghost: GhostColumn; onAdd?: (ghost: GhostColumn) => void }) {
+	return <div role="columnheader" className="flex h-full shrink-0 items-center border-r border-b border-dashed border-line" style={{ width: GHOST_WIDTH }}>
+		<button type="button" data-ghost-column={ghost.job} onClick={() => onAdd?.(ghost)} title={`looot suggested this after ${ghost.rows} ${ghost.rows === 1 ? 'hit' : 'hits'} in ${ghost.source.name}. Adding it runs nothing.`} className="flex h-full w-full min-w-0 flex-col items-start justify-center gap-0.5 px-3 text-left text-fg-subtle opacity-70 transition-opacity hover:bg-tint/[0.03] hover:opacity-100">
+			<span className="flex min-w-0 items-center gap-1 text-caption"><Plus aria-hidden className="size-3 shrink-0" strokeWidth={2} /><span className="truncate">{ghost.title}</span></span>
+			<span className="num text-[10.5px]">{ghost.priceUsd !== null ? `${formatUsd(ghost.priceUsd)}/row` : 'priced on add'} · next step</span>
+		</button>
+	</div>;
+}
+
+const HeaderCell = memo(function HeaderCell({ frozen, stats, onRoutingMenu, column, address, sort, onStartDrag, dragging, onMenu, onResize, onPreviewResize, renaming, onSort, onRename, onCancelRename }: { frozen: boolean; stats?: ColumnStats; onRoutingMenu?: (column: Column, anchor: DOMRect) => void; column: Column; address: string; sort: 'asc' | 'desc' | null; onStartDrag: (columnId: string, event: ReactPointerEvent<HTMLButtonElement>) => void; dragging: boolean; onMenu: (column: Column, anchor: DOMRect) => void; onResize: (columnId: string, width: number) => void; onPreviewResize: (columnId: string, width: number) => void; renaming: boolean; onSort: (columnId: string) => void; onRename: (columnId: string, name: string) => void; onCancelRename: () => void }) {
 	const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
 		event.preventDefault();
 		event.stopPropagation();
@@ -414,14 +465,29 @@ const HeaderCell = memo(function HeaderCell({ column, address, sort, onStartDrag
 		window.addEventListener('pointerup', onUp);
 	};
 	const width = column.width;
+	const routing = routedJob(column.op);
+	const measured = useJobStats(routing?.job, routing?.prefer ?? 'balanced');
+	const enriched = column.type === 'enriched' && column.op;
+	const fill = stats && stats.rows ? stats.filled / stats.rows : 0;
+	const filled = stats && fillPercent(stats) ? `${fillPercent(stats)} fill` : null;
+	const subline = !enriched ? null : measured?.costPerHitUsd != null
+		? [`${formatUsd(measured.costPerHitUsd)}/hit`, measured.p50Ms != null ? `${(measured.p50Ms / 1000).toFixed(1)}s` : null, filled].filter(Boolean).join(' · ')
+		: [routing?.job ?? column.op!.kind, costPerCell(column.op) ? `~${formatUsd(costPerCell(column.op))}` : null, filled].filter(Boolean).join(' · ');
 	return (
-		<div role="columnheader" data-column-header={column.id} aria-sort={sort === 'asc' ? 'ascending' : sort === 'desc' ? 'descending' : 'none'} className="group/header relative flex h-full items-center border-r border-b border-line text-caption text-fg-muted" style={{ width, flexShrink: 0, opacity: dragging ? 0.5 : 1 }}>
+		<div role="columnheader" data-column-header={column.id} aria-sort={sort === 'asc' ? 'ascending' : sort === 'desc' ? 'descending' : 'none'} className={clsx('group/header relative flex h-full items-center border-r border-b border-line bg-neutral-5 text-caption text-fg-muted', frozen && 'sticky z-[25]')} style={{ width, flexShrink: 0, opacity: dragging ? 0.5 : 1, ...(frozen ? { left: INDEX_WIDTH } : {}) }}>
 			{renaming ? <div className="relative h-full min-w-0 flex-1"><InlineEditor initial={column.name} selectInitial label="Rename column" onCommit={(name) => onRename(column.id, name)} onCancel={onCancelRename} /></div> : <button type="button" onPointerDown={(event) => onStartDrag(column.id, event)} onClick={() => onSort(column.id)} className="touch-auto cursor-pointer flex h-full min-w-0 flex-1 items-center gap-1.5 pl-3 pr-1 text-left transition-colors hover:bg-tint/[0.03]" title="Click to cycle ascending, descending, and original row order; drag to rearrange; right-click for column options">
-				<span className="text-fg-subtle tabular">{address}</span>
-				<span className="truncate">{column.name}</span>
-				{sort === 'asc' && <ArrowUp className="ml-auto size-3 shrink-0 text-brand" strokeWidth={2} />}
-				{sort === 'desc' && <ArrowDown className="ml-auto size-3 shrink-0 text-brand" strokeWidth={2} />}
-			</button>}
+				<span className="flex min-w-0 flex-1 flex-col items-start gap-px">
+						<span className="flex w-full min-w-0 items-center gap-1.5">
+							<span className="num text-[10.5px] text-fg-subtle">{address}</span>
+							<span className={clsx('truncate text-fg', frozen ? 'font-semibold' : 'font-medium')}>{column.name}</span>
+							{sort === 'asc' && <ArrowUp className="size-3 shrink-0 text-brand" strokeWidth={2} />}
+							{sort === 'desc' && <ArrowDown className="size-3 shrink-0 text-brand" strokeWidth={2} />}
+						</span>
+						{subline && <span data-column-subline className="num w-full truncate text-[10.5px] text-fg-subtle">{subline}</span>}
+					</span>
+				</button>}
+				{routing && !renaming && <button type="button" data-routing-pill aria-label={`Routing for ${column.name}: ${PREFER_LABEL[routing.prefer]}${routing.exclude.length ? `, ${routing.exclude.length} skipped` : ''}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => onRoutingMenu?.(column, event.currentTarget.getBoundingClientRect())} className="mr-0.5 inline-flex h-5 shrink-0 items-center rounded-full border border-line bg-surface px-1.5 text-[10.5px] font-medium text-fg-muted hover:border-brand hover:text-brand">{PREFER_LABEL[routing.prefer]}{routing.exclude.length ? ` −${routing.exclude.length}` : ''}</button>}
+				{enriched && <span aria-hidden className="meter-tick pointer-events-none absolute bottom-0 left-0 h-[2px] bg-brand" style={{ width: `${Math.round(fill * 100)}%` }} />}
 			<button type="button" aria-label={`Column menu for ${column.name}`} onClick={(event) => onMenu(column, event.currentTarget.getBoundingClientRect())} className={clsx('relative mr-0.5 grid size-6 shrink-0 place-items-center rounded-md text-fg-subtle transition-opacity group-hover/header:opacity-100 group-focus-within/header:opacity-100 hover:bg-tint/[0.06] hover:text-fg focus-visible:opacity-100', renaming || column.type === 'enriched' ? 'opacity-100' : 'opacity-100 md:opacity-0 [@media(hover:none)]:opacity-100')}>
 				{column.type === 'enriched' && !renaming && <Sparkles aria-hidden="true" className="absolute size-3.5 text-brand group-hover/header:opacity-0 group-focus-within/header:opacity-0 [@media(hover:none)]:opacity-0" strokeWidth={1.75} />}
 				<MoreHorizontal aria-hidden="true" className={clsx('size-3.5', column.type === 'enriched' && !renaming && 'opacity-0 group-hover/header:opacity-100 group-focus-within/header:opacity-100 [@media(hover:none)]:opacity-100')} strokeWidth={1.75} />
@@ -474,16 +540,18 @@ interface GridRowProps {
 	onStartEdit: (cell: ActiveCell) => void;
 	onCommitEdit: (row: Row, columnId: string, value: string, company?: CompanySuggestion, moveDown?: boolean) => void;
 	onCancelEdit: () => void;
-	onCellMenu: (cell: ActiveCell, anchor: { x: number; y: number }) => void;
+	onCellMenu: (cell: ActiveCell, anchor: { x: number; y: number }) => void;	ghostCount: number;
+	/** When the grid opened: cells settled after it fade in once. */
+	openedAt: number;
 }
 
-const GridRow = memo(function GridRow({ sheet, referenceRows, newColumnSelected, onActivateNewColumn, onAddColumnValue, collaborators, row, index, top, columns, totalWidth, selected, range, onCellPointerDown, activeColumnId, editingColumnId, editSeed, onToggle, onOpenCell, onStartEdit, onCommitEdit, onCancelEdit, onCellMenu, onAddEntityColumn, remainingRows, totalRows, onFormulaBuilder, onRunCell }: GridRowProps) {
+const GridRow = memo(function GridRow({ sheet, referenceRows, newColumnSelected, onActivateNewColumn, onAddColumnValue, collaborators, row, index, top, columns, totalWidth, selected, range, onCellPointerDown, activeColumnId, editingColumnId, editSeed, onToggle, onOpenCell, onStartEdit, onCommitEdit, onCancelEdit, onCellMenu, onAddEntityColumn, remainingRows, totalRows, onFormulaBuilder, onRunCell, ghostCount, openedAt }: GridRowProps) {
 	const lastTouch = useRef(-Infinity);
 	const style: CSSProperties = { position: 'absolute', top, left: 0, width: totalWidth, height: ROW_HEIGHT };
 	return (
 		<div role="row" data-grid-row={row.id} aria-rowindex={index + 1} aria-selected={selected} className={clsx('group/row flex border-b border-line-subtle', selected ? 'bg-blue-10/50' : activeColumnId ? 'bg-brand/[0.03]' : 'hover:bg-neutral-5/70')} style={style}>
-			<div role="rowheader" className={clsx('sticky left-0 z-10 flex items-center justify-center border-r border-line-subtle text-caption text-fg-subtle tabular', selected ? 'bg-[#f1f5fe]' : 'bg-surface group-hover/row:bg-[#fbfbfb]')} style={{ width: INDEX_WIDTH, flexShrink: 0 }}>
-				<button type="button" role="checkbox" aria-checked={selected} aria-label={`Select row ${index + 1}`} onClick={(event) => onToggle(row.id, event.shiftKey)} className={clsx('grid size-4 place-items-center rounded-[4px] border transition-opacity [@media(pointer:coarse)]:size-7', selected ? 'border-brand bg-brand text-white' : 'border-line-strong bg-surface text-transparent opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100')}>
+			<div role="rowheader" className={clsx('sticky left-0 z-10 flex items-center justify-center border-r border-line-subtle text-caption text-fg-subtle tabular', selected ? 'bg-blue-10' : 'bg-surface group-hover/row:bg-neutral-5')} style={{ width: INDEX_WIDTH, flexShrink: 0 }}>
+				<button type="button" role="checkbox" aria-checked={selected} aria-label={`Select row ${index + 1}`} onClick={(event) => onToggle(row.id, event.shiftKey)} className={clsx('grid size-4 place-items-center rounded-[4px] border transition-opacity [@media(pointer:coarse)]:size-7', selected ? 'border-brand bg-brand text-brand-fg' : 'border-line-strong bg-surface text-transparent opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100')}>
 					<Check className="size-3" strokeWidth={3} />
 				</button>
 				{/* The number overlaps the checkbox even when transparent; never let it intercept selection. */}
@@ -497,6 +565,9 @@ const GridRow = memo(function GridRow({ sheet, referenceRows, newColumnSelected,
 				const isEditing = editingColumnId === column.id;
 				const isRightAligned = !isCheckboxColumn(column) && (typeof cell?.v === 'number' || ['number', 'currency', 'percent', 'unit'].includes(column.format ?? ''));
 				const inRange = Boolean(range && columnIndex >= range.left && columnIndex <= range.right);
+					const state = cellState(cell, column, stale);
+					const frozen = columnIndex === 0;
+					const fresh = column.type === 'enriched' && cell?.s === 'done' && cell.t > openedAt;
 				return (
 					<div
 						key={column.id}
@@ -524,10 +595,11 @@ const GridRow = memo(function GridRow({ sheet, referenceRows, newColumnSelected,
 							else if (column.format === 'category' || column.type === 'source' || cell?.f || organizationKind(column) === 'company') onStartEdit({ rowId: row.id, columnId: column.id });
 							else onOpenCell({ rowId: row.id, columnId: column.id });
 						}}
-						className={clsx('group/cell relative flex h-full min-w-0 items-center border-r border-line-subtle px-3 text-body-sm text-fg', isActive && 'shadow-[inset_0_0_0_1.5px_var(--color-brand)]', inRange && (range?.reference ? 'bg-success-soft' : 'bg-blue-10/70'), cell?.s === 'error' && 'bg-danger-soft/40', stale && (isRightAligned ? 'pl-8' : 'pr-8'))}
-						style={{ width: column.width, flexShrink: 0 }}
-					>
-						{viewers.length > 0 && <span data-collaborator-cell title={viewers.map((peer) => `${peer.name} selected this cell`).join(', ')} className="pointer-events-none absolute inset-0 z-[25] border-2" style={{ borderColor: viewers[0].color }}><span className="absolute -right-[2px] bottom-full mb-[2px] max-w-full truncate rounded-t-[4px] px-2 py-0.5 text-[11px] font-semibold leading-4 text-white" style={{ background: viewers[0].color }}>{viewers.map((peer) => peer.name).join(', ')}</span></span>}
+						data-state={state}
+							className={clsx('cell-state group/cell relative flex h-full min-w-0 items-center border-r border-line-subtle px-3 text-body-sm text-fg', frozen && (selected ? 'sticky z-[3] bg-blue-10 font-medium' : 'sticky z-[3] bg-surface font-medium group-hover/row:bg-neutral-5'), isActive && 'shadow-[inset_0_0_0_1.5px_var(--color-brand)]', inRange && (range?.reference ? 'bg-success-soft' : 'bg-blue-10/70'), cell?.s === 'error' && 'bg-danger-soft/40', stale && (isRightAligned ? 'pl-8' : 'pr-8'))}
+						style={{ width: column.width, flexShrink: 0, ...(frozen ? { left: INDEX_WIDTH } : {}) }}
+						>
+							{viewers.length > 0 && <span data-collaborator-cell title={viewers.map((peer) => `${peer.name} selected this cell`).join(', ')} className="pointer-events-none absolute inset-0 z-[25] border-2" style={{ borderColor: viewers[0].color }}><span className="absolute -right-[2px] bottom-full mb-[2px] max-w-full truncate rounded-t-[4px] px-2 py-0.5 text-[11px] font-semibold leading-4 text-white" style={{ background: viewers[0].color }}>{viewers.map((peer) => peer.name).join(', ')}</span></span>}
 						{inRange && range && <span aria-hidden className="pointer-events-none absolute inset-0 z-[1] border-solid" style={{ borderColor: range.reference ? 'var(--color-success)' : 'var(--color-brand)', borderTopWidth: range.top ? 2 : 0, borderBottomWidth: range.bottom ? 2 : 0, borderLeftWidth: columnIndex === range.left ? 2 : 0, borderRightWidth: columnIndex === range.right ? 2 : 0 }} />}
 						{column.format === 'date' && !cell?.f && (!isEditing || editSeed === undefined) && !['running', 'queued', 'error'].includes(cell?.s ?? '') ? (
 							<DatePicker dateFormat={column.dateFormat} label={`${column.name} date`} value={cell?.v == null || cell.v === '' ? column.categoryOptions?.[0] ?? '' : String(cell.v)} editing={isEditing} onChange={(value) => onCommitEdit(row, column.id, value)} onClose={onCancelEdit} />
@@ -541,7 +613,7 @@ const GridRow = memo(function GridRow({ sheet, referenceRows, newColumnSelected,
 							</Select>
 						) : isEditing ? organizationKind(column) === 'company' && !cell?.f && !editSeed?.startsWith('=') ? (
 							<InlineCompanyEditor initial={editSeed ?? cellInput(cell)} selectInitial={editSeed === undefined} onCommit={(value, company, moveDown) => onCommitEdit(row, column.id, value, company, moveDown)} onCancel={onCancelEdit} />
-						) : <InlineFormulaEditor onFormulaBuilder={(draft) => onFormulaBuilder({ rowId: row.id, columnId: column.id }, draft)} initial={editSeed ?? cellInput(cell)} selectInitial={editSeed === undefined} onCommit={(value, key) => onCommitEdit(row, column.id, value, undefined, key === 'Enter')} onCancel={onCancelEdit} /> : <CellView cell={cell} column={column} row={row} columns={columns} remainingRows={remainingRows} totalRows={totalRows} onAddEntityColumn={onAddEntityColumn} onToggleCheckbox={(value) => onCommitEdit(row, column.id, String(value))} />}
+						) : <InlineFormulaEditor onFormulaBuilder={(draft) => onFormulaBuilder({ rowId: row.id, columnId: column.id }, draft)} initial={editSeed ?? cellInput(cell)} selectInitial={editSeed === undefined} onCommit={(value, key) => onCommitEdit(row, column.id, value, undefined, key === 'Enter')} onCancel={onCancelEdit} /> : <span key={`${cell?.s}:${cell?.t}`} className={clsx('flex h-full min-w-0 flex-1 items-center', fresh && 'cell-settle')}><CellView cell={cell} column={column} row={row} columns={columns} remainingRows={remainingRows} totalRows={totalRows} onAddEntityColumn={onAddEntityColumn} onToggleCheckbox={(value) => onCommitEdit(row, column.id, String(value))} /></span>}
 						{!isEditing && column.type === 'enriched' && column.op && !cell?.f && onRunCell && cell?.s !== 'queued' && cell?.s !== 'running' && <button
 							type="button" aria-label={`${stale ? 'Refresh' : 'Run'} ${column.name} for row ${index + 1}`} title={stale ? 'Inputs changed. Refresh this cell.' : 'Run this cell'} data-stale-enrichment={stale || undefined}
 							onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}
@@ -551,6 +623,7 @@ const GridRow = memo(function GridRow({ sheet, referenceRows, newColumnSelected,
 					</div>
 				);
 			})}
+			{Array.from({ length: ghostCount }, (_, index) => <div key={`ghost-${index}`} aria-hidden className="ghost-column h-full shrink-0 border-r border-dashed border-line-subtle" style={{ width: GHOST_WIDTH }} />)}
 			<NewColumnCell rowId={row.id} rowNumber={index + 1} onSave={onAddColumnValue} selected={newColumnSelected} onActivate={() => onActivateNewColumn(row.id)} onMenu={(anchor) => onCellMenu({ rowId: row.id, columnId: '' }, anchor)} onFormula={(draft) => onFormulaBuilder({ rowId: row.id, columnId: '' }, draft)} />
 		</div>
 	);

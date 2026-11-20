@@ -17,7 +17,7 @@ import { CredentialError } from './credentials';
 import { afterSpend, classifyFailure, failure, inputError, Spend } from './enrich-failure';
 import { decideChoice, decideNoul, decideScore } from './jev';
 import { moltsetsMobile, moltsetsPerson, moltsetsWorkEmail, sourcePlan } from './flat-fee';
-import { answerOf, companyEnrich, companyFieldValue, companySearch, extractFromPage, findEmail, findPage, findPhone, homepageUrl, isMiss, PageNotFound, pickValue, personLookup, readPage, readWebOutput, resolveUrl, searchCompanySuggestions, verifyEmail, webSearch, type PageText } from './looot-jobs';
+import { type EmailFound, answerOf, companyEnrich, companyFieldValue, companySearch, extractFromPage, findEmail, findPage, findPhone, homepageUrl, isMiss, PageNotFound, pickValue, personLookup, readPage, readWebOutput, resolveUrl, searchCompanySuggestions, verifyEmail, webSearch, type PageText } from './looot-jobs';
 import type { LoootClient, LoootResult } from './looot';
 import type { ProviderAccess } from './provider-access';
 
@@ -35,11 +35,11 @@ interface Run {
 
 /** Run one column operation for one row. Never throws: errors come back as { error }. `attempt` names this cell attempt;
     every looot run it makes derives its idempotency key from it. */
-export async function runOp(access: ProviderAccess, op: ColumnOp, row: Row, attempt?: string): Promise<EnrichResponse> {
+export async function runOp(access: ProviderAccess, op: ColumnOp, row: Row, attempt?: string, capUsd?: number): Promise<EnrichResponse> {
 	const started = Date.now();
 	// Everything this run asks of a provider, company research included, is recorded here by the clients themselves.
 	const spend = new Spend();
-	const run: Run = { access: access.withSpend(spend, attempt), sources: new Set(), companyContext: '' };
+	const run: Run = { access: access.withSpend(spend, attempt, capUsd), sources: new Set(), companyContext: '' };
 	/** What the cell keeps about this run's money: the USD looot charged and each run behind it. */
 	const spent = (): CellMeta => ({ ...(spend.costUsd ? { costUsd: Math.round(spend.costUsd * 1e6) / 1e6 } : {}), ...(run.access.calls.length ? { looot: [...run.access.calls] } : {}), ...(run.moltsets ? { moltsets: run.moltsets } : {}) });
 	try {
@@ -57,7 +57,7 @@ export async function runOp(access: ProviderAccess, op: ColumnOp, row: Row, atte
 	}
 }
 
-interface OpResult {
+export interface OpResult {
 	error?: string;
 	failure?: EnrichFailure;
 	value: CellValue;
@@ -360,8 +360,13 @@ async function runCompany({ access, sources }: Run, op: Extract<ColumnOp, { kind
 	if (!input) throw inputError('No company or domain for this row', 'looot');
 	const domain = logoDomain(input) ?? (await searchCompanySuggestions(client, input))[0]?.domain;
 	if (!domain) throw inputError('No matching company domain found for this row', 'looot');
-	const result = await companyEnrich(client, domain);
+	const result = await companyEnrich(client, domain, { prefer: op.prefer, exclude: op.exclude });
 	sources.add(`https://${domain}`);
+	return companyAnswer(op, result, domain, input);
+}
+
+/** What a company.enrich answer puts in a company cell: the chosen field, and the whole answer for previews and unpacking. */
+export function companyAnswer(op: Extract<ColumnOp, { kind: 'company' }>, result: LoootResult, domain: string, input = domain): OpResult {
 	if (isMiss(result)) return { value: null, meta: { reasoning: 'No company data found for this domain.' } };
 	const answer = answerOf(result);
 	const value = companyFieldValue(answer, op.field);
@@ -433,8 +438,8 @@ function moltsetsOnly(attempt: MoltSetsCallMeta, missing: string): OpResult {
 	return { value: null, error: attempt.reason ?? 'MoltSets could not answer.', failure: failure(rejected ? 'credential_invalid' : 'provider_error', 'moltsets', false) };
 }
 
-async function runEmailFind(run: Run, op: Extract<ColumnOp, { kind: 'email-enrichment' }>, row: Row): Promise<OpResult> {
-	const { access } = run;
+/** The person behind an email lookup, or the reason the row cannot run. Shared by one run and a batch row. */
+export function emailIdentity(op: Extract<ColumnOp, { kind: 'email-enrichment' }>, row: Row) {
 	const input = (value: string) => renderTemplate(value, row).trim();
 	const identity = { name: input(op.name), company: input(op.company), domain: toDomain(input(op.domain)), profileUrl: input(op.profileUrl) };
 	if (!identity.name || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(identity.domain)) throw inputError('Provide a person name and company domain for this row.', 'looot');
@@ -442,6 +447,12 @@ async function runEmailFind(run: Run, op: Extract<ColumnOp, { kind: 'email-enric
 		let profile: URL; try { profile = new URL(identity.profileUrl); } catch { throw inputError('Enter a valid LinkedIn profile URL.', 'looot'); }
 		if (profile.protocol !== 'https:' || !['linkedin.com', 'www.linkedin.com'].includes(profile.hostname) || !/^\/(in|pub)\//.test(profile.pathname)) throw inputError('Enter a valid LinkedIn profile URL.', 'looot');
 	}
+	return identity;
+}
+
+async function runEmailFind(run: Run, op: Extract<ColumnOp, { kind: 'email-enrichment' }>, row: Row): Promise<OpResult> {
+	const { access } = run;
+	const identity = emailIdentity(op, row);
 	const sources = contactSources(run, op.source);
 	if (sources.moltsets) {
 		const flat = await moltsetsWorkEmail(access.moltsets(), identity);
@@ -449,40 +460,69 @@ async function runEmailFind(run: Run, op: Extract<ColumnOp, { kind: 'email-enric
 		if (flat.value) return { value: flat.value.email, meta: { reasoning: `Work email from your MoltSets plan. Risk score ${flat.value.riskScore}${flat.value.lastValidatedAt ? `, last validated ${flat.value.lastValidatedAt.slice(0, 10)}` : ''}.` } };
 		if (!sources.looot) return moltsetsOnly(flat.attempt, 'No work email found in MoltSets.');
 	}
-	const found = await findEmail(access.looot(), identity, { prefer: op.prefer });
+	const client = access.looot();
+	const found = await findEmail(client, identity, { prefer: op.prefer, exclude: op.exclude });
+	// Find + verify: a found address is checked in the same cell; a miss is never verified.
+	const verified = op.verify && found.email ? await verifyEmail(client, found.email, { prefer: op.prefer }) : undefined;
+	return emailFindAnswer(found, verified?.status);
+}
+
+const VERIFY_LABEL: Record<string, string> = { valid: 'Valid', invalid: 'Invalid', catch_all: 'Catch-all', risky: 'Risky', unknown: 'Unknown' };
+
+/** What an email lookup puts in the cell: the address, and with verify its checked status. */
+export function emailFindAnswer(found: EmailFound, verified?: string): OpResult {
+	if (!found.email) return { value: null, meta: { reasoning: 'No work email found' } };
 	const outcome = outcomeNote(found.result, 'Work email found', 'No work email found');
-	return { value: found.email, meta: { reasoning: found.email ? `${outcome}${found.status ? `. Provider status: ${found.status}` : ''}.` : 'No work email found', ...(found.status ? { verification: found.status } : {}) } };
+	if (verified) return { value: found.email, meta: { verification: verified, reasoning: `${outcome}. Checked: ${VERIFY_LABEL[verified] ?? verified}.` } };
+	return { value: found.email, meta: { reasoning: `${outcome}${found.status ? `. Provider status: ${found.status}` : ''}.`, ...(found.status ? { verification: found.status } : {}) } };
+}
+
+/** The address a verify column checks for this row, or the reason it cannot run. */
+export function verifyAddress(op: Extract<ColumnOp, { kind: 'email-verify' }>, row: Row): string {
+	const email = renderTemplate(op.email, row).trim();
+	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw inputError('Provide an email address to verify for this row.', 'looot');
+	return email;
 }
 
 async function runEmailVerify({ access }: Run, op: Extract<ColumnOp, { kind: 'email-verify' }>, row: Row): Promise<OpResult> {
-	const email = renderTemplate(op.email, row).trim();
-	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw inputError('Provide an email address to verify for this row.', 'looot');
-	const { status, result } = await verifyEmail(access.looot(), email, { prefer: op.prefer });
+	const { status, result } = await verifyEmail(access.looot(), verifyAddress(op, row), { prefer: op.prefer, exclude: op.exclude });
+	return emailVerifyAnswer(status, result);
+}
+
+export function emailVerifyAnswer(status: string, result: LoootResult): OpResult {
 	return { value: status, meta: { verification: status, reasoning: result.run.outcomeReason ? String(result.run.outcomeReason).slice(0, 200) : `Email status: ${status}` } };
+}
+
+/** The person behind a phone lookup, or the reason the row cannot run. */
+export function phoneIdentity(op: Extract<ColumnOp, { kind: 'phone-find' }>, row: Row) {
+	const input = (value: string) => renderTemplate(value, row).trim();
+	const identity = { name: input(op.name), company: input(op.company), domain: toDomain(input(op.domain)), profileUrl: input(op.profileUrl) };
+	if (!identity.profileUrl && !identity.name) throw inputError('Provide a LinkedIn URL, or a name and company, for this row.', 'looot');
+	return identity;
 }
 
 async function runPhoneFind(run: Run, op: Extract<ColumnOp, { kind: 'phone-find' }>, row: Row): Promise<OpResult> {
 	const { access } = run;
-	const input = (value: string) => renderTemplate(value, row).trim();
-	const identity = { name: input(op.name), company: input(op.company), domain: toDomain(input(op.domain)), profileUrl: input(op.profileUrl) };
-	if (!identity.profileUrl && !identity.name) throw inputError('Provide a LinkedIn URL, or a name and company, for this row.', 'looot');
+	const identity = phoneIdentity(op, row);
 	const sources = contactSources(run, op.source);
 	if (sources.moltsets) {
 		const flat = await moltsetsMobile(access.moltsets(), identity);
 		run.moltsets = flat.attempt;
-		if (flat.value) return { value: flat.value.phone, meta: { reasoning: `Carrier-verified mobile from your MoltSets plan${flat.value.lastValidatedAt ? `, last validated ${flat.value.lastValidatedAt.slice(0, 10)}` : ''}.` } };
+		if (flat.value) return { value: flat.value.phone, meta: { reasoning: `Carrier-verified mobile from your MoltSets phone tokens${flat.value.lastValidatedAt ? `, last validated ${flat.value.lastValidatedAt.slice(0, 10)}` : ''}.` } };
 		if (!sources.looot) return moltsetsOnly(flat.attempt, 'No mobile found in MoltSets.');
 	}
-	const { phone, result } = await findPhone(access.looot(), identity, { prefer: op.prefer });
-	return { value: phone, meta: { reasoning: phone ? outcomeNote(result, 'Phone number found', '') : 'No phone number found' } };
+	const { phone, result } = await findPhone(access.looot(), identity, { prefer: op.prefer, exclude: op.exclude });
+	return phoneAnswer(phone, result);
 }
+
+export const phoneAnswer = (phone: string | null, result: LoootResult): OpResult => ({ value: phone, meta: { reasoning: phone ? outcomeNote(result, 'Phone number found', '') : 'No phone number found' } });
 
 /** Any looot endpoint: the inputs come from the row through `{{Column}}` templates, the answer is kept whole or by path. */
 async function runLooot({ access }: Run, op: Extract<ColumnOp, { kind: 'looot' }>, row: Row): Promise<OpResult> {
 	const { input, empty } = applyInputMap(op.inputs, row, op.inputTypes);
 	if (!Object.keys(input).length && Object.keys(op.inputs).length) throw inputError(`Every mapped input is empty for this row (${empty.join(', ')}).`, 'looot');
 	const client = access.looot();
-	const result = op.endpointId.startsWith('job:') ? await client.job(op.endpointId.slice(4), input, { prefer: op.prefer }) : await client.endpoint(op.endpointId, input);
+	const result = op.endpointId.startsWith('job:') ? await client.job(op.endpointId.slice(4), input, { prefer: op.prefer, ...(op.exclude?.length ? { fallback: { exclude: op.exclude } } : {}) }) : await client.endpoint(op.endpointId, input);
 	if (isMiss(result)) return { value: null, meta: { reasoning: result.run.outcomeReason ? String(result.run.outcomeReason).slice(0, 200) : 'No result' } };
 	const answer = Object.keys(result.fields).length ? result.fields : result.result;
 	let picked = op.path.trim() ? getPath(answer, op.path) : answer;

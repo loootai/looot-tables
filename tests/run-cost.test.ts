@@ -45,7 +45,7 @@ test('a run asks again only when it outgrows the estimate already shown', () => 
 test('run scope labels name real rows and never repeat the whole column', () => {
 	const fromTop = runScopeChoice(10, 312, 312, 1);
 	assert.equal(fromTop.label, 'Run on 10 rows');
-	assert.deepEqual(fromTop.options.map((option) => option.label), ['Run on row 1', 'Run on 10 rows', 'Run on 100 rows', 'Run on all 312 rows']);
+	assert.deepEqual(fromTop.options.map((option) => option.label), ['Run on row 1', 'Try 5 rows', 'Run on 10 rows', 'Run on 100 rows', 'Run on all 312 rows']);
 	assert.deepEqual(runScopeChoice('all', 312, 312, 1).scope, { count: 312, scope: 'column' });
 	const lower = runScopeChoice(100, 99, 312, 214);
 	assert.equal(lower.label, 'Run on 99 rows from row 214');

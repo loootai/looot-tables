@@ -66,7 +66,11 @@ npm run test:browser
 
 Use a dedicated migrated development database for browser tests. The self-hosted suite starts its own server on port 3107 without OAuth. It covers API-key onboarding, persistence, browser isolation, and agent access; live Realtime checks require a separately configured Neon Realtime branch and otherwise skip. The main browser suite uses its local identity fixture. Review `playwright*.config.ts` before running. Traces and screenshots can contain sheet data; keep them out of Git.
 
-`scripts/mock-moltsets.mjs` stands in for the MoltSets API on `http://127.0.0.1:4547` (set `MOLTSETS_API_URL` to it). `scripts/mock-openai.mjs` provides an OpenAI-compatible fixture server on `http://localhost:4545/v1` for manual local testing. It is synthetic, not a live-model quality check. Use test keys and synthetic rows.
+`scripts/mock-looot.mjs` is a local stand-in for the looot REST API on `http://127.0.0.1:4546` (runs, rows batches with continuation, `quoteOnly`, fallback routes with several attempts, `nextSteps`, catalog search with measured numbers, feedback). Start it with `node scripts/mock-looot.mjs --openai` and run the app with `LOOOT_API_URL=http://127.0.0.1:4546`, any `LOOOT_TOKEN`, and `OPENAI_BASE_URL=http://127.0.0.1:4545/v1`. All its data is invented and no call costs anything.
+
+`scripts/mock-openai.mjs` provides an OpenAI-compatible fixture server on `http://localhost:4545/v1` for manual local testing. It is synthetic, not a live-model quality check. Use test keys and synthetic rows.
+
+`scripts/mock-moltsets.mjs` stands in for the MoltSets API on `http://127.0.0.1:4547` (set `MOLTSETS_API_URL` to it and use any `ms_` key). It answers work emails, mobiles and people, reports `records_remaining_5h`, and returns not_found for some rows so the looot fallback runs.
 
 ## Database changes
 

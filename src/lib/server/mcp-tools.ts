@@ -9,6 +9,7 @@ import { upgradeGrid } from '../sheet-upgrade';
 import { danglingReferences, nameKey, nameTaken, sameName } from '../references';
 import { definitionIssue, operationSummaries } from '../operations';
 import { runOp } from './enrich';
+import { cellCapUsd } from '../run-cost';
 import { admitCell } from '../cell-admission';
 import { canonicalJson } from '../cell-content';
 import { cellTransition } from '../cell-lifecycle';
@@ -267,7 +268,7 @@ export class McpOperations {
 	private async run(sheetId: string, plan: EnrichmentPlan, marker: Cell): Promise<CellOutcome> {
 		let settled = false;
 		try {
-			const result = await this.execute(this.access, plan.op, plan.record);
+			const result = await this.execute(this.access, plan.op, plan.record, undefined, cellCapUsd(plan.op) || undefined);
 			const next = result.error ? failureCell(plan, result.error, result.meta, undefined, marker) : resultCell(plan, result.value, result.meta);
 			const saved = await this.settle(sheetId, plan, marker, (grid) => settleCell(plan, grid, next, marker));
 			settled = saved !== null;

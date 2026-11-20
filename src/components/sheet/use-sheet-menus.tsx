@@ -7,6 +7,9 @@ import { OPERATIONS } from '@/lib/operations';
 import { uniqueName } from '@/lib/references';
 import type { SheetCommands } from '@/lib/sheet-commands';
 import type { Column, Row, Sheet, Sort } from '@/lib/types';
+import { unpackableFields } from '@/lib/unpack';
+import { routedJob } from '@/lib/job-of';
+import { PackageOpen, Route } from 'lucide-react';
 import { ArrowDown, ArrowUp, Columns3, Eraser, EyeOff, FileText, Filter, FunctionSquare, Mail, MoveLeft, MoveRight, Pencil, Play, Plus, RefreshCw, Sparkles, Trash2, Upload } from 'lucide-react';
 import type { ActiveCell } from './grid';
 import { deleteColumnNotice, plural } from './sheet-page-utils';
@@ -18,8 +21,8 @@ import type { SheetViewState } from './use-sheet-view';
 
 /** Items for the Add menu, the column header menu, and the row and cell context menus. */
 export function useSheetMenus({ sheetId, sheet, allRows, commands, content, selection, overlays, actions, view, onFilter }: { sheetId: string; sheet: Sheet; allRows: Row[]; commands: SheetCommands; content: SheetRows; selection: SheetSelection; overlays: SheetOverlayState; actions: SheetActions; view: SheetViewState; onFilter: () => void }) {
-	const { rows, enrichedColumns, rowById } = content;
-	const { columnNames, report, runCells } = actions;
+	const { rows, enrichedColumns, rowById } = content;	const { columnNames, report, runCells } = actions;
+	const announceUnpack = (added: number) => actions.toast(`Added ${added} ${added === 1 ? 'column' : 'columns'} from answers already paid for. Nothing ran.`);
 
 	const addColumnItems = (insertAt?: number): MenuItem[] => [
 		{ label: 'AI column', icon: <Sparkles />, onSelect: () => overlays.setEditor({ insertAt }) },
@@ -42,7 +45,8 @@ export function useSheetMenus({ sheetId, sheet, allRows, commands, content, sele
 			...(column.type === 'enriched' ? [
 				{ label: 'Edit AI column', icon: <Pencil />, onSelect: () => overlays.setEditor({ column }) },
 				{ label: 'Run unfinished cells', icon: <Play />, onSelect: () => runCells(rows, [column], 'unfinished') },
-				{ label: rows.length === allRows.length ? 'Re-run all cells' : `Re-run ${plural(rows.length, 'visible cell')}`, icon: <RefreshCw />, onSelect: () => runCells(rows, [column], 'all') },
+				{ label: rows.length === allRows.length ? 'Re-run all cells' : `Re-run ${plural(rows.length, 'visible cell')}`, icon: <RefreshCw />, onSelect: () => runCells(rows, [column], 'all') },				...(routedJob(column.op) ? [{ label: 'Routing…', icon: <Route />, onSelect: () => overlays.setRouting({ column, anchor: overlays.columnMenu?.anchor ?? new DOMRect(200, 120, 0, 0) }) }] : []),
+				...((fields) => fields.length ? [{ label: `Unpack ${fields.map((field) => field.name).join(', ')} · $0`, icon: <PackageOpen />, onSelect: () => void commands.unpackColumn(column, allRows).then((added) => added && announceUnpack(added), report('Could not unpack this column')) }] : [])(unpackableFields(column, allRows)),
 				{ label: 'Clear cells', icon: <Eraser />, onSelect: () => overlays.setConfirm({ title: `Clear “${column.name}”?`, description: 'Every value in this column is removed. Its instructions stay.', label: 'Clear', danger: true, action: () => commands.clearColumn(column.id) }) },
 				{ separator: true, label: '' },
 			] : []),

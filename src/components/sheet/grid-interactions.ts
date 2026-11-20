@@ -7,8 +7,8 @@ import { organizationKind } from '@/lib/organization-logo';
 import type { Column, Row } from '@/lib/types';
 import type { FormulaRangeEditor } from './formula-range-context';
 
-export const ROW_HEIGHT = 36;
-export const HEADER_HEIGHT = 36;
+export const ROW_HEIGHT = 33;
+export const HEADER_HEIGHT = 40;
 export const INDEX_WIDTH = 48;
 
 export interface ActiveCell {

@@ -12,6 +12,8 @@ import { HaltedBanner } from './halted-banner';
 import { SheetFormulaBar, SheetGridArea } from './sheet-page-grid';
 import { SheetDialogs, SheetMenus } from './sheet-page-overlays';
 import { SheetToolbar } from './sheet-toolbar';
+import { RunBar } from './run-bar';
+import { updateSheetSpend } from '@/lib/api';
 import { useSheetActions } from './use-sheet-actions';
 import { useSheetData, useSheetRows } from './use-sheet-data';
 import { useSheetHistory } from './use-sheet-history';
@@ -114,13 +116,22 @@ function SheetWorkspace({ sheetId, sheet, allRows, commands }: { sheetId: string
 					selection={{ onRun: (mode) => runCells(selection.selectedRows, enrichedColumns, mode), onDelete: () => actions.confirmDeleteRows(selection.selectedRows), onClear: () => selection.setSelected(new Set()) }}
 					onRename={(name) => updateSheet(sheetId, { name })}
 					onMobileRename={() => overlays.setRenamingSheet(true)}
-					banner={halt && <HaltedBanner halt={halt} waiting={runStatus.queued} onRetry={() => void commands.retryHalted().catch(report('Could not resume'))} onDismiss={() => void commands.dismissHalt().catch(report('Could not stop these cells'))} onLeave={onLeave} />}
+					banner={halt && <HaltedBanner halt={halt} waiting={runStatus.queued} onRetry={() => void (halt.reason === 'column_halted' && halt.columnId ? updateSheetSpend(sheetId, { resumeColumn: halt.columnId }) : Promise.resolve()).then(() => commands.retryHalted()).catch(report('Could not resume'))} onDismiss={() => void commands.dismissHalt().catch(report('Could not stop these cells'))} onLeave={onLeave} />}
 				/>
 				<SheetFormulaBar sheet={sheet} content={content} selection={selection} commands={commands} onSave={actions.editCell} />
 				<SheetGridArea sheetId={sheetId} sheet={sheet} allRows={allRows} commands={commands} content={content} selection={selection} overlays={overlays} actions={actions} view={view} halt={halt} onFind={openFind} onLeave={onLeave} />
+				{enrichedColumns.length > 0 && <RunBar sheet={sheet} allRows={allRows} columns={enrichedColumns} runs={{
+					status: runStatus, unfinished: content.unfinished, outdated: content.outdated, failed: content.failed, shownRows: rows.length,
+					plan: () => commands.plan(rows, enrichedColumns, 'unfinished', { ready: actions.providerReady, grid: content.grid, sheetColumns: sheet.columns }),
+					onRunUnfinished: () => runCells(rows, enrichedColumns, 'unfinished'),
+					onRerunOutdated: () => runCells(rows, enrichedColumns, 'outdated'),
+					onRerunVisible: () => runCells(rows, enrichedColumns, 'all'),
+					onRetryFailed: () => actions.request(commands.planRetry(content.progressRows ?? [], enrichedColumns, { ready: actions.providerReady })),
+					onStop: () => void commands.stop(),
+				}} />}
 			</div>
 
-			<SheetMenus overlays={overlays} menus={menus} />
+			<SheetMenus overlays={overlays} menus={menus} onSaveRouting={(column, op) => commands.editColumn(column.id, { op })} />
 			<SheetDialogs sheetId={sheetId} sheet={sheet} allRows={allRows} commands={commands} content={content} activeIndex={selection.activeIndex} overlays={overlays} actions={actions} onActivate={selection.setActive} findButtonRef={findButtonRef} />
 		</div>
 	);

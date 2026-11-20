@@ -28,6 +28,8 @@ export interface MoltSetsAnswer {
 	retryAfterSeconds?: number;
 	/** Enrichment records left in the current 5 hour window, from `metadata.fair_use`. */
 	recordsLeft5h?: number;
+	/** How long the call took, retries included. */
+	ms?: number;
 }
 
 const TIMEOUT_MS = 20_000;
@@ -76,8 +78,9 @@ export class MoltSetsClient {
 		const cooldownKey = `${fingerprint(this.#key)}:${tool}`;
 		const until = cooldowns.get(cooldownKey);
 		if (until && until > Date.now()) return { outcome: 'exhausted', code: 'cooling_down', message: 'The MoltSets window is spent; not asking again until it reopens.', retryAfterSeconds: Math.ceil((until - Date.now()) / 1000) };
+		const started = Date.now();
 		for (let attempt = 0; ; attempt++) {
-			const answer = await this.#send(tool, body);
+			const answer = { ...await this.#send(tool, body), ms: Date.now() - started };
 			if (answer.code === 'rate_limited' || answer.code === 'search_concurrency_exceeded') {
 				// A burst guard, not the plan: wait a moment and ask again. Nothing was charged.
 				if (attempt < BURST_RETRIES.length) { await this.#sleep(Math.min(BURST_RETRIES[attempt], (answer.retryAfterSeconds ?? 0) * 1000 || BURST_RETRIES[attempt])); continue; }

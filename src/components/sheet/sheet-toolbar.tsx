@@ -95,7 +95,7 @@ function SheetTitle({ name, onSave, onMobileRename }: { name: string; onSave: (n
 function MenuCheckbox({ checked, onChange, children }: { checked: boolean; onChange: (checked: boolean) => void; children: ReactNode }) {
 	return (
 		<button type="button" role="menuitemcheckbox" aria-checked={checked} onClick={() => onChange(!checked)} className={clsx(MENU_ROW, 'text-fg hover:bg-tint/[0.05]')}>
-			<span aria-hidden className={clsx('grid size-4 shrink-0 place-items-center rounded border transition-colors', checked ? 'border-brand bg-brand text-white' : 'border-line-strong bg-surface')}>{checked && <Check className="!size-3 !text-white" strokeWidth={2.5} />}</span>
+			<span aria-hidden className={clsx('grid size-4 shrink-0 place-items-center rounded border transition-colors', checked ? 'border-brand bg-brand text-brand-fg' : 'border-line-strong bg-surface')}>{checked && <Check className="!size-3 !text-brand-fg" strokeWidth={2.5} />}</span>
 			<span className="min-w-0 flex-1">{children}</span>
 		</button>
 	);
@@ -127,16 +127,6 @@ function ExportMenu({ anchor, summary, subset, options, onOptions, onExport, onC
 			<hr className={MENU_SEPARATOR} />
 		</FloatingMenu>
 	);
-}
-
-/** The run menu's choices; re-running outdated cells and a retry appear only when there are some. */
-function runMenuItems(runs: SheetToolbarProps['runs'], shownRows: number): MenuItem[] {
-	return [
-		{ label: runs.unfinished ? `Run ${plural(runs.unfinished, 'unfinished cell')}` : 'Run unfinished cells', icon: <Play />, disabled: !runs.canRun || runs.unfinished === 0, onSelect: runs.onRunUnfinished },
-		...(runs.outdated > 0 ? [{ label: `Re-run ${plural(runs.outdated, 'outdated cell')}`, icon: <RefreshCw />, disabled: !runs.canRun, onSelect: runs.onRerunOutdated }] : []),
-		{ label: `Re-run ${plural(shownRows, 'visible row')}`, icon: <RefreshCw />, disabled: !runs.canRun || shownRows === 0, onSelect: runs.onRerunVisible },
-		...(runs.failed > 0 ? [{ label: `Retry ${plural(runs.failed, 'failed cell')}`, icon: <RotateCcw />, onSelect: runs.onRetryFailed }] : []),
-	];
 }
 
 function showColumnItems(hidden: Column[], onShowColumns: (columnIds: string[]) => void): MenuItem[] {
@@ -245,21 +235,6 @@ function FindRowsButton({ finding, buttonRef }: { finding: SheetToolbarProps['fi
 	);
 }
 
-/** Stop while cells run. A halted run is resumed or stopped only from its banner, so Run waits until then. */
-function RunControl({ runs, shownRows }: { runs: SheetToolbarProps['runs']; shownRows: number }) {
-	if (runs.status.halt) return <Button size="sm" variant="brand" disabled title="Paused: resume or stop from the banner"><Play strokeWidth={1.75} /> Run</Button>;
-	if (runs.status.pending > 0) return (
-		<Button size="sm" variant="primary" onClick={runs.onStop} aria-label={`Stop ${plural(runs.status.pending, 'cell')}`}>
-			<Square strokeWidth={1.5} /> Stop
-		</Button>
-	);
-	return (
-		<MenuButton align="right" width="w-64" className={buttonClassName('brand', 'sm')} items={runMenuItems(runs, shownRows)}>
-			<Play strokeWidth={1.75} /> Run
-		</MenuButton>
-	);
-}
-
 /** Title row, then one row of actions. Selecting rows swaps the actions for selection actions in place, so the grid never moves.
     The action row compacts by its own width (a container query), so a tablet beside the sidebar gets the phone layout. */
 export function SheetToolbar({ sheet, allRows, shownRows, selectedRows, search, onSearch, filters, onFiltersChange, filterRequest, onOpenFilter, history, runs, finding, findButtonRef, addItems, onShowColumns, onExport, selection, onRename, onMobileRename, banner }: SheetToolbarProps) {
@@ -297,9 +272,7 @@ export function SheetToolbar({ sheet, allRows, shownRows, selectedRows, search, 
 					</MenuButton>
 					<Button size="sm" variant="ghost" aria-haspopup="menu" aria-expanded={exporter.open} className="@max-3xl:hidden" onClick={(event) => exporter.toggle(event.currentTarget.getBoundingClientRect())}>
 						<Download strokeWidth={1.5} /> Export
-					</Button>
-					<RunControl runs={runs} shownRows={shownRows} />
-					<Button ref={moreButton} size="sm" variant="ghost" aria-label="More actions" title={failedHere ? plural(failedHere, 'failed cell') : undefined} aria-haspopup="menu" aria-expanded={more !== null} className="relative w-11 px-0 @3xl:hidden" onClick={(event) => setMore(more ? null : event.currentTarget.getBoundingClientRect())}>
+					</Button><Button ref={moreButton} size="sm" variant="ghost" aria-label="More actions" title={failedHere ? plural(failedHere, 'failed cell') : undefined} aria-haspopup="menu" aria-expanded={more !== null} className="relative w-11 px-0 @3xl:hidden" onClick={(event) => setMore(more ? null : event.currentTarget.getBoundingClientRect())}>
 						<Ellipsis />{failedHere > 0 && <span aria-hidden className="absolute top-1.5 right-1.5 size-2 rounded-full bg-danger" />}
 					</Button>
 				</>}

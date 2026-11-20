@@ -35,6 +35,7 @@ function attemptOf(tool: MoltSetsTool, answer: MoltSetsAnswer, hit?: Partial<Mol
 		...(reason ? { reason } : {}),
 		...(answer.retryAfterSeconds !== undefined && answer.outcome === 'exhausted' ? { retryAfterSeconds: answer.retryAfterSeconds } : {}),
 		...(answer.recordsLeft5h !== undefined ? { recordsLeft5h: answer.recordsLeft5h } : {}),
+		...(answer.ms !== undefined ? { ms: answer.ms } : {}),
 		...hit,
 	};
 }

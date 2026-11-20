@@ -35,7 +35,7 @@ export const EmailDraftSchema = z.object({
 export type EmailDraft = z.infer<typeof EmailDraftSchema>;
 
 /** How looot orders the providers of a job: the cheapest first, the most reliable first, or a mix of both. */
-export const EMAIL_PREFERENCES = ['balanced', 'cheapest', 'reliable'] as const;
+export const EMAIL_PREFERENCES = ['balanced', 'cheapest', 'reliable', 'fastest'] as const;
 export type EmailPreference = typeof EMAIL_PREFERENCES[number];
 /** Where a contact column looks first. Unset means `moltsets-first`: MoltSets when a MoltSets key exists, then looot.
     Left unset by default so columns saved before this setting keep their fingerprint. */
@@ -52,11 +52,17 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
   /** looot's job:people.email.find walks its providers in this order until one finds an email. */
   prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
   source: contactSource,
+  /** Check the found address with job:people.email.verify in the same cell. New columns turn it on. */
+  verify: z.boolean().optional(),
+  /** Providers (catalog endpoint ids) this column's route skips: looot's fallback.exclude. */
+  exclude: z.array(z.string().min(1).max(200)).max(20).optional(),
  }),
  z.object({
   kind: z.literal('email-verify'),
   email: z.string().trim().min(1).max(300),
   prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
+  /** Providers (catalog endpoint ids) this column's route skips: looot's fallback.exclude. */
+  exclude: z.array(z.string().min(1).max(200)).max(20).optional(),
  }),
  z.object({
   kind: z.literal('phone-find'),
@@ -66,6 +72,8 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
   profileUrl: z.string().max(500).default(''),
   prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
   source: contactSource,
+  /** Providers (catalog endpoint ids) this column's route skips: looot's fallback.exclude. */
+  exclude: z.array(z.string().min(1).max(200)).max(20).optional(),
  }).refine((op) => Boolean(op.profileUrl.trim() || op.name.trim()), { message: 'Provide a LinkedIn URL, or a name and company.' }),
  /** Any looot endpoint: a catalog endpoint with its inputs mapped from `{{Column}}` templates. */
  z.object({
@@ -81,6 +89,8 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
   path: z.string().max(200).default(''),
   /** The job's provider order. Only used when the endpoint is a job (job:<id>). */
   prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
+  /** Providers (catalog endpoint ids) this column's route skips: looot's fallback.exclude. */
+  exclude: z.array(z.string().min(1).max(200)).max(20).optional(),
  }),
  z.object({
   kind: z.literal('email-draft'),
@@ -148,6 +158,9 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
 	z.object({
 		kind: z.literal('company'),
 		domain: z.string().min(1).max(500),
+		/** company.enrich's provider order and skipped providers. */
+		prefer: z.enum(EMAIL_PREFERENCES).optional(),
+		exclude: z.array(z.string().min(1).max(200)).max(20).optional(),
 		field: z.enum(['description', 'title', 'slogan', 'industry', 'employees', 'city', 'country', 'address', 'email', 'phone', 'ticker', 'linkedin', 'twitter', 'pricing_url', 'careers_url', 'blog_url', 'contact_url', 'logo_url', 'primary_color', 'language', 'funding_total', 'funding_stage', 'funding_latest_round', 'funding_latest_date', 'funding_latest_amount', 'funding_round_count']),
 	}),
 	/** Person facts from looot's people.enrich and linkedin.person.profile jobs. */
@@ -212,10 +225,25 @@ export interface LoootCallMeta {
 	provider?: string;
 	outcome: 'hit' | 'weak' | 'miss' | 'error' | 'rejected' | 'skipped' | 'pending';
 	costUsd: number;
-	/** The providers a fallback route tried, in order. */
-	attempts?: Array<{ provider: string; endpointId?: string; outcome: string; costUsd: number; reason?: string }>;
+	/** The providers a fallback route tried, in order, with what each cost and how long it took. */
+	attempts?: Array<{ provider: string; endpointId?: string; outcome: string; costUsd: number; ms?: number; reason?: string }>;
 	/** How many providers the route skipped without calling. */
 	skipped?: number;
+	/** The route hit its maxCostUsd before a provider answered. */
+	capped?: boolean;
+	/** looot's own field map for the job (`normalized.fields`), kept so sibling columns can be unpacked at $0. */
+	normalized?: Record<string, unknown>;
+	/** Priced follow-up jobs looot suggested after a hit. They never run without a click. */
+	nextSteps?: NextStep[];
+}
+
+/** A follow-up job looot suggested after a hit: what it does, its price for this row's input, and the input it would use. */
+export interface NextStep {
+	suggestionId?: string;
+	job: string;
+	title: string;
+	priceUsd: number | null;
+	input: Record<string, unknown>;
 }
 
 /** The MoltSets lookup behind a cell: always the first attempt, always $0 because the MoltSets plan covers it. */
@@ -233,6 +261,8 @@ export interface MoltSetsCallMeta {
 	retryAfterSeconds?: number;
 	/** Enrichment records left in the current 5 hour window after this call. */
 	recordsLeft5h?: number;
+	/** How long the MoltSets call took. */
+	ms?: number;
 }
 
 export interface CellMeta {
@@ -380,12 +410,14 @@ export const EnrichRequestSchema = z.object({
 	/** Column name → current cell value for the row. */
 	row: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())])),
 	model: z.string().max(100).optional(),
-	/** One cell attempt. Each looot run of the attempt derives its idempotency key from it, so a resend of the same attempt never pays twice. */
+	/** One cell run. Each looot run of it derives its idempotency key from it, so a resend of the same run never pays twice. */
 	attempt: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional(),
+	/** The sheet cell this run fills: the server holds its spend against the sheet's cap and counts its column's misses. */
+	cell: z.object({ sheetId: z.string().min(1).max(128), rowId: z.string().min(1).max(128), columnId: z.string().min(1).max(128) }).optional(),
 });
 
 /** Why an enrichment failed. Set where the failure is understood; code branches on this, never on `error` text. */
-export const FAILURE_REASONS = ['rate_limited', 'credits_exhausted', 'credential_missing', 'credential_invalid', 'timeout', 'provider_error', 'input_invalid'] as const;
+export const FAILURE_REASONS = ['rate_limited', 'credits_exhausted', 'credential_missing', 'credential_invalid', 'timeout', 'provider_error', 'input_invalid', 'spend_capped', 'column_halted'] as const;
 export type FailureReason = (typeof FAILURE_REASONS)[number];
 export type FailureProvider = 'openai' | 'looot' | 'typesafe' | 'moltsets';
 export interface EnrichFailure {
