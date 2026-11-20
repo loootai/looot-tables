@@ -28,4 +28,6 @@ The production dependency audit also identified libvips binaries brought in by S
 
 `public/companies/` and `public/providers/` contain company/provider names and logos used in previews and integrations. These are third-party brand assets, not original artwork of this project. The project's MIT license does not grant rights to third-party trademarks or imply endorsement.
 
+`public/demo/companies/` holds company logos used only for the demo rows and screenshots. They come from Simple Icons v13.21.0 under CC0 1.0; see `public/demo/companies/LICENSE.txt`. The names and logos remain trademarks of their owners and are used only to identify them. `public/demo/people/` holds portraits of fictional people made for the demo rows.
+
 Forks that redistribute these assets are responsible for confirming they have permission to do so. Attribution alone does not establish permission.
