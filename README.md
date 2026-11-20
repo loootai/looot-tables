@@ -71,10 +71,36 @@ Bring your own keys. Usage is billed to your own accounts. Add them in the app u
 | [looot](https://looot.ai) | Web search, page reads, company and people data, emails, phones, any catalog endpoint | Required |
 | [OpenAI](https://platform.openai.com/api-keys) | AI columns, Find rows and column setup | Required |
 | [TypeSafe](https://typesafe.ai) | Calibrated true/false, category and score columns (falls back to OpenAI) | Optional |
+| [MoltSets](https://moltsets.com) | Flat-fee work emails, mobiles and person lookups, tried before looot | Optional |
 
-Keys you enter stay in your browser and are only sent to your deployment's API routes. For a private team deployment, set `LOOOT_TOKEN`, `OPENAI_API_KEY` and the rest on the server together with `ENRICHABLE_PASSWORD`. [.env.example](.env.example) lists every option. Set `LOOOT_API_URL` only to reach looot through a proxy.
+Keys you enter stay in your browser and are only sent to your deployment's API routes. For a private team deployment, set `LOOOT_TOKEN`, `OPENAI_API_KEY` and the rest on the server together with `ENRICHABLE_PASSWORD`. [.env.example](.env.example) lists every option. Set `LOOOT_API_URL` only to reach looot through a proxy. A MoltSets key goes to the MoltSets API and nowhere else (`MOLTSETS_API_URL` points it at a proxy or a local stand-in).
 
 Every run sends a fresh idempotency key for each cell attempt, so a resend of the same attempt never pays twice.
+
+## Open-source Loopster alternative
+
+[Loopster](https://loopster.ai/pricing) sells a flat monthly plan for a table of enrichment columns. looot tables is the open-source version of that table, and it takes the flat-fee part from a plan you already own. Connect a [MoltSets](https://moltsets.com/pricing) key and the contact columns ask your MoltSets plan first. A hit costs no dollars and never reaches looot. A miss, or a window that is used up, goes to the looot job, which you pay for per hit. Everything else a table needs (company data, search, SERP, scraping, 4,100+ endpoints) runs on looot too, from one prepaid balance.
+
+| | Loopster Scale | looot tables with MoltSets Pro |
+| --- | --- | --- |
+| Table and columns | included | free, MIT, self-hosted or deployed by you |
+| Flat monthly fee | $449 | $97 (MoltSets Pro) |
+| Work emails | included, up to 30,000 requests a day | included in the plan, up to 15,000 records every 5 hours and 75,000 a week |
+| Mobiles | included on Scale | not in the plan. MoltSets sells phone tokens as a separate subscription, for example 646 a month for $97 or 1,313 for $197 |
+| Misses and everything else | 50+ vendors from a dollar wallet | looot jobs, billed per hit to your looot balance |
+
+Prices as listed on 2026-11-20, from [loopster.ai/pricing](https://loopster.ai/pricing) and [moltsets.com/pricing](https://moltsets.com/pricing). Both change, so check them before you decide.
+
+Both sides have caps. MoltSets limits records and requests per rolling 5 hour window and per week, and Loopster limits requests per day. When the MoltSets window is used up, the table stops asking MoltSets until it reopens and sends the rest to looot, which bills each row that finds something.
+
+What it does today:
+
+- **Source per column.** A work email, mobile or person column picks "MoltSets then looot" (the default once a key exists), "looot only" or "MoltSets only".
+- **Receipt per cell.** Open a cell and attempt 1 is the MoltSets lookup at $0, then every looot attempt with its price.
+- **Risk score on emails.** MoltSets grades each email A to F for send safety: A and B green, C (catch-all) amber, D (known bad) red, F (no signal) grey. The grade says nothing about whether the address belongs to the person.
+- **Plan meter.** The sidebar shows the records left in the current 5 hour window and the phone tokens left, next to your looot balance.
+
+What it does not do yet. MoltSets people search, company search and personal email (US records only) are not wired into columns, and there are no Signals, Functions or CRM write-back columns. Mobiles come from phone tokens, so a table that needs many mobiles should price the MoltSets phone subscription, not the base plan.
 
 ## Good to know
 

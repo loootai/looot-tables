@@ -17,12 +17,12 @@ function MoltSetsAttempt({ attempt }: { attempt: MoltSetsCallMeta }) {
 	return (
 		<li data-moltsets-attempt className="flex flex-col gap-1 rounded-lg border border-line-subtle px-3 py-2">
 			<div className="flex items-center justify-between gap-3 text-body-sm">
-				<span data-looot-provider className="min-w-0 truncate text-fg">MoltSets · plan</span>
+				<span data-looot-provider className="min-w-0 truncate text-fg">MoltSets · plan · $0</span>
 				<Outcome outcome={attempt.outcome} />
 			</div>
 			<div className="flex items-center justify-between gap-3 text-caption text-fg-subtle tabular">
 				<span className="min-w-0 truncate" title={attempt.tool}>{attempt.tool}</span>
-				<span data-looot-cost>$0 on your plan</span>
+				<span data-looot-cost>$0</span>
 			</div>
 			{attempt.riskScore && <span data-risk-score={attempt.riskScore} data-risk-tone={riskTone(attempt.riskScore)} className="text-caption text-fg-muted">{riskTitle(attempt.riskScore, attempt.lastValidatedAt)}</span>}
 			{attempt.reason && <span className="text-caption text-fg-subtle">{attempt.reason}{attempt.outcome === 'exhausted' && attempt.retryAfterSeconds ? ` Reopens in about ${Math.max(1, Math.round(attempt.retryAfterSeconds / 60))} min.` : ''}</span>}
