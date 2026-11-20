@@ -72,7 +72,10 @@ export function LoootCalls({ calls, moltsets }: { calls?: LoootCallMeta[]; molts
 			<h4 className="flex items-baseline justify-between gap-2 text-caption text-fg-subtle"><span>{total === 1 ? 'Receipt' : `Receipt · ${total} lookups`}</span>{total > 1 && <span data-lookups-total>Total <span className="num text-fg">{formatUsd(lookupsTotal(all))}</span></span>}</h4>
 			<ul className="flex flex-col gap-2">
 				{moltsets && <MoltSetsAttempt attempt={moltsets} />}
-				{shown.map((call) => (
+				{shown.map((call) => {
+					// One try by the provider that answered: the card's own line says it all, so no route list under it.
+					const single = call.attempts?.length === 1 && call.attempts[0].provider === call.provider ? call.attempts[0] : null;
+					return (
 					<li key={call.runId} className="flex flex-col gap-2 rounded-lg border border-line px-3 py-2.5">
 						<div className="flex items-center gap-2.5">
 							<ProviderTile name={call.provider ?? '?'} />
@@ -82,10 +85,10 @@ export function LoootCalls({ calls, moltsets }: { calls?: LoootCallMeta[]; molts
 							</div>
 							<div className="flex flex-col items-end gap-1">
 								<Outcome outcome={call.outcome} />
-								<span data-looot-cost className="num text-[11.5px] text-fg">{formatUsd(call.costUsd)}</span>
+								<span data-looot-cost className="num text-[11.5px] text-fg">{formatUsd(call.costUsd)}{single && single.ms !== undefined ? <span className="text-fg-subtle"> · {ms(single.ms)}</span> : null}</span>
 							</div>
 						</div>
-						{call.attempts && call.attempts.length > 0 && (
+						{call.attempts && call.attempts.length > 0 && !single && (
 							<ol aria-label="Providers tried" title={routeLine(call)} className="flex flex-col gap-1 border-t border-line-subtle pt-2">
 								{call.attempts.map((attempt, index) => (
 									<li key={`${attempt.endpointId ?? attempt.provider}-${index}`} className="flex items-center gap-2 text-caption text-fg-muted">
@@ -106,7 +109,8 @@ export function LoootCalls({ calls, moltsets }: { calls?: LoootCallMeta[]; molts
 							<ReportButton call={call} />
 						</div>
 					</li>
-				))}
+					);
+				})}
 			</ul>
 			{all.length > shown.length && <p className="text-caption text-fg-subtle">{all.length - shown.length} more runs not shown.</p>}
 		</section>

@@ -58,9 +58,9 @@ export function CellPanel({ sheet, row, column, onClose, onRerun, onEditColumn, 
 				{cell?.f && <section className="flex flex-col gap-2"><h4 className="text-caption text-fg-subtle">Formula</h4><code className="break-all text-body-sm text-fg">{cell.f}</code></section>}
 				<ProbabilitySection meta={cell?.m} column={column} />
 				<WhySection meta={cell?.m} />
+				<SourcesSection meta={cell?.m} />
 				<UsageSection cell={cell} />
 				<LoootCalls calls={cell?.m?.looot} moltsets={cell?.m?.moltsets} />
-				<SourcesSection meta={cell?.m} />
 			</div>
 			{column.op && (
 				<div className="flex items-center gap-2 border-t border-line-subtle px-4 py-3">
