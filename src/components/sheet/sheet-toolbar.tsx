@@ -9,7 +9,7 @@ import { exportSummary, type ExportFormat } from '@/lib/sheet-export';
 import type { SheetView } from '@/lib/sheet-view';
 import type { Column, Row, Sheet } from '@/lib/types';
 import clsx from 'clsx';
-import { ArrowLeft, Check, ChevronDown, Download, Ellipsis, Eye, EyeOff, FileJson, FileSpreadsheet, FileText, Filter, Pencil, Play, Plus, Redo2, RefreshCw, RotateCcw, Search, Sparkles, Square, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowLeft, Bot, Check, ChevronDown, Download, Ellipsis, Eye, EyeOff, FileJson, FileSpreadsheet, FileText, Filter, Pencil, Play, Plus, Redo2, RefreshCw, RotateCcw, Search, Sparkles, Square, Trash2, Undo2, X } from 'lucide-react';
 import Link from 'next/link';
 import { type MouseEvent, type ReactNode, type RefObject, useRef, useState } from 'react';
 import { NavigationButton } from '@/components/app/sidebar';
@@ -44,6 +44,8 @@ export interface SheetToolbarProps {
 	onMobileRename: () => void;
 	/** Shown under the actions, for a paused run. */
 	banner?: ReactNode;
+	/** The agent panel's toggle (also ⌘/Ctrl+K). */
+	agent: { open: boolean; onToggle: () => void };
 }
 
 /** Inline rename on desktop; a dialog on touch-sized screens, where a focused input would cover the sheet. */
@@ -237,7 +239,7 @@ function FindRowsButton({ finding, buttonRef }: { finding: SheetToolbarProps['fi
 
 /** Title row, then one row of actions. Selecting rows swaps the actions for selection actions in place, so the grid never moves.
     The action row compacts by its own width (a container query), so a tablet beside the sidebar gets the phone layout. */
-export function SheetToolbar({ sheet, allRows, shownRows, selectedRows, search, onSearch, filters, onFiltersChange, filterRequest, onOpenFilter, history, runs, finding, findButtonRef, addItems, onShowColumns, onExport, selection, onRename, onMobileRename, banner }: SheetToolbarProps) {
+export function SheetToolbar({ sheet, allRows, shownRows, selectedRows, search, onSearch, filters, onFiltersChange, filterRequest, onOpenFilter, history, runs, finding, findButtonRef, addItems, onShowColumns, onExport, selection, onRename, onMobileRename, banner, agent }: SheetToolbarProps) {
 	const [more, setMore] = useState<DOMRect | null>(null);
 	const moreButton = useRef<HTMLButtonElement>(null);
 	const total = allRows.length;
@@ -266,6 +268,9 @@ export function SheetToolbar({ sheet, allRows, shownRows, selectedRows, search, 
 				)}
 				<div className="flex-1 @max-3xl:hidden" />
 				{selectedRows > 0 ? <SelectionActions selectedRows={selectedRows} canRun={runs.canRun} selection={selection} exportOpen={exporter.open} onExport={exporter.toggle} /> : <>
+					<Button size="sm" variant="ghost" aria-pressed={agent.open} title="Agent (⌘/Ctrl+K)" onClick={agent.onToggle} className={agent.open ? 'bg-blue-10 text-brand hover:bg-blue-20 hover:text-brand' : undefined}>
+						<Bot strokeWidth={1.5} /> Agent<kbd className="ml-0.5 rounded border border-line-subtle px-1 text-[10px] leading-4 text-fg-subtle @max-3xl:hidden">⌘K</kbd>
+					</Button>
 					<FindRowsButton finding={finding} buttonRef={findButtonRef} />
 					<MenuButton align="right" width="w-56" className={clsx(buttonClassName('ghost', 'sm'), '@max-3xl:hidden')} items={addItems}>
 						<Plus strokeWidth={1.5} /> Add <ChevronDown className="!size-3.5 text-fg-subtle" strokeWidth={1.5} />

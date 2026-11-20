@@ -6,13 +6,15 @@ import { populateRunner } from '@/lib/populate-runner';
 import { createSheetCommands, type SheetCommands } from '@/lib/sheet-commands';
 import type { Row, Sheet } from '@/lib/types';
 import Link from 'next/link';
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FormulaRangeProvider } from './formula-range-context';
 import { HaltedBanner } from './halted-banner';
 import { SheetFormulaBar, SheetGridArea } from './sheet-page-grid';
 import { SheetDialogs, SheetMenus } from './sheet-page-overlays';
 import { SheetToolbar } from './sheet-toolbar';
 import { RunBar } from './run-bar';
+import { AgentPanel } from './agent-panel';
+import { useSettings } from '@/components/app/settings-context';
 import { updateSheetSpend } from '@/lib/api';
 import { useSheetActions } from './use-sheet-actions';
 import { useSheetData, useSheetRows } from './use-sheet-data';
@@ -77,9 +79,11 @@ function SheetWorkspace({ sheetId, sheet, allRows, commands }: { sheetId: string
 	const { runCells, report } = actions;
 	const halt = runStatus.halt;
 	const openFind = () => actions.requireKeys() && overlays.setPopulateOpen(true);
+	const agent = useAgentToggle();
+	const { providerReady, openKeys } = useSettings();
 
 	return (
-		<div className="flex h-full min-h-0 min-w-0 flex-col p-2 max-md:p-0 md:p-3">
+		<div className="flex h-full min-h-0 min-w-0 gap-3 p-2 max-md:p-0 md:p-3">
 			<div className="glass-frame sheet-pane flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden max-md:rounded-none max-md:shadow-none">
 				<SheetToolbar
 					sheet={sheet}
@@ -116,6 +120,7 @@ function SheetWorkspace({ sheetId, sheet, allRows, commands }: { sheetId: string
 					selection={{ onRun: (mode) => runCells(selection.selectedRows, enrichedColumns, mode), onDelete: () => actions.confirmDeleteRows(selection.selectedRows), onClear: () => selection.setSelected(new Set()) }}
 					onRename={(name) => updateSheet(sheetId, { name })}
 					onMobileRename={() => overlays.setRenamingSheet(true)}
+					agent={{ open: agent.open, onToggle: agent.toggle }}
 					banner={halt && <HaltedBanner halt={halt} waiting={runStatus.queued} onRetry={() => void (halt.reason === 'column_halted' && halt.columnId ? updateSheetSpend(sheetId, { resumeColumn: halt.columnId }) : Promise.resolve()).then(() => commands.retryHalted()).catch(report('Could not resume'))} onDismiss={() => void commands.dismissHalt().catch(report('Could not stop these cells'))} onLeave={onLeave} />}
 				/>
 				<SheetFormulaBar sheet={sheet} content={content} selection={selection} commands={commands} onSave={actions.editCell} />
@@ -130,12 +135,35 @@ function SheetWorkspace({ sheetId, sheet, allRows, commands }: { sheetId: string
 					onStop: () => void commands.stop(),
 				}} />}
 			</div>
+			{agent.open && <AgentPanel sheetId={sheetId} onClose={agent.close} keyReady={providerReady('anthropic') || providerReady('openai')} onOpenKeys={openKeys} />}
 
 			<SheetMenus overlays={overlays} menus={menus} onSaveRouting={(column, op) => commands.editColumn(column.id, { op })} />
 			<SheetDialogs sheetId={sheetId} sheet={sheet} allRows={allRows} commands={commands} content={content} activeIndex={selection.activeIndex} overlays={overlays} actions={actions} onActivate={selection.setActive} findButtonRef={findButtonRef} />
 		</div>
 	);
 }
+
+/** The agent panel's visibility, toggled by its toolbar button and ⌘/Ctrl+K, remembered per browser. */
+function useAgentToggle() {
+	// The workspace renders only once the sheet has loaded in the browser, so storage is readable here.
+	const [open, setOpen] = useState(() => {
+		try { return typeof window !== 'undefined' && window.localStorage.getItem(AGENT_OPEN) === '1' && window.matchMedia('(width >= 768px)').matches; } catch { return false; }
+	});
+	const set = useCallback((next: boolean | ((value: boolean) => boolean)) => setOpen((value) => {
+		const result = typeof next === 'function' ? next(value) : next;
+		try { window.localStorage.setItem(AGENT_OPEN, result ? '1' : '0'); } catch { /* storage unavailable */ }
+		return result;
+	}), []);
+	useEffect(() => {
+		const onKey = (event: KeyboardEvent) => {
+			if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') { event.preventDefault(); set((value) => !value); }
+		};
+		window.addEventListener('keydown', onKey);
+		return () => window.removeEventListener('keydown', onKey);
+	}, [set]);
+	return { open, toggle: () => set((value) => !value), close: () => set(false) };
+}
+const AGENT_OPEN = 'looot-tables.agent.open';
 
 /** Queued cells and Find rows live in this tab: closing it drops them, so ask first. Returns the call for leaving on purpose (reconnecting). */
 function useLeaveGuard(working: boolean) {

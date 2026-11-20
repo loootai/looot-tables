@@ -107,7 +107,7 @@ function runJob(endpointId, input, fallback, key) {
 			const walk = route(job, fallback, () => (company ? 'hit' : 'miss'));
 			if (!company) return finish(base, job, walk, { data: [] });
 			const [first, ...rest] = company.contact.split(' ');
-			const row = { full_name: company.contact, first_name: first, last_name: rest.join(' '), title: company.role, profile_url: `https://www.linkedin.com/in/${slug(company.contact)}-example`, company_name: company.name, website: company.domain, country_code: 'US' };
+			const row = { full_name: company.contact, first_name: first, last_name: rest.join(' '), title: input.job_title ? String(input.job_title) : company.role, profile_url: `https://www.linkedin.com/in/${slug(company.contact)}-example`, company_name: company.name, website: company.domain, country_code: 'US' };
 			return finish(base, job, walk, { data: [row], returned_count: 1, resolved_company_domain: company.domain });
 		}
 		case 'people.email.find': {
@@ -268,6 +268,7 @@ if (process.argv.includes('--openai')) {
 			const toolMessages = messages.filter((m) => m.role === 'tool');
 			const completion = (message, finishReason = 'stop') => json(res, 200, { id: `chatcmpl-${Date.now()}`, object: 'chat.completion', created: 0, model: 'mock-model', choices: [{ index: 0, message, finish_reason: finishReason }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } });
 			const call = (name, args, i = 0) => ({ id: `call_${Date.now()}_${i}`, type: 'function', function: { name, arguments: JSON.stringify(args) } });
+			if (tools.includes('quote_run')) return agentTurn(request, res);
 			if (tools.includes('searchPeople')) {
 				if (!toolMessages.length) return completion({ role: 'assistant', content: null, tool_calls: [call('findCompanies', { query: 'Developer-tools and SaaS companies in the US' })] }, 'tool_calls');
 				if (toolMessages.length === 1) {
@@ -293,5 +294,57 @@ if (process.argv.includes('--openai')) {
 			}
 			return completion({ role: 'assistant', content: 'ok' });
 		});
-	}).listen(4545, '127.0.0.1', () => console.log('mock openai on http://127.0.0.1:4545/v1'));
+	}).listen(Number(process.env.MOCK_OPENAI_PORT ?? 4545), '127.0.0.1', () => console.log(`mock openai on http://127.0.0.1:${process.env.MOCK_OPENAI_PORT ?? 4545}/v1`));
+}
+
+/* ───────────── The in-app agent, scripted ─────────────
+   A fixed conversation for the agent panel's tests and screenshots: find people, add a verified email column, try 5
+   rows, run the rest. It answers like a model would, from the tool results it is sent, and streams when asked to. */
+
+const textOf = (content) => typeof content === 'string' ? content : Array.isArray(content) ? content.map((part) => part.text ?? '').join('') : '';
+
+function agentPlan(request) {
+	const messages = request.messages ?? [];
+	const sheetId = /sheetId ([A-Za-z0-9_-]+)\)/.exec(textOf(messages.find((m) => m.role === 'system')?.content))?.[1] ?? 'sheet';
+	const lastUser = messages.findLastIndex((m) => m.role === 'user');
+	const said = textOf(messages[lastUser]?.content);
+	const calls = new Map(messages.flatMap((m) => (m.tool_calls ?? []).map((call) => [call.id, call.function.name])));
+	const results = messages.slice(lastUser + 1).filter((m) => m.role === 'tool').map((m) => { let data = {}; try { data = JSON.parse(textOf(m.content)); } catch { /* text */ } return { name: calls.get(m.tool_call_id), data }; });
+	const last = results.at(-1);
+	const tool = (name, args) => ({ tool: name, args });
+	if (/^Done: found/i.test(said)) {
+		if (!last) return tool('query_rows', { sheetId, limit: 1 });
+		if (last.name === 'query_rows') return tool('add_contact_columns', { sheetId, revision: last.data.revision, email: true, verify: true });
+		if (last.name === 'add_contact_columns') return tool('quote_run', { sheetId, columnId: last.data.added?.[0]?.columnId ?? 'work_email' });
+		return { text: `I added a Work email column that finds each address and verifies it in the same cell. The card covers all ${last.data.cells ?? 10} rows; try 5 rows first to check the fill rate before running the rest.` };
+	}
+	const ran = /^Done: ran (\d+) rows? of (.+?) \(column ([A-Za-z0-9_-]+)\): (\d+) filled, (\d+) empty, (\d+) errors?, \$([\d.]+) spent\. (\d+) rows? left\./i.exec(said);
+	if (ran) {
+		const [, rows, column, columnId, filled, empty, , spent, left] = ran;
+		if (Number(left) > 0 && !last) return tool('quote_run', { sheetId, columnId });
+		if (Number(left) > 0) return { text: `${rows} of ${rows} rows ran: ${filled} verified ${column.toLowerCase()}s, ${empty} not found, $${spent} spent. The card runs the other ${left} rows.` };
+		return { text: `Done. ${column} ran on every row: ${filled} found and verified, ${empty} not found, $${spent} spent on this run. You can add phone numbers next, or export the sheet.` };
+	}
+	if (/\b(find|get)\b/i.test(said)) {
+		if (!last) return tool('quote_find_rows', { sheetId, entity: 'people', query: 'B2B SaaS companies with 50 to 500 employees', employeesMin: 50, employeesMax: 500, jobTitle: 'Head of RevOps', limit: 10 });
+		return { text: `I priced the search: up to 10 heads of RevOps at SaaS companies with 50 to 500 people, $${last.data.maxUsd} at most. Run it from the card; nothing is spent until you do. Then I will add verified work emails.` };
+	}
+	return { text: 'I can find people or companies, add columns that research each row, and find and verify emails. Tell me who you are looking for.' };
+}
+
+function agentTurn(request, res) {
+	const plan = agentPlan(request);
+	const message = plan.tool ? { role: 'assistant', content: null, tool_calls: [{ id: `call_${Date.now()}`, type: 'function', function: { name: plan.tool, arguments: JSON.stringify(plan.args) } }] } : { role: 'assistant', content: plan.text };
+	const finish = plan.tool ? 'tool_calls' : 'stop';
+	const usage = { prompt_tokens: 900, completion_tokens: 40, total_tokens: 940 };
+	if (!request.stream) return json(res, 200, { id: `chatcmpl-${Date.now()}`, object: 'chat.completion', created: 0, model: 'mock-model', choices: [{ index: 0, message, finish_reason: finish }], usage });
+	res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+	const send = (choices, extra = {}) => res.write(`data: ${JSON.stringify({ id: 'chatcmpl-mock', object: 'chat.completion.chunk', created: 0, model: 'mock-model', choices, ...extra })}\n\n`);
+	(async () => {
+		if (plan.tool) send([{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, ...message.tool_calls[0] }] }, finish_reason: null }]);
+		else for (const piece of plan.text.match(/.{1,24}(\s|$)/g) ?? [plan.text]) { send([{ index: 0, delta: { content: piece }, finish_reason: null }]); await sleep(15); }
+		send([{ index: 0, delta: {}, finish_reason: finish }]);
+		send([], { usage });
+		res.end('data: [DONE]\n\n');
+	})();
 }
