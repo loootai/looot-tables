@@ -16,7 +16,7 @@ import type { Column, Row, Sheet, Sort } from '@/lib/types';
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
 import { ArrowDown, ArrowUp, Check, ChevronDown, MoreHorizontal, Play, Plus, RefreshCw, Sparkles } from 'lucide-react';
-import { type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, memo, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, memo, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Select } from '@/components/ui/select';
 import { CellView, SheetColumnsContext } from './cell-view';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -99,10 +99,20 @@ function useStableHandler<A extends unknown[], R>(handler: (...args: A) => R) {
 }
 
 /** Visible columns, showing a dragged width until the sheet reports it. */
+const PHONE_QUERY = '(width < 768px)';
+const subscribePhone = (onChange: () => void) => { const query = window.matchMedia(PHONE_QUERY); query.addEventListener('change', onChange); return () => query.removeEventListener('change', onChange); };
+/** On a phone, columns are drawn narrower (first 132px, others 168px) so an enriched column shows next to the name. */
+const PHONE_WIDTHS = { first: 132, other: 168 };
+
 function useColumnPreview(sheetColumns: Column[]) {
 	const [preview, setPreview] = useState<{ columnId: string; width: number } | null>(null);
+	const phone = useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
 	if (preview && sheetColumns.find((column) => column.id === preview.columnId)?.width === preview.width) setPreview(null);
-	const columns = useMemo(() => sheetColumns.filter((column) => !column.hidden).map((column) => column.id === preview?.columnId ? { ...column, width: preview.width } : column), [sheetColumns, preview]);
+	const columns = useMemo(() => sheetColumns.filter((column) => !column.hidden).map((column, index) => {
+		if (column.id === preview?.columnId) return { ...column, width: preview.width };
+		const cap = index === 0 ? PHONE_WIDTHS.first : PHONE_WIDTHS.other;
+		return phone && column.width > cap ? { ...column, width: cap } : column;
+	}), [sheetColumns, preview, phone]);
 	const previewResize = useCallback((columnId: string, width: number) => setPreview({ columnId, width }), []);
 	return { columns, previewResize };
 }

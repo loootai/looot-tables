@@ -270,7 +270,7 @@ function LocalTime({ time }: { time: number }) {
 /** "Today 09:41" or "Nov 18, 09:41": short enough for the drawer's third column; the full stamp is in the title. */
 function shortTime(time: number) {
 	const date = new Date(time);
-	const clock = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+	const clock = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 	if (date.toDateString() === new Date().toDateString()) return `Today ${clock}`;
 	return `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${clock}`;
 }
