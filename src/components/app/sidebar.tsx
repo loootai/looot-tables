@@ -1,6 +1,8 @@
 'use client';
 
 import { CreditsRemaining } from './credits-remaining';
+import { PoweredBy } from '@/components/ui/powered-by';
+import { MoltSetsPlanMeter } from './moltsets-plan';
 import { Logo } from '@/components/ui/logo';
 import clsx from 'clsx';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -142,9 +144,10 @@ export function Sidebar({ account }: { account: Account }) {
 				</Link>
 				<div className="mt-3 flex flex-col">
 					<CreditsRemaining />
+					<MoltSetsPlanMeter />
 				</div>
 				{account.issuer === SELF_HOSTED_ISSUER
-					? <p className="mt-4 border-t border-hairline px-3 pt-4 text-caption text-fg-subtle">Self-hosted</p>
+					? <div className="mt-4 flex flex-col gap-1 border-t border-hairline px-3 pt-4 text-caption text-fg-subtle"><span>Self-hosted</span><PoweredBy /></div>
 					: <div className="mt-4 flex items-center gap-2 border-t border-hairline px-3 pt-4 text-caption text-fg-muted">
 						<div className="min-w-0 flex-1">
 							<p className="truncate font-medium" title={account.user.email}>{account.user.name || account.user.email}</p>

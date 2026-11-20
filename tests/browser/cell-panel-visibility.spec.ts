@@ -4,7 +4,7 @@ import type { Sheet, Row } from '../../src/lib/types';
 
 for (const columnIndex of [0, 2]) {
  test(`opening cell details keeps column ${columnIndex + 1} visible`, async ({ page, context, baseURL }) => {
-  await context.addCookies([{ name: 'enrichable.session', value: memberCookie('panel-visibility'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+  await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('panel-visibility'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
   const columns: Sheet['columns'] = Array.from({ length: 3 }, (_, index) => ({ id: `draft-${index}`, name: `Email ${index + 1}`, type: 'source', format: 'email-draft', width: 300, createdAt: 1 }));
   const sheet: Sheet = { id: 'panel-visibility', name: 'Panel visibility', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
   const rows: Row[] = [{ id: 'r', sheetId: sheet.id, order: 0, createdAt: 1, cells: Object.fromEntries(columns.map((column) => [column.id, { v: JSON.stringify({ subject: 'Hello', body: 'Hi Alice' }), s: 'done', t: 1 }])) }];

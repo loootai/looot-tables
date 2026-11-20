@@ -26,8 +26,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-	distDir: process.env.ENRICHABLE_NEXT_DIST_DIR || '.next',
-	devIndicators: process.env.ENRICHABLE_NEXT_DIST_DIR ? false : undefined,
+	distDir: process.env.LOOOT_TABLES_NEXT_DIST_DIR || '.next',
+	devIndicators: process.env.LOOOT_TABLES_NEXT_DIST_DIR ? false : undefined,
 	cacheComponents: true,
 	partialPrefetching: true,
 	poweredByHeader: false,

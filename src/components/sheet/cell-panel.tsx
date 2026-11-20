@@ -57,8 +57,9 @@ export function CellPanel({ sheet, row, column, onClose, onRerun, onEditColumn, 
 				{!editing && organizationKind(column) === 'company' && <CompanyPreview row={row} column={column} columns={sheet.columns} />}
 				{cell?.f && <section className="flex flex-col gap-2"><h4 className="text-caption text-fg-subtle">Formula</h4><code className="break-all text-body-sm text-fg">{cell.f}</code></section>}
 				<ProbabilitySection meta={cell?.m} column={column} />
-				<WhySection meta={cell?.m} />				<UsageSection cell={cell} />
-				<LoootCalls calls={cell?.m?.looot} />
+				<WhySection meta={cell?.m} />
+				<UsageSection cell={cell} />
+				<LoootCalls calls={cell?.m?.looot} moltsets={cell?.m?.moltsets} />
 				<SourcesSection meta={cell?.m} />
 			</div>
 			{column.op && (

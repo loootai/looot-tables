@@ -83,7 +83,9 @@ export function RunBar({ sheet, allRows, columns, runs }: { sheet: Sheet; allRow
 	const sinceStart = useMemo(() => started ? tally(allRows, columns, started.at) : null, [allRows, columns, started]);
 	const total = useMemo(() => tally(allRows, columns), [allRows, columns]);
 	const shownQuote = runs.unfinished > 0 && quote ? quote : null;
-	const runLabel = shownQuote ? quoteLabel(shownQuote, 'cell') : runs.unfinished ? `Run ${plural(runs.unfinished, 'cell')}` : 'Run';
+	// Every cell settled: a quiet outline button that says so, instead of a green button that looks broken while disabled.
+	const settled = !runs.status.halt && runs.unfinished === 0 && !shownQuote;
+	const runLabel = shownQuote ? quoteLabel(shownQuote, 'cell') : runs.unfinished ? `Run ${plural(runs.unfinished, 'cell')}` : 'Nothing to run';
 
 	let meter: React.ReactNode;
 	if (pending > 0 && started && sinceStart) {
@@ -118,10 +120,10 @@ export function RunBar({ sheet, allRows, columns, runs }: { sheet: Sheet; allRow
 				{pending > 0 ? (
 					<Button size="sm" variant="primary" onClick={runs.onStop} aria-label={`Stop ${plural(pending, 'cell')}`}><Square strokeWidth={1.5} /> Stop</Button>
 				) : <>
-					<Button size="sm" variant="brand" data-run-button disabled={Boolean(runs.status.halt) || runs.unfinished === 0} onClick={() => start(runs.onRunUnfinished)} className={clsx('rounded-r-none', 'num-label')} title={runs.status.halt ? 'Paused: resume or stop from the banner' : undefined}>
+					<Button size="sm" variant={settled ? 'outline' : 'brand'} data-run-button disabled={Boolean(runs.status.halt) || runs.unfinished === 0} onClick={() => start(runs.onRunUnfinished)} className={clsx('rounded-r-none', 'num-label')} title={runs.status.halt ? 'Paused: resume or stop from the banner' : undefined}>
 						<Play strokeWidth={1.75} /> <span className="tabular">{runLabel}</span>
 					</Button>
-					<Button size="sm" variant="brand" aria-label="More ways to run" aria-haspopup="menu" aria-expanded={menu !== null} disabled={Boolean(runs.status.halt)} onClick={(event) => setMenu(menu ? null : event.currentTarget.getBoundingClientRect())} className="w-8 rounded-l-none border-l border-brand-fg/20 px-0"><ChevronDown className="size-3.5" /></Button>
+					<Button size="sm" variant={settled ? 'outline' : 'brand'} aria-label="More ways to run" aria-haspopup="menu" aria-expanded={menu !== null} disabled={Boolean(runs.status.halt)} onClick={(event) => setMenu(menu ? null : event.currentTarget.getBoundingClientRect())} className={clsx('w-8 rounded-l-none px-0', settled ? '-ml-px' : 'border-l border-brand-fg/20')}><ChevronDown className="size-3.5" /></Button>
 				</>}
 			</span>
 			{menu && <FloatingMenu anchor={menu} align="right" width="w-64" items={items} onClose={() => setMenu(null)} />}

@@ -3,7 +3,7 @@ import { memberCookie } from './authenticated-test';
 import type { Sheet, Row } from '../../src/lib/types';
 
 test('chip extensions and column setup share remembered run scope and run only the selected rows', async ({ page, context, baseURL }) => {
- await context.addCookies([{ name: 'enrichable.session', value: memberCookie('run-scope'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+ await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('run-scope'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
  let sheet: Sheet = { id: 'run-scope', name: 'Scopes', columns: [{ id: 'site', name: 'Website', type: 'source', format: 'website', width: 220, createdAt: 1 }], filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
  let rows: Row[] = Array.from({ length: 15 }, (_, i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: { site: { v: `company${i}.com`, s: 'done', t: 1 } } }));
  const requests: string[] = [];

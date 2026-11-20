@@ -3,7 +3,7 @@ import { memberCookie } from './authenticated-test';
 import type { Sheet, Row } from '../../src/lib/types';
 
 test('Website and Webpage dropdowns create bound operations without favicons', async ({ page, context, baseURL }) => {
-	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('web-field-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('web-field-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 	const columns: Sheet['columns'] = [
 		{ id: 'domain', name: 'Domain', type: 'source', format: 'url', width: 240, createdAt: 1 },
 		{ id: 'article', name: 'Article', type: 'source', format: 'url', width: 330, createdAt: 1 },

@@ -12,7 +12,7 @@ export type { RunCount, RunScope };
 // A per-person browser preference: one member's choice never changes a teammate's default or races settings saves.
 const listeners = new Set<() => void>();
 const memory = new Map<string, RunCount>();
-const storageKey = () => accountStorageKey('enrichable.run-scope.v2');
+const storageKey = () => accountStorageKey('looot-tables.run-scope.v2');
 function snapshot(): RunCount {
 	try {
 		const key = storageKey();

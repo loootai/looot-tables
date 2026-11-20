@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-const port=Number(process.env.ENRICHABLE_TEST_PORT||3100);
+const port=Number(process.env.LOOOT_TABLES_TEST_PORT||3100);
 const baseURL=`http://127.0.0.1:${port}`;
 export default defineConfig({
 	testDir: './tests/browser',
@@ -17,12 +17,9 @@ export default defineConfig({
 		url: `${baseURL}/login`,
 		reuseExistingServer: false,
 		env: {
-			ENRICHABLE_NEXT_DIST_DIR: process.env.ENRICHABLE_TEST_DIST_DIR||'.next-browser',
-			ENRICHABLE_APP_URL: baseURL,
-			ENRICHABLE_SESSION_SECRET: 'browser-test-session-secret-32-characters',
-			CONTEXT_IDENTITY_ISSUER: 'http://127.0.0.1:3102',
-			CONTEXT_OAUTH_CLIENT_ID: 'enrichable',
-			CONTEXT_OAUTH_CLIENT_SECRET: 'browser-test-client-secret-32-characters',
+			LOOOT_TABLES_NEXT_DIST_DIR: process.env.LOOOT_TABLES_TEST_DIST_DIR||'.next-browser',
+			LOOOT_TABLES_APP_URL: baseURL,
+			LOOOT_TABLES_SESSION_SECRET: 'browser-test-session-secret-32-characters',
 		},
 		timeout: 60_000,
 	},

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { routedJob } from '@/lib/job-of';
 import type { Column } from '@/lib/types';
 import { useJobStats } from './use-job-stats';
+import { ProviderMark, providerLogo } from './provider-mark';
 
 const STEP_MS = 600;
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -26,7 +27,7 @@ export function Waterfall({ column, seed }: { column: Column; seed: string }) {
 	const name = providers[index];
 	return (
 		<span className="waterfall" aria-label={`Trying ${name}, ${index + 1} of ${providers.length}`}>
-			<span key={`${name}-${step}`} className="waterfall-tile">{name.slice(0, 1)}</span>
+			{providerLogo(name) ? <ProviderMark key={`${name}-${step}`} name={name} size="xs" className="waterfall-tile !bg-white" /> : <span key={`${name}-${step}`} className="waterfall-tile">{name.slice(0, 1)}</span>}
 			<span className="truncate text-body-sm">{name}</span>
 			<span className="waterfall-dots" aria-hidden>{providers.map((provider, at) => <i key={provider} data-done={at < index ? '' : undefined} data-now={at === index ? '' : undefined} />)}</span>
 			<span className="num text-[10.5px]">{index + 1}/{providers.length}</span>

@@ -3,7 +3,7 @@ import { memberCookie } from './authenticated-test';
 import type { Row, Sheet } from '../../src/lib/types';
 
 async function workspace(page: Page, context: BrowserContext, baseURL: string) {
-	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('sheet-loading'), url: baseURL, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('sheet-loading'), url: baseURL, httpOnly: true, sameSite: 'Lax' }]);
 	const sheet: Sheet = { id: 'sheet-loading', name: 'Existing sheet', columns: [{ id: 'value', name: 'Value', type: 'source', width: 180, createdAt: 1 }], filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	const rows: Row[] = [{ id: 'row', sheetId: sheet.id, order: 0, createdAt: 1, cells: { value: { v: 'Saved data', s: 'done', t: 1 } } }];
 	const state = { listed: false, status: 200, reads: 0 };

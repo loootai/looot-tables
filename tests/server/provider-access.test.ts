@@ -37,7 +37,7 @@ test('key precedence per policy: request, vault, unlocked server', () => {
 });
 
 test('the looot token is its own provider, and a request header carries it', () => {
-	assert.deepEqual([...PROVIDERS], ['openai', 'looot', 'typesafe']);
+	assert.deepEqual([...PROVIDERS], ['openai', 'looot', 'typesafe', 'moltsets']);
 	const grant = resolveGrant(BROWSER_POLICY, { headers: new Headers({ 'x-looot-key': 'cs_ms_request' }) });
 	assert.equal(grant.keys.looot, 'cs_ms_request');
 	assert.equal(providerAccess(grant).looot().calls.length, 0, 'a client starts with no runs');
@@ -92,7 +92,7 @@ test('the MCP policy never reads browser cookies or deployment keys, even when t
 	const grant = resolveGrant(MCP_POLICY, everything);
 	assert.deepEqual(grant.keys, {});
 	assert.deepEqual([grant.model, grant.openaiBaseUrl], [DEFAULT_MODEL, null]);
-	const gathered = await mcpInputs(new Headers({ cookie: `${SESSION_COOKIE}=forged`, 'x-enrichable-password': 'deployment-password' }), alice);
+	const gathered = await mcpInputs(new Headers({ cookie: `${SESSION_COOKIE}=forged`, 'x-looot-tables-password': 'deployment-password' }), alice);
 	assert.deepEqual(Object.keys(gathered).sort(), ['account', 'headers', 'vault'], 'the MCP gatherer collects no cookie or server state');
 	assert.equal(gathered.account, alice);
 });
@@ -128,13 +128,13 @@ test('redaction covers every provider in the list', () => {
 });
 
 test('availability reports every provider in the list from server-side sources only', async (t) => {
-	const env: Record<Provider, string> = { openai: 'OPENAI_API_KEY', looot: 'LOOOT_TOKEN', typesafe: 'TYPESAFE_API_KEY' };
-	setEnv(t, { ENRICHABLE_PASSWORD: '', ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'true', ...Object.fromEntries(PROVIDERS.map((provider) => [env[provider], `server-${provider}`])) });
+	const env: Record<Provider, string> = { openai: 'OPENAI_API_KEY', looot: 'LOOOT_TOKEN', typesafe: 'TYPESAFE_API_KEY', moltsets: 'MOLTSETS_API_KEY' };
+	setEnv(t, { LOOOT_TABLES_PASSWORD: '', LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'true', ...Object.fromEntries(PROVIDERS.map((provider) => [env[provider], `server-${provider}`])) });
 	const request = () => new Request('http://localhost/api/keys/verify', { headers: { 'x-looot-key': 'request-only' } });
 	const open = await serverKeyAvailability(request());
 	assert.deepEqual(PROVIDERS.filter((provider) => !open[provider]), []);
 	assert.ok(!JSON.stringify(open).includes('server-'), 'availability never echoes a key');
-	process.env.ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD = 'false';
+	process.env.LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD = 'false';
 	const locked = await serverKeyAvailability(request());
 	assert.deepEqual(PROVIDERS.filter((provider) => locked[provider]), [], 'request headers never count as server availability');
 });
@@ -142,7 +142,7 @@ test('availability reports every provider in the list from server-side sources o
 const usage = { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } };
 
 test('the OpenAI endpoint guard runs inside every model call and cannot be skipped', async (t) => {
-	setEnv(t, { NODE_ENV: 'production', ENRICHABLE_ALLOW_LOCAL_BASE_URL: '' });
+	setEnv(t, { NODE_ENV: 'production', LOOOT_TABLES_ALLOW_LOCAL_BASE_URL: '' });
 	let calls = 0, lookups = 0;
 	const model = () => new MockLanguageModelV4({ doGenerate: async () => { calls++; return { content: [{ type: 'text', text: 'ok' }], finishReason: { unified: 'stop', raw: undefined }, usage, warnings: [] }; } });
 	const at = (openaiBaseUrl: string, address: string) => providerAccess({ keys: { openai: 'test-key' }, openaiBaseUrl }, { openai: model, lookup: async () => { lookups++; return [{ address }]; } });

@@ -3,11 +3,10 @@ import { test } from './authenticated-test';
 
 async function companySheet(page: Page, enriched = false) {
 	await page.addInitScript(() => {
-		if (!localStorage.getItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396')) localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot', logolinkKey: 'brandLL_test' }));
+		if (!localStorage.getItem('looot-tables.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396')) localStorage.setItem('looot-tables.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot', logolinkKey: 'brandLL_test' }));
 	});
 	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: true, context: true, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/logos/resolve', (route) => route.fulfill({ json: { domain: null } }));
-	await page.route('https://logos.context.dev/**', (route) => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><rect width="28" height="28" fill="purple"/></svg>' }));
 	await page.goto('/app');
 	await page.getByRole('button', { name: 'Import CSV', exact: true }).click();
 	await page.getByLabel('Sheet name', { exact: true }).fill('Company editing');
@@ -17,7 +16,7 @@ async function companySheet(page: Page, enriched = false) {
 	if (enriched) {
 		await page.evaluate(async () => {
    const session = await fetch('/api/auth/session').then((response) => response.json());
-   const headers = { 'content-type': 'application/json', 'x-enrichable-account': session.partition, 'x-enrichable-session': session.sessionId };
+   const headers = { 'content-type': 'application/json', 'x-looot-tables-account': session.partition, 'x-looot-tables-session': session.sessionId };
    const entries = await fetch('/api/sheets', { headers }).then((response) => response.json());
    const sheet = entries[0].sheet;
    sheet.columns[0] = { ...sheet.columns[0], name: 'Legal name', type: 'enriched', op: { kind: 'company', domain: '{{Company domain}}', field: 'title' } };
@@ -66,7 +65,7 @@ test('waits for three characters and 400ms of idle typing, previews logos, and p
 	await page.clock.resume();
 	await expect.poll(() => page.evaluate(async () => {
   const session = await fetch('/api/auth/session').then((response) => response.json());
-  const headers = { 'x-enrichable-account': session.partition, 'x-enrichable-session': session.sessionId };
+  const headers = { 'x-looot-tables-account': session.partition, 'x-looot-tables-session': session.sessionId };
   const entries = await fetch('/api/sheets', { headers }).then((response) => response.json());
   const data = await fetch(`/api/sheets/${entries[0].sheet.id}`, { headers }).then((response) => response.json());
   return Object.values(data.rows[0].cells).some((cell) => (cell as { v?: unknown }).v === 'Stripe');
@@ -146,7 +145,7 @@ test('cancels obsolete lookups, hides stale results, and permits manual values a
 test('validates the minimum search length on the server', async ({ page, baseURL }) => {
  const session = await page.request.get('/api/auth/session').then((response) => response.json());
 	for (const query of ['', 'ab', '  ab  ', 'x'.repeat(201), 123]) {
-		const response = await page.request.post('/api/companies/search', { headers: { 'x-looot-key': 'test-looot', 'x-enrichable-account': session.partition, 'x-enrichable-session': session.sessionId, origin: baseURL! }, data: { query } });
+		const response = await page.request.post('/api/companies/search', { headers: { 'x-looot-key': 'test-looot', 'x-looot-tables-account': session.partition, 'x-looot-tables-session': session.sessionId, origin: baseURL! }, data: { query } });
 		expect(response.status()).toBe(400);
 	}
 });

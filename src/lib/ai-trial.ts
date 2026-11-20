@@ -1,7 +1,7 @@
 import type { EnrichFailure } from './types';
 
 export const OPENAI_KEY_REQUIRED = 'An OpenAI API key is required for future AI requests.';
-export const OPENAI_KEY_REQUIRED_EVENT = 'enrichable:openai-key-required';
+export const OPENAI_KEY_REQUIRED_EVENT = 'looot-tables:openai-key-required';
 
 /** Ask for an OpenAI key when the AI trial is used up or no key is available. Message text is only a fallback for responses without `failure`. */
 export function notifyTrialLimit(message?: string, failure?: EnrichFailure) {

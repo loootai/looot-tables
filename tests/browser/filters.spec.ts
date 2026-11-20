@@ -5,7 +5,7 @@ import type { Sheet, Row } from '../../src/lib/types';
 // Exercise the actual UI without depending on a live Neon database.
 for (const company of [false, true]) {
 test(`${company ? 'Company' : 'Category'} filters apply as they are chosen and stay applied when the panel is dismissed`, async ({ page, context, baseURL }) => {
-	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('format-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('format-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 	const columns: Sheet['columns'] = [company ? 'Company' : 'Category'].map((name, i) => ({ id: `c${i}`, name, type: 'source', ...(company ? {} : { format: 'category' as const, categoryOptions: ['Customer', 'Prospect'] }), width: 180, createdAt: 1 }));
 	let sheet: Sheet = { id: 'format-test', name: 'Formats', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: Object.fromEntries(columns.map((column) => [column.id, { v: i === 0 ? 'Customer' : 'Prospect', s: 'done', t: 1 }])) }));

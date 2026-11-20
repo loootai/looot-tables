@@ -6,11 +6,10 @@ test('API-key onboarding, persistence, and browser isolation work without OAuth'
  await page.goto('/login');
  await expect(page).toHaveURL(/\/app$/);
  await expect(page.getByRole('dialog', { name: 'Set up enrichment' })).toBeVisible();
- await expect(page.getByLabel('Context.dev API key', { exact: true })).toBeVisible();
+ await expect(page.getByLabel('looot API key', { exact: true })).toBeVisible();
  await expect(page.getByLabel('OpenAI API key', { exact: true })).toBeVisible();
  await expect(page.getByRole('button', { name: 'Save and start', exact: true })).toBeDisabled();
  await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toHaveCount(0);
- await expect(page.getByRole('link', { name: 'Sign in with Context.dev' })).toHaveCount(0);
  await page.getByRole('button', { name: 'Close', exact: true }).click();
  await page.getByRole('button', { name: 'Import CSV', exact: true }).click();
  await page.getByLabel('Or paste CSV', { exact: true }).fill('Value,Other\n10,20');
@@ -23,7 +22,7 @@ test('API-key onboarding, persistence, and browser isolation work without OAuth'
  await expect(page.getByRole('dialog'), 'Setup opens once per browser').toHaveCount(0);
  // Exercise a real API operation without paid provider keys.
  const ownSession = await (await page.request.get('/api/auth/session')).json();
- const ownHeaders = { 'x-enrichable-account': ownSession.partition, 'x-enrichable-session': ownSession.sessionId, origin: baseURL! };
+ const ownHeaders = { 'x-looot-tables-account': ownSession.partition, 'x-looot-tables-session': ownSession.sessionId, origin: baseURL! };
  const enriched = await page.request.post('/api/enrich', { headers: ownHeaders, data: { op: { kind: 'template', template: 'Value {{Value}}' }, row: { Value: '10' } } });
  expect(enriched.ok()).toBeTruthy();
  expect(await enriched.json()).toMatchObject({ value: 'Value 10' });
@@ -52,12 +51,12 @@ test('API-key onboarding, persistence, and browser isolation work without OAuth'
   await otherPage.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(otherPage.getByText('Self-hosted test', { exact: true })).toHaveCount(0);
   const session = await (await other.request.get('/api/auth/session')).json();
-  const stolen = await other.request.get(new URL(sheetURL).pathname.replace('/app/sheets/', '/api/sheets/'), { headers: { 'x-enrichable-account': session.partition, 'x-enrichable-session': session.sessionId } });
+  const stolen = await other.request.get(new URL(sheetURL).pathname.replace('/app/sheets/', '/api/sheets/'), { headers: { 'x-looot-tables-account': session.partition, 'x-looot-tables-session': session.sessionId } });
   expect(stolen.status()).toBe(404);
  } finally { await other.close(); }
  // Remove only the sheet created by this browser's isolated test workspace.
  const session = await (await page.request.get('/api/auth/session')).json();
- const headers = { 'x-enrichable-account': session.partition, 'x-enrichable-session': session.sessionId, origin: baseURL! };
+ const headers = { 'x-looot-tables-account': session.partition, 'x-looot-tables-session': session.sessionId, origin: baseURL! };
  const index = await (await page.request.get('/api/sheets', { headers })).json();
  for (const entry of index) expect((await page.request.delete(`/api/sheets/${entry.sheet.id}?revision=${entry.sheet.revision}`, { headers })).ok()).toBeTruthy();
 });

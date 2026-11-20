@@ -72,6 +72,8 @@ export function formatColumnNumber(value: number, column: FormatColumn): string 
 	else options.maximumFractionDigits = year ? 0 : 2;
 	const decimals = column.format === 'year' ? 0 : column.decimalPlaces;
 	if (decimals !== undefined) options.minimumFractionDigits = options.maximumFractionDigits = decimals;
+	// Funding and revenue read as $18M or $1.2B; cents on a million-dollar amount are noise. A set decimal count still wins.
+	else if (column.format === 'currency' && Math.abs(value) >= 1e6) { options.notation = 'compact'; options.maximumFractionDigits = 1; options.minimumFractionDigits = 0; }
 	const number = numberFormat(options).format(value);
 	return column.format === 'unit' && column.unit ? `${number} ${column.unit}` : number;
 }

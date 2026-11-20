@@ -19,7 +19,7 @@ function input(cell: Cell | undefined): string {
 
 /** The WASM module must be initialized before calling this (in a worker in the app). */
 export function calculateFormulas({ grid, next, copies = [] }: FormulaRequest): FormulaResult[] {
-	const model = new Model('Enrichable', 'en', 'UTC', 'en');
+	const model = new Model('LoootTables', 'en', 'UTC', 'en');
 	try {
 		model.pauseEvaluation();
 		grid.rows.forEach((row, r) => grid.columns.forEach((column, c) => {

@@ -3,12 +3,13 @@ import { LOOOT_TOKENS_URL } from '@/lib/constants';
 import { maskKey, type Settings } from '@/lib/keys';
 import { providerField, type OrganizationSettings, type Provider } from '@/lib/organization-settings';
 
-export const CONNECTION_ORDER = ['looot', 'openai', 'typesafe'] as const satisfies readonly Provider[];
+export const CONNECTION_ORDER = ['looot', 'openai', 'typesafe', 'moltsets'] as const satisfies readonly Provider[];
 export const REQUIRED_PROVIDERS = ['looot', 'openai'] as const satisfies readonly Provider[];
 
 export const PROVIDER_INFO: Record<Provider, { name: string; logo: string; description: string; link: string; placeholder: string; verifiable: boolean }> = {
 	looot: { name: 'looot', logo: '/providers/looot.svg', description: 'One token for web search, page reads, company and people data, emails and phones. Billed to your own looot balance', link: LOOOT_TOKENS_URL, placeholder: 'cs_ms_…', verifiable: true },
 	openai: { name: 'OpenAI', logo: '/providers/openai.svg', description: 'AI columns, research, and Find rows', link: 'https://platform.openai.com/api-keys', placeholder: 'sk-…', verifiable: true },
+	moltsets: { name: 'MoltSets', logo: '/providers/moltsets.svg', description: 'Flat-fee contact data on your own MoltSets plan, tried before looot for emails, mobiles and profiles. Limits apply per 5 hours', link: 'https://app.moltsets.com', placeholder: 'ms_…', verifiable: true },
 	typesafe: { name: 'TypeSafe', logo: '/providers/typesafe.png', description: 'Calibrated yes/no and category answers', link: 'https://console.typesafe.ai/', placeholder: 'ts_…', verifiable: true },
 };
 

@@ -9,7 +9,7 @@ for (const rowCount of [3, 12]) test(`field selections run together from the cur
 		requests.push(route.request().postDataJSON());
 		await route.fulfill({ json: { value: 'Enriched answer' } });
 	});
-	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('field-selection-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('field-selection-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 	let sheet: Sheet = { id: 'field-selection-test', name: 'Selected fields', columns: [
 		{ id: 'company', name: 'Company', type: 'source', width: 240, createdAt: 1 },
 		{ id: 'domain', name: 'Website', type: 'source', format: 'url', width: 240, createdAt: 1 },
@@ -59,7 +59,7 @@ for (const rowCount of [3, 12]) test(`field selections run together from the cur
 	await expect(page.getByRole('button', { name: 'Run on this row, 3 fields selected', exact: true })).toBeVisible();
 	expect(requests).toHaveLength(0);
 	await expect(page.getByRole('columnheader')).toHaveCount(3);
-	await page.screenshot({ path: '/tmp/enrichable-selected-fields.png' });
+	await page.screenshot({ path: '/tmp/looot-tables-selected-fields.png' });
 	await page.getByRole('button', { name: 'Choose which rows to run', exact: true }).click();
 	await page.getByRole('menuitemradio', { name: runLabel, exact: true }).click();
 	await page.getByRole('button', { name: `${runLabel}, 3 fields selected`, exact: true }).click();

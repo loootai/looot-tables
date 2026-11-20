@@ -5,7 +5,7 @@ import type { ColumnOp, Row, Sheet } from '../../src/lib/types';
 for (const width of [1360, 390]) {
  test(`column composer creates a document with references at ${width}px`, async ({ page, context, baseURL }) => {
   await page.setViewportSize({ width, height: 900 });
-  await context.addCookies([{ name: 'enrichable.session', value: memberCookie(`composer-${width}`), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+  await context.addCookies([{ name: 'looot-tables-session', value: memberCookie(`composer-${width}`), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
   let sheet: Sheet = { id: 'composer', name: 'Customer research', revision: 1, columns: [{ id: 'company', name: 'Company', type: 'source', width: 220, createdAt: 1 }], filters: [], sort: null, createdAt: 1, updatedAt: 1 };
   const rows: Row[] = Array.from({ length: 15 }, (_, order) => ({ id: `company-${order}`, sheetId: sheet.id, order, createdAt: 1, cells: { company: { v: order ? `Company ${order + 1}` : 'Acme', s: 'done' as const, t: 1 } } }));
   await page.route('**/api/organization-settings', route => route.fulfill({ json: { local: true } }));
@@ -47,7 +47,7 @@ for (const width of [1360, 390]) {
   expect(buttonBounds.x + buttonBounds.width).toBeLessThan(cardBounds.x + cardBounds.width);
   expect(buttonBounds.y + buttonBounds.height).toBeLessThan(cardBounds.y + cardBounds.height);
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: `/tmp/enrichable-column-composer-${width}.png` });
+  await page.screenshot({ path: `/tmp/looot-tables-column-composer-${width}.png` });
   await compose.click();
   await expect(dialog.getByRole('alert')).toContainText('Could not compose. Please retry.');
   await expect(prompt.locator('.column-prompt-pill')).toHaveText('Company');

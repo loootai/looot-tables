@@ -102,6 +102,12 @@ export type RunPlan =
 export type ProviderReady = (provider: Provider) => boolean;
 /** `grid` is the sheet as saved, in sheet order: it decides which cells a mode selects (see `savedState`).
     `sheetColumns` lets a run also queue AI input cells in the same rows that have never run. */
+/** A contact column that tries MoltSets first runs cell by cell: looot's rows batch cannot ask MoltSets before looot. */
+function asksMoltSets(op: ColumnOp, ready: ProviderReady): boolean {
+	if (op.kind !== 'email-enrichment' && op.kind !== 'phone-find') return false;
+	return op.source === 'moltsets' || (op.source !== 'looot' && ready('moltsets'));
+}
+
 interface RunOptions { ready: ProviderReady; grid?: Grid; limitToRows?: boolean; optimistic?: boolean; sheetColumns?: readonly Column[] }
 type CellGroup = { column: Column; rows: Row[] };
 
@@ -243,7 +249,7 @@ export function createSheetCommands(sheetId: string, ports: { runner?: RunnerPor
 			estimate: estimateCells(runs.map(({ column, rows }) => ({ cells: rows.length, op: column.op }))),
 			groups: runs.map(({ column, rows }) => ({ column, op: column.op!, cells: rows.length, records: rows.slice(0, 500).map((row) => rowRecord(options.sheetColumns ?? [], row)) })),
 			execute: async () => {
-				const added = await Promise.all(runs.map(({ column, rows }) => work.enqueueBatch && batchJob(column.op) && rows.length >= BATCH_MIN_CELLS
+				const added = await Promise.all(runs.map(({ column, rows }) => work.enqueueBatch && batchJob(column.op) && !asksMoltSets(column.op!, options.ready) && rows.length >= BATCH_MIN_CELLS
 					? work.enqueueBatch(sheetId, rows, column, { fresh: mode === 'all' })
 					: work.enqueue(sheetId, rows, [column], { limitToRows: options.limitToRows, optimisticStart: options.optimistic, unfinished: mode === 'unfinished' })));
 				return added.reduce((sum, count) => sum + count, 0);
@@ -301,7 +307,7 @@ export function createSheetCommands(sheetId: string, ports: { runner?: RunnerPor
 			const { columns, cells } = unpackColumns(column, rows, fields, (field) => {
 				const name = uniqueName(field.name, names);
 				names.push(name);
-				return newColumn({ name, type: 'source', width: 140, ...(field.format ? { format: field.format } : {}), ...(field.format === 'currency' ? { currency: 'USD', decimalPlaces: 0 } : {}) });
+				return newColumn({ name, type: 'source', width: 140, ...(field.format ? { format: field.format } : {}), ...(field.format === 'currency' ? { currency: 'USD' } : {}) });
 			});
 			await insert(columns, () => 'unpack', { position: grid.sheet.columns.findIndex((entry) => entry.id === column.id) + 1 });
 			if (cells.length) await store.setCells(cells);

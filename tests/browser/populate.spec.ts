@@ -2,7 +2,7 @@ import { expect, type Page } from '@playwright/test';
 import { test } from './authenticated-test';
 
 async function sheet(page: Page) {
-	await page.addInitScript(() => localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
+	await page.addInitScript(() => localStorage.setItem('looot-tables.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
 	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: true, context: true, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/logos/resolve', (route) => route.fulfill({ json: { domain: null } }));
 	await page.goto('/app');
@@ -174,7 +174,7 @@ test('streamed errors without a trailing newline stay inline and preserve the pr
  await sheet(page);
  await page.getByRole('button', { name: 'Find companies', exact: true }).click();
  await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Could not research this company');
- await page.screenshot({ path: '/tmp/enrichable-inline-company-warning.png' });
+ await page.screenshot({ path: '/tmp/looot-tables-inline-company-warning.png' });
  await expect(page.getByLabel('Describe the rows you want', { exact: true })).toHaveValue('Developer tool companies');
  await expect(page.getByRole('button', { name: 'Find companies', exact: true })).toBeEnabled();
 });
@@ -240,7 +240,7 @@ test('composer reads the count from the prompt, shows the cap inline, and blocks
 	await expect(prompt).toHaveAttribute('aria-describedby', /.+/);
 	await expect(dialog.locator('.populate-front')).toHaveCSS('border-radius', '22px');
 	await expect(dialog.locator('.populate-error')).toHaveCSS('display', 'flex');
-	await dialog.screenshot({ path: '/tmp/enrichable-composer-implemented.png' });
+	await dialog.screenshot({ path: '/tmp/looot-tables-composer-implemented.png' });
 	await expect(dialog.getByRole('button', { name: 'Find companies' })).toBeDisabled();
 	await prompt.fill('Find 100 companies');
 	await expect(dialog.getByRole('alert')).toHaveCount(0);

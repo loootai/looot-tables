@@ -8,6 +8,7 @@ import { DECISIONS_CLASSIFIER, MODEL_ID, PROVIDERS, type OrganizationPreferences
 import { DEFAULT_MODEL, type Decider, type FailureProvider, type LoootCallMeta } from '../types';
 import { readSession, SESSION_COOKIE } from './auth';
 import { LoootClient } from './looot';
+import { MoltSetsClient } from './moltsets';
 import { failureOf, newTrace } from './api-route';
 import { clean, CredentialError, ensureSafeEndpoint, jsonError, redactError, safeBaseUrl } from './credentials';
 import { classifyFailure, failure, Spend, spendMiddleware } from './enrich-failure';
@@ -21,8 +22,8 @@ import { OrganizationStore, organizationPersistenceEnabled } from './organizatio
    - request: explicit x-<provider>-key / model / endpoint headers, request-only (including verification of unsaved keys);
    - vault: the signed-in organization's encrypted provider vault and shared preferences;
    - server: OPENAI_API_KEY / LOOOT_TOKEN / ... on a self-hosted deployment. Anyone with the URL could spend
-     those, so they are used only when ENRICHABLE_PASSWORD is set and matched, or when
-     ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD=true is set deliberately.
+     those, so they are used only when LOOOT_TABLES_PASSWORD is set and matched, or when
+     LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD=true is set deliberately.
    Every run is billed to the caller's own looot token. There is no shared token and no included credit. */
 
 export const SOURCES = ['request', 'vault', 'server'] as const;
@@ -40,6 +41,7 @@ const PROVIDER_INFO: Record<Provider, { env: string; label: string; failure: Fai
 	openai: { env: 'OPENAI_API_KEY', label: 'OpenAI', failure: 'openai' },
 	looot: { env: 'LOOOT_TOKEN', label: 'looot', failure: 'looot' },
 	typesafe: { env: 'TYPESAFE_API_KEY', label: 'TypeSafe', failure: 'typesafe' },
+	moltsets: { env: 'MOLTSETS_API_KEY', label: 'MoltSets', failure: 'moltsets' },
 };
 const OPENAI_API = 'https://api.openai.com/v1';
 
@@ -149,6 +151,8 @@ export interface ProviderAccess {
 	/** The looot client of this access: every outside lookup is one looot run on the caller's own token. Memoized, so
 	    its calls accumulate for the cell panel. */
 	looot(): LoootClient;
+	/** The MoltSets client of this access, on the caller's own MoltSets plan. A MoltSets call costs no dollars. */
+	moltsets(): MoltSetsClient;
 	/** Every looot run this access made so far, in order. */
 	readonly calls: readonly LoootCallMeta[];
 	/** A TypeSafe client. */
@@ -169,6 +173,8 @@ export interface AccessAdapters {
 	openai?: typeof openaiModel;
 	/** The fetch looot requests go through; the global one by default. */
 	looot?: typeof fetch;
+	/** The fetch MoltSets requests go through; the global one by default. */
+	moltsets?: typeof fetch;
 	lookup?: (host: string) => Promise<Array<{ address: string }>>;
 }
 
@@ -196,6 +202,7 @@ export function providerAccess(grant: AccessGrant, adapters: AccessAdapters = {}
 				return wrapLanguageModel({ model: built, middleware: grant.openaiBaseUrl ? [spendMiddleware(spend), guard] : spendMiddleware(spend) });
 			},
 			looot: () => looot ??= new LoootClient({ token: requireKey('looot'), spend, attempt, capUsd, fetch: adapters.looot }),
+			moltsets: () => new MoltSetsClient({ key: requireKey('moltsets'), fetch: adapters.moltsets }),
 			get calls() { return looot?.calls ?? []; },
 			typesafe: () => typesafeClient(requireKey('typesafe'), spend),
 			decider: (requested = 'jev') => grant.classifierModel || requested === 'openai' || grant.preferJev === false ? 'openai' : 'jev',
@@ -218,9 +225,9 @@ function samePassword(given: string, password: string): boolean {
 }
 
 function serverEnv(request: Request): ServerEnv {
-	const password = process.env.ENRICHABLE_PASSWORD;
+	const password = process.env.LOOOT_TABLES_PASSWORD;
 	return {
-		unlocked: password ? samePassword(request.headers.get('x-enrichable-password') ?? '', password) : process.env.ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD === 'true',
+		unlocked: password ? samePassword(request.headers.get('x-looot-tables-password') ?? '', password) : process.env.LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD === 'true',
 		keys: Object.fromEntries(PROVIDERS.flatMap((provider) => { const key = clean(process.env[PROVIDER_INFO[provider].env]); return key ? [[provider, key]] : []; })),
 		model: clean(process.env.OPENAI_MODEL),
 		baseUrl: process.env.OPENAI_BASE_URL,
@@ -255,7 +262,7 @@ export async function serverKeyAvailability(request: Request) {
 	const available = Object.fromEntries(PROVIDERS.map((provider) => [provider, Boolean(first(rows, (offer) => offer.keys?.[provider]))])) as Record<Provider, boolean>;
 	return {
 		...available,
-		passwordRequired: Boolean(process.env.ENRICHABLE_PASSWORD),
+		passwordRequired: Boolean(process.env.LOOOT_TABLES_PASSWORD),
 	};
 }
 

@@ -1,9 +1,8 @@
 export const GITHUB_URL = 'https://github.com/loootai/looot-tables';
-export const ENRICHABLE_URL = 'https://github.com/context-dot-dev/enrichable';
-export const CONTEXT_DEV_URL = 'https://www.context.dev';
 export const DOCS_URL = `${GITHUB_URL}/blob/main/docs/usage.md`;
 export const LOOOT_URL = 'https://looot.ai';
 export const LOOOT_TOKENS_URL = 'https://looot.ai/settings';
+export const MOLTSETS_URL = 'https://moltsets.com';
 export const LOOOT_USAGE_URL = 'https://looot.ai/usage';
 
 export const SITE_TITLE = 'looot tables: open-source AI spreadsheet for data enrichment';

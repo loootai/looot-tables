@@ -24,7 +24,7 @@ test('storage logs preserve nested driver, aggregate and socket errors as parsea
 });
 
 test('storage diagnostics redact secrets and omit driver SQL, parameters and row details', (t) => {
-	const previous = { DATABASE_URL: process.env.DATABASE_URL, CONTEXT_DEV_API_KEY: process.env.CONTEXT_DEV_API_KEY };
+	const previous = { DATABASE_URL: process.env.DATABASE_URL, LOOOT_TOKEN: process.env.LOOOT_TOKEN };
 	t.after(() => {
 		for (const [key, value] of Object.entries(previous)) {
 			if (value === undefined) delete process.env[key];
@@ -32,8 +32,8 @@ test('storage diagnostics redact secrets and omit driver SQL, parameters and row
 		}
 	});
 	process.env.DATABASE_URL = 'postgresql://test:db-secret@example.com/test';
-	process.env.CONTEXT_DEV_API_KEY = 'context-test-secret';
-	const error = Object.assign(new Error(`Failed ${process.env.DATABASE_URL} context-test-secret https://user:pass@example.com/query?token=hidden Bearer auth-secret password=hidden-password`), {
+	process.env.LOOOT_TOKEN = 'looot-test-secret';
+	const error = Object.assign(new Error(`Failed ${process.env.DATABASE_URL} looot-test-secret https://user:pass@example.com/query?token=hidden Bearer auth-secret password=hidden-password`), {
 		code: '08006', query: 'INSERT private customer data', parameters: ['customer@example.com'], detail: 'private row contents',
 		cause: new Error('wss://user:pass@example.com/socket?secret=value'),
 	});
@@ -41,7 +41,7 @@ test('storage diagnostics redact secrets and omit driver SQL, parameters and row
 	const serialized = JSON.stringify(details);
 	assert.equal(details.code, '08006');
 	assert.match(serialized, /redacted/);
-	for (const secret of ['db-secret', 'context-test-secret', 'user:pass', 'token=hidden', 'auth-secret', 'hidden-password', 'private customer', 'customer@example.com', 'private row']) assert.ok(!serialized.includes(secret), secret);
+	for (const secret of ['db-secret', 'looot-test-secret', 'user:pass', 'token=hidden', 'auth-secret', 'hidden-password', 'private customer', 'customer@example.com', 'private row']) assert.ok(!serialized.includes(secret), secret);
 });
 
 test('storage diagnostics handle circular causes and bound error depth and aggregate size', () => {

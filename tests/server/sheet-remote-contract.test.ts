@@ -24,7 +24,7 @@ async function routes(t: TestContext): Promise<SheetRemote> {
 	const { database } = await testDatabase(t);
 	t.after(provideRouteContext((run) => run({ account: actor, database })));
 	t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-		const request = new Request(new URL(String(input), 'https://enrichable.test'), init);
+		const request = new Request(new URL(String(input), 'https://looot-tables.test'), init);
 		const id = /^\/api\/sheets\/([^/]+)$/.exec(new URL(request.url).pathname)?.[1];
 		const handler = id === undefined ? handlers.sheets[request.method] : handlers.sheet[request.method];
 		return handler ? handler(request, { params: Promise.resolve({ id: decodeURIComponent(id ?? '') }) }) : new Response(null, { status: 405 });

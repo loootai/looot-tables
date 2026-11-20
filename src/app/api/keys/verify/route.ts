@@ -5,6 +5,7 @@ import { routeAccess, serverKeyAvailability, type ProviderAccess } from '@/lib/s
 import { verifyTypesafeKey } from '@/lib/server/jev';
 import { verifyOpenAI } from '@/lib/server/verify-openai';
 import { verifyLoootToken } from '@/lib/server/looot-verify';
+import { checkMoltSets } from '@/lib/server/moltsets-plan';
 
 export const maxDuration = 30;
 
@@ -18,13 +19,14 @@ export async function POST(request: Request) {
 	const check = (provider: string) => !only || only.includes(provider);
 	const inference = query.get('inference') === 'true';
 	const key = (provider: Provider) => check(provider) ? access.key(provider) : null;
-	const openaiKey = access.key('openai'), loootKey = key('looot'), typesafeKey = key('typesafe');
-	const [openai, looot, typesafe] = await Promise.all([
+	const openaiKey = access.key('openai'), loootKey = key('looot'), typesafeKey = key('typesafe'), moltsetsKey = key('moltsets');
+	const [openai, looot, typesafe, moltsets] = await Promise.all([
 		!check('openai') ? Promise.resolve({ ok: false, message: 'Not checked' }) : openaiKey ? access.openaiEndpoint().then((endpoint) => verifyOpenAI(openaiKey, access.model, endpoint, inference)) : Promise.resolve({ ok: false, message: 'No OpenAI key' }),
 		loootKey ? verifyLoootToken(loootKey) : Promise.resolve({ ok: false, message: 'No looot token' }),
 		typesafeKey ? verifyTypesafeKey(typesafeKey) : Promise.resolve({ ok: false, message: 'No TypeSafe key' }),
+		moltsetsKey ? checkMoltSets(access.moltsets()) : Promise.resolve({ ok: false, message: 'No MoltSets key' }),
 	]);
-	const result: KeyVerification = { openai, looot, typesafe: { ...typesafe, configured: Boolean(typesafeKey) } };
+	const result: KeyVerification = { openai, looot, typesafe: { ...typesafe, configured: Boolean(typesafeKey) }, moltsets: { ok: moltsets.ok, message: moltsets.message, issue: 'issue' in moltsets ? moltsets.issue : undefined, configured: Boolean(moltsetsKey) } };
 	return new Response(JSON.stringify(result), { status: 200, headers: NO_STORE_HEADERS });
 }
 

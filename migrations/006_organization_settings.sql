@@ -1,10 +1,10 @@
-CREATE TABLE IF NOT EXISTS enrichable.organization_settings (
- workspace_id text PRIMARY KEY REFERENCES enrichable.workspaces(id),
+CREATE TABLE IF NOT EXISTS looot_tables.organization_settings (
+ workspace_id text PRIMARY KEY REFERENCES looot_tables.workspaces(id),
  revision integer NOT NULL DEFAULT 0,
  preferences jsonb NOT NULL DEFAULT '{}'::jsonb
 );
-CREATE TABLE IF NOT EXISTS enrichable.organization_providers (
- workspace_id text NOT NULL REFERENCES enrichable.workspaces(id),
+CREATE TABLE IF NOT EXISTS looot_tables.organization_providers (
+ workspace_id text NOT NULL REFERENCES looot_tables.workspaces(id),
  provider text NOT NULL CHECK (provider IN ('openai','context','typesafe','hunter','prospeo')),
  encrypted_secret text NOT NULL,
  prefix text NOT NULL,
@@ -15,13 +15,13 @@ CREATE TABLE IF NOT EXISTS enrichable.organization_providers (
  updated_at bigint NOT NULL,
  PRIMARY KEY (workspace_id,provider)
 );
-CREATE TABLE IF NOT EXISTS enrichable.organization_settings_audit (
+CREATE TABLE IF NOT EXISTS looot_tables.organization_settings_audit (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
- workspace_id text NOT NULL REFERENCES enrichable.workspaces(id),
+ workspace_id text NOT NULL REFERENCES looot_tables.workspaces(id),
  actor_id text NOT NULL,
  action text NOT NULL,
  fields jsonb NOT NULL,
  created_at bigint NOT NULL
 );
 
-ALTER TABLE enrichable.organization_providers ADD COLUMN IF NOT EXISTS disabled boolean NOT NULL DEFAULT false;
+ALTER TABLE looot_tables.organization_providers ADD COLUMN IF NOT EXISTS disabled boolean NOT NULL DEFAULT false;

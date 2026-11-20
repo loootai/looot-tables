@@ -4,7 +4,7 @@ import type { Sheet, Row } from '../../src/lib/types';
 import { readFile } from 'node:fs/promises';
 
 test('document chips open a Markdown preview, edit, and download a client PDF', async ({ page, context, baseURL }) => {
- await context.addCookies([{ name: 'enrichable.session', value: memberCookie('document-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+ await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('document-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
  const initial = '# Acme brief\n\n## Overview\n\nAcme builds **rockets**.\n\n- Founded in 2020\n- Based in Paris\n\n[Website](https://example.com)';
  let sheet: Sheet = { id: 'document-test', name: 'Documents', columns: [{ id: 'draft', name: 'Company brief', type: 'source', format: 'document', width: 240, createdAt: 1 }], filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
  let rows: Row[] = [{ id: 'r', sheetId: sheet.id, order: 0, createdAt: 1, cells: { draft: { v: initial, s: 'done', t: 1 } } }];

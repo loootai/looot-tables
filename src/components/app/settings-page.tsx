@@ -23,7 +23,7 @@ export function SettingsPage() {
 	const { selfHosted, workspaceName } = useSettings();
 	return (
 		<PageColumn>
-			<PageHeader title="Configuration" description={selfHosted ? 'Your workspace is tied to this browser. Keep its cookies to keep your sheets.' : `Shared with ${workspaceName || 'your Context.dev team'}.`} />
+			<PageHeader title="Configuration" description={selfHosted ? 'Your workspace is tied to this browser. Keep its cookies to keep your sheets.' : `Shared with ${workspaceName || 'your team'}.`} />
 			<Connections />
 			<Defaults />
 			<McpAccess />
@@ -121,7 +121,7 @@ function LegacySheetsImport() {
 	const [busy, setBusy] = useState(false);
 	useEffect(() => {
 		let cancelled = false;
-		void Dexie.exists(accountStorageKey('enrichable')).then((exists) => { if (!cancelled) setAvailable(exists); }, () => {});
+		void Dexie.exists(accountStorageKey('looot-tables')).then((exists) => { if (!cancelled) setAvailable(exists); }, () => {});
 		return () => { cancelled = true; };
 	}, []);
 	if (!available) return null;

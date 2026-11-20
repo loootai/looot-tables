@@ -40,7 +40,7 @@ export function safeBaseUrl(value: string | null | undefined): string | null {
 /* The server forwards requests to the base URL, so it must never be pointed at the deployment's own network.
    Loopback is allowed only outside production (local model servers, the mock in scripts/) or when opted in. */
 function localAllowed(): boolean {
-	return process.env.NODE_ENV !== 'production' || process.env.ENRICHABLE_ALLOW_LOCAL_BASE_URL === 'true';
+	return process.env.NODE_ENV !== 'production' || process.env.LOOOT_TABLES_ALLOW_LOCAL_BASE_URL === 'true';
 }
 
 /** True for loopback, link-local, private and otherwise non-public addresses (IPv4, IPv6 and IPv4-mapped IPv6). */

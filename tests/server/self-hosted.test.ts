@@ -2,15 +2,15 @@ import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { NextRequest } from 'next/server';
 import { proxy } from '../../src/proxy';
-import { authConfig, newSecret, readSession, SESSION_COOKIE } from '../../src/lib/server/auth';
-import { contextSignInEnabled } from '../../src/lib/server/deployment';
+import { newSecret, readSession, SESSION_COOKIE } from '../../src/lib/server/auth';
+import { selfHostedEnabled } from '../../src/lib/server/deployment';
 import { serverKeyAvailability } from '../../src/lib/server/provider-access';
 import { requestGrant } from './access-fixture';
 import { workspaceId } from '../../src/lib/server/database';
 import { SELF_HOSTED_SECONDS } from '../../src/lib/server/self-hosted';
 
 function configure(t: TestContext) {
- const values = { NODE_ENV: 'production', ENRICHABLE_APP_URL: '', ENRICHABLE_SESSION_SECRET: '', ENRICHABLE_DEV_AUTH: '', CONTEXT_OAUTH_CLIENT_ID: '', CONTEXT_OAUTH_CLIENT_SECRET: '', OPENAI_API_KEY: 'server-key', ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'false', ENRICHABLE_PASSWORD: '' };
+ const values = { NODE_ENV: 'production', LOOOT_TABLES_APP_URL: '', LOOOT_TABLES_SESSION_SECRET: '', LOOOT_TABLES_DEV_AUTH: '', OPENAI_API_KEY: 'server-key', LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'false', LOOOT_TABLES_PASSWORD: '' };
  const previous = Object.fromEntries(Object.keys(values).map(key => [key, process.env[key]]));
  Object.assign(process.env, values);
  t.after(() => { for (const [key,value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
@@ -34,11 +34,11 @@ test('self-hosted app initializes an isolated browser workspace without OAuth or
  assert.notEqual(workspaceId(account), workspaceId(other));
  assert.notEqual(account.partition, other.partition);
  assert.equal(readSession('local.short'), null);
- const headers = { cookie: `${SESSION_COOKIE}=${cookie.value}`, 'x-enrichable-account': account.partition, 'x-enrichable-session': account.sessionId, origin };
+ const headers = { cookie: `${SESSION_COOKIE}=${cookie.value}`, 'x-looot-tables-account': account.partition, 'x-looot-tables-session': account.sessionId, origin };
  assert.equal(proxy(new NextRequest(`${origin}/app`, { headers })).status, 200);
  assert.equal(proxy(new NextRequest(`${origin}/api/sheets`, { method: 'POST', headers })).status, 200);
  assert.equal(proxy(new NextRequest(`${origin}/api/sheets`, { method: 'POST', headers: { ...headers, origin: 'https://attacker.test' } })).status, 403);
- assert.equal(proxy(new NextRequest(`${origin}/api/sheets`, { headers: { ...headers, 'x-enrichable-account': other.partition } })).status, 409);
+ assert.equal(proxy(new NextRequest(`${origin}/api/sheets`, { headers: { ...headers, 'x-looot-tables-account': other.partition } })).status, 409);
  assert.equal(proxy(new NextRequest(`${origin}/api/sheets`)).status, 401);
  assert.equal(proxy(new NextRequest('http://localhost:3107/api/sheets', { method: 'POST', headers: { ...headers, host: '127.0.0.1:3107', origin: 'http://127.0.0.1:3107' } })).status, 200);
  assert.equal(proxy(new NextRequest('http://localhost:3107/api/sheets', { method: 'POST', headers: { ...headers, host: '127.0.0.1:3107', origin: 'http://attacker.test' } })).status, 403);
@@ -55,18 +55,15 @@ test('self-hosted workspace cookies slide forward on page visits so active works
  assert.equal(renewed.value, token, 'The same workspace is kept, never replaced');
  assert.equal(renewed.maxAge, SELF_HOSTED_SECONDS);
  assert.equal(renewed.httpOnly, true); assert.equal(renewed.secure, true); assert.equal(renewed.sameSite, 'lax'); assert.equal(renewed.path, '/');
- const api = proxy(new NextRequest(`${origin}/api/sheets`, { headers: { cookie: `${SESSION_COOKIE}=${token}`, 'x-enrichable-account': account.partition, 'x-enrichable-session': account.sessionId } }));
+ const api = proxy(new NextRequest(`${origin}/api/sheets`, { headers: { cookie: `${SESSION_COOKIE}=${token}`, 'x-looot-tables-account': account.partition, 'x-looot-tables-session': account.sessionId } }));
  assert.equal(api.status, 200);
  assert.equal(api.cookies.get(SESSION_COOKIE), undefined, 'API calls do not rewrite the cookie');
 });
 
-test('self-hosted deployments use manual keys, ignore inherited OAuth credentials and never offer sponsored AI', async t => {
+test('self-hosted deployments use manual keys, expose no sign-in routes and never offer sponsored AI', async t => {
  configure(t);
- process.env.ENRICHABLE_APP_URL = origin;
- process.env.CONTEXT_OAUTH_CLIENT_ID = 'enrichable';
- process.env.CONTEXT_OAUTH_CLIENT_SECRET = 'c'.repeat(32);
- assert.equal(contextSignInEnabled(), false);
- assert.throws(authConfig, /only available/);
+ process.env.LOOOT_TABLES_APP_URL = origin;
+ assert.equal(selfHostedEnabled(), true);
  for (const path of ['start', 'callback', 'logout', 'dev']) assert.equal(proxy(new NextRequest(`${origin}/api/auth/${path}`)).status, 404);
  const request = new Request(`${origin}/api/enrich`, { headers: { 'x-openai-key': 'my-openai', 'x-looot-key': 'my-looot' } });
  const credentials = await requestGrant(request);
@@ -74,18 +71,5 @@ test('self-hosted deployments use manual keys, ignore inherited OAuth credential
  assert.equal(credentials.keys.looot, 'my-looot');
  assert.equal('trialAccount' in credentials, false, 'no run is billed to a shared token on someone else’s behalf');
  const availability = await serverKeyAvailability(request);
- assert.deepEqual(availability, { openai: false, looot: false, typesafe: false, passwordRequired: false });
-});
-
-test('production OAuth is restricted to official domains and cannot accept a self-hosted cookie', t => {
- configure(t);
- for (const host of ['www.enrichable.io', 'enrichable.io']) {
-  process.env.ENRICHABLE_APP_URL = `https://${host}`;
-  assert.equal(contextSignInEnabled(), true);
-  assert.equal(readSession(`local.${newSecret()}`), null);
- }
- for (const host of ['enrichable.io.attacker.test', 'my-copy.vercel.app', 'localhost']) {
-  process.env.ENRICHABLE_APP_URL = `https://${host}`;
-  assert.equal(contextSignInEnabled(), false);
- }
+ assert.deepEqual(availability, { openai: false, looot: false, typesafe: false, moltsets: false, passwordRequired: false });
 });

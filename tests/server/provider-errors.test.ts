@@ -86,7 +86,7 @@ test('enrichment results carry structured failures', async () => {
 });
 
 test('the enrich endpoint returns structured failures with matching HTTP status', async (t) => {
- const values = { ENRICHABLE_APP_URL: 'https://self-hosted.example', ENRICHABLE_PASSWORD: '', ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'false', DATABASE_URL: '' };
+ const values = { LOOOT_TABLES_APP_URL: 'https://self-hosted.example', LOOOT_TABLES_PASSWORD: '', LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'false', DATABASE_URL: '' };
  const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
  Object.assign(process.env, values);
  t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });

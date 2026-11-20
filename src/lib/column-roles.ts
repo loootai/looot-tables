@@ -11,7 +11,7 @@ import type { Column, ColumnFormat, ColumnOp, ColumnType, EntityKind } from './t
 export type ColumnRole =
 	| 'website' | 'webpage' | 'school-website'
 	| 'company' | 'school' | 'employer-hint'
-	| 'person' | 'first-name' | 'last-name' | 'email' | 'profile' | 'photo'
+	| 'person' | 'first-name' | 'last-name' | 'email' | 'profile' | 'photo' | 'logo'
 	| 'document' | 'email-draft';
 
 export type RoleColumn = Pick<Column, 'format' | 'op'> & Partial<Pick<Column, 'id' | 'name'>>;
@@ -30,6 +30,7 @@ const HEADERS: Record<Exclude<ColumnRole, 'document' | 'email-draft'>, string[]>
 	email: ['email', 'e-mail', 'email address', 'work email'],
 	profile: ['linkedin', 'linkedin url', 'profile url', 'profile hint'],
 	photo: ['profile photo', 'profile photo url', 'avatar_url'],
+	logo: ['logo', 'logo url', 'company logo', 'logo_url'],
 };
 const BY_HEADER = new Map(Object.entries(HEADERS).flatMap(([role, names]) => names.map((name) => [name, role as ColumnRole])));
 const BY_FORMAT: Partial<Record<ColumnFormat, ColumnRole>> = { website: 'website', webpage: 'webpage', email: 'email', document: 'document', 'email-draft': 'email-draft' };

@@ -29,7 +29,7 @@ async function openSetup(page: Page) {
 }
 
 test.beforeEach(async ({ context, baseURL }) => {
-	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('column-lists'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('column-lists'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 });
 
 test('option, level, domain and number inputs keep what is typed', async ({ page }) => {

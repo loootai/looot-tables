@@ -3,10 +3,10 @@ import { test } from 'node:test';
 import { DEFAULT_SETTINGS } from '../src/lib/keys';
 import { CONNECTION_ORDER, deriveConnections, formatExpiry, isReady, mcpConfig, REQUIRED_PROVIDERS } from '../src/components/app/providers';
 
-const server = { openai: false, looot: false, typesafe: false, passwordRequired: false };
+const server = { openai: false, looot: false, typesafe: false, moltsets: false, passwordRequired: false };
 
-test('one looot token replaces the data provider and every email provider', () => {
-	assert.deepEqual([...CONNECTION_ORDER], ['looot', 'openai', 'typesafe']);
+test('one looot token replaces the data provider and every email provider, and MoltSets is an optional extra', () => {
+	assert.deepEqual([...CONNECTION_ORDER], ['looot', 'openai', 'typesafe', 'moltsets']);
 	assert.deepEqual([...REQUIRED_PROVIDERS], ['looot', 'openai']);
 });
 
@@ -37,6 +37,6 @@ test('workspace connections report their expiry and when one must be replaced', 
 });
 
 test('the self-hosted MCP config carries the looot token header next to the OpenAI one', () => {
-	assert.deepEqual(JSON.parse(mcpConfig('https://self.example/mcp', 'enr_mcp_secret', true)).mcpServers['looot-tables'].headers, { Authorization: 'Bearer enr_mcp_secret', 'x-openai-key': 'YOUR_OPENAI_API_KEY', 'x-looot-key': 'YOUR_LOOOT_TOKEN' });
+	assert.deepEqual(JSON.parse(mcpConfig('https://self.example/mcp', 'lt_mcp_secret', true)).mcpServers['looot-tables'].headers, { Authorization: 'Bearer lt_mcp_secret', 'x-openai-key': 'YOUR_OPENAI_API_KEY', 'x-looot-key': 'YOUR_LOOOT_TOKEN' });
 	assert.deepEqual(JSON.parse(mcpConfig('https://tables.example/mcp', undefined, false)).mcpServers['looot-tables'].headers, { Authorization: 'Bearer YOUR_AGENT_KEY' });
 });

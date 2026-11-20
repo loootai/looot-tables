@@ -30,7 +30,7 @@ function watchSession(account: Account & { sessionId: string }, dispatch: (event
 	const send = (event: BoundaryEvent) => { if (live()) dispatch(event); };
 	let checking = false, announced = false, loaded = false;
 	let stopRealtime: (() => void) | undefined;
-	const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('enrichable.auth');
+	const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('looot-tables.auth');
 	const check = async () => {
 		if (checking) return;
 		checking = true;

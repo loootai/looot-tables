@@ -15,7 +15,7 @@ test('another member can load and edit shared sheets from a separate browser, wh
 	const url = page.url();
 	const colleague = await browser.newContext({ baseURL: new URL(url).origin });
 	try {
-		await colleague.addCookies([{ name: 'enrichable.session', value: memberCookie('colleague'), url: new URL(url).origin, httpOnly: true, sameSite: 'Lax' }]);
+		await colleague.addCookies([{ name: 'looot-tables-session', value: memberCookie('colleague'), url: new URL(url).origin, httpOnly: true, sameSite: 'Lax' }]);
 		const other = await colleague.newPage();
 		await other.route('**/api/looot/balance*',route=>route.fulfill({json:{credits:25000,used:0}}));
 		await other.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));

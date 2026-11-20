@@ -2,7 +2,7 @@ import { expect, type Page } from '@playwright/test';
 import { test } from './authenticated-test';
 
 async function connected(page: Page, events: unknown[]) {
-	await page.addInitScript(() => localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
+	await page.addInitScript(() => localStorage.setItem('looot-tables.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
 	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: true, context: true, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/logos/resolve', (route) => route.fulfill({ json: { domain: null } }));
 	const requests: unknown[] = [];
@@ -82,22 +82,22 @@ test('a search with no matches reopens Find rows with the prompt kept, and closi
 test('a rejected key is caught before a sheet exists, with the fix in place', async ({ page }) => {
 	await connected(page, []);
 	await page.route('**/api/keys/verify*', (route) => route.request().method() === 'POST'
-		? route.fulfill({ json: { openai: { ok: true }, context: { ok: false, issue: 'key', message: 'Context.dev rejected this key.' }, typesafe: { ok: false, configured: false } } })
+		? route.fulfill({ json: { openai: { ok: true }, context: { ok: false, issue: 'key', message: 'looot rejected this key.' }, typesafe: { ok: false, configured: false } } })
 		: route.fallback());
 	await page.getByLabel('Describe the rows you want', { exact: true }).fill('Solar installers in Texas');
 	await page.getByRole('button', { name: 'Find companies', exact: true }).click();
-	await expect(page.getByRole('alert')).toContainText('Context.dev rejected this key.');
+	await expect(page.getByRole('alert')).toContainText('looot rejected this key.');
 	await expect(page.getByRole('link', { name: 'Open Connections', exact: true })).toBeVisible();
 	await expect(page).toHaveURL(/\/app$/);
 	await expect(page.getByText('0 / 10 sheets')).toBeVisible();
 });
 
 test('a failed search offers the same fix as a paused run', async ({ page }) => {
-	await connected(page, [{ type: 'error', message: 'Context.dev rejected the API key.', failure: { reason: 'credential_invalid', retryable: false, provider: 'context' } }]);
+	await connected(page, [{ type: 'error', message: 'looot rejected the API key.', failure: { reason: 'credential_invalid', retryable: false, provider: 'context' } }]);
 	await page.getByLabel('Describe the rows you want', { exact: true }).fill('Solar installers in Texas');
 	await page.getByRole('button', { name: 'Find companies', exact: true }).click();
 	const dialog = page.getByRole('dialog', { name: 'Find rows', exact: true });
-	await expect(dialog.getByRole('alert')).toContainText('Context.dev rejected the API key.');
+	await expect(dialog.getByRole('alert')).toContainText('looot rejected the API key.');
 	await expect(dialog.getByRole('link', { name: 'Open Connections', exact: true })).toBeVisible();
 });
 

@@ -105,7 +105,7 @@ test('landing page and onboarding fit narrow screens', async ({ page }) => {
 	await page.getByRole('link', { name: 'Start enriching', exact: true }).click();
 	const dialog = page.getByRole('dialog', { name: 'Set up enrichment' });
 	await fitsViewport(page, dialog);
-	await expect(page.getByLabel('Context.dev API key', { exact: true })).toBeVisible();
+	await expect(page.getByLabel('looot API key', { exact: true })).toBeVisible();
 	await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Sheets', exact: true })).toBeVisible();
 	await noPageOverflow(page);

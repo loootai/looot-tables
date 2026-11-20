@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { memberCookie } from './authenticated-test';
 
 test('pasted keys are checked automatically, never block saving, and models live in Configuration → Defaults', async ({ page, context, baseURL }) => {
-	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('browser-user'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('browser-user'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 	await page.route('**/api/organization-settings', route => route.fulfill({ json: { local: true } }));
 	await page.route('**/api/sheets', route => route.fulfill({ json: [] }));
 	await page.route('**/api/looot/balance*', route => route.fulfill({ json: { credits: 1000, used: 0 } }));
@@ -19,7 +19,7 @@ test('pasted keys are checked automatically, never block saving, and models live
 	const dialog = page.getByRole('dialog', { name: 'Set up enrichment' });
 	await expect(dialog).toBeVisible();
 	await expect(dialog.getByRole('combobox'), 'Model choice is not part of setup').toHaveCount(0);
-	await expect(dialog.getByRole('region', { name: 'Context.dev' })).toContainText('Connected');
+	await expect(dialog.getByRole('region', { name: 'looot' })).toContainText('Connected');
 	const proceed = dialog.getByRole('button', { name: 'Save and start', exact: true });
 	await expect(proceed).toBeDisabled();
 	const key = dialog.getByLabel('OpenAI API key', { exact: true });

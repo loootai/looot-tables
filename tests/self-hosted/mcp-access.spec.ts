@@ -6,13 +6,13 @@ test('agent access retrieves and copies a shared key after reload and preserves 
 	await page.route('**/api/sheets', (route) => route.fulfill({ json: [] }));
 	await page.route('**/api/keys/verify', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, contextConnected: false, passwordRequired: false } }));
 	let key: { prefix: string; version: string; createdAt: number; recoverable?: boolean; secret?: string } | null = null;
-	const first = `enr_mcp_${'a'.repeat(43)}`;
-	const replacement = `enr_mcp_${'b'.repeat(43)}`;
+	const first = `lt_mcp_${'a'.repeat(43)}`;
+	const replacement = `lt_mcp_${'b'.repeat(43)}`;
 	const writes: string[] = [];
 	await page.route('**/api/mcp-key*', async (route) => {
 		const request = route.request();
-		expect(request.headers()['x-enrichable-account']).toBeTruthy();
-		expect(request.headers()['x-enrichable-session']).toBeTruthy();
+		expect(request.headers()['x-looot-tables-account']).toBeTruthy();
+		expect(request.headers()['x-looot-tables-session']).toBeTruthy();
 		if (request.method() === 'GET') return route.fulfill({ json: { key: request.url().includes('reveal=1') ? key : key && { ...key, secret: undefined } } });
 		writes.push(request.method());
 		if (request.method() === 'POST') {
@@ -39,7 +39,7 @@ test('agent access retrieves and copies a shared key after reload and preserves 
 	await expect(page.getByText(first, { exact: true })).toHaveCount(0);
 	await page.getByRole('button', { name: 'Copy MCP config', exact: true }).click();
 	await expect(page.getByText('MCP config copied. Replace the two provider key placeholders before using it.', { exact: true })).toBeVisible();
-	const config = JSON.parse(await page.evaluate(() => navigator.clipboard.readText())).mcpServers.enrichable;
+	const config = JSON.parse(await page.evaluate(() => navigator.clipboard.readText())).mcpServers['looot-tables'];
 	expect(config.headers).toEqual({ Authorization: `Bearer ${first}`, 'x-openai-key': 'YOUR_OPENAI_API_KEY', 'x-looot-key': 'YOUR_CONTEXT_DEV_API_KEY' });
 	expect(config.url).toMatch(/\/mcp$/);
 	await page.getByRole('button', { name: 'Show key', exact: true }).click();

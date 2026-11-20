@@ -3,7 +3,7 @@ import { memberCookie } from './authenticated-test';
 import type { Sheet, Row } from '../../src/lib/types';
 
 test('date picker selects, clears, cancels and persists dates', async ({ page, context, baseURL }) => {
-	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('format-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('format-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 	const columns: Sheet['columns'] = ['Date', 'Selected', 'Weight'].map((name, i) => ({ id: `c${i}`, name, type: 'source', format: i === 0 ? 'date' : undefined, width: 180, createdAt: 1 }));
 	let sheet: Sheet = { id: 'format-test', name: 'Formats', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: Object.fromEntries(columns.map((column, c) => [column.id, { v: c === 0 ? '2024-02-15' : c === 1 ? 'false' : 12.5 + i, s: 'done', t: 1 }])) }));

@@ -1,4 +1,4 @@
-// A tiny OpenAI-compatible mock (Chat Completions) for exercising Enrichable's plumbing without spending tokens.
+// A tiny OpenAI-compatible mock (Chat Completions) for exercising the app's plumbing without spending tokens.
 // It answers structured-output requests with schema-shaped placeholder values and drives tool loops with one
 // scripted tool call per available tool before finishing. Run: node scripts/mock-openai.mjs (port 4545).
 import http from 'node:http';

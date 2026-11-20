@@ -7,7 +7,7 @@ A spreadsheet that fills itself in from the internet: rows come from a descripti
 ### Sheets and data
 
 **Workspace**:
-The container of sheets a person can see: one per browser on self-hosted deployments, one per Context.dev organization on enrichable.io.
+The container of sheets a person can see: one per browser cookie. Local development with LOOOT_TABLES_DEV_AUTH can also sign in test accounts.
 _Avoid_: Organization (on self-hosted), account, project
 
 **Sheet**:
@@ -59,12 +59,12 @@ A batch of cells queued for enrichment in one browser tab; bulk runs above the c
 A paused run on a sheet after a failure no retry can fix (credits exhausted, a missing or rejected key, results that could not be saved), shown as one banner with a fix. A result already paid for is kept, and resuming saves it without asking the provider again, even after its running marker expired, unless its inputs changed.
 
 **Failure**:
-A structured reason an enrichment did not produce a value (`rate_limited`, `credits_exhausted`, `credential_missing`, `credential_invalid`, `timeout`, `provider_error`, `input_invalid`) with whether it is retryable; messages are presentation only. It is retryable only when no provider did work for it: the request never reached the provider (DNS failed or the connection was refused), the provider refused it before processing (429), or looot tables's own pre-flight refused it (the **Credit ledger**'s rate limit, or company research another cell is running or that just failed). Anything after a request was sent (a timeout, a server error, a dropped connection, a truncated answer), and any failure once its enrichment paid for anything, is never retried automatically: the provider may have billed the work. What an enrichment paid for is recorded once, where requests leave: each enrichment gets its own spend tracker, and the clients **Provider access** hands out record into it every request a provider may have billed (anything but a refusal, a request that never arrived or a shared-cache hit), with the Context.dev credits shown on the cell, including company research done for it. A page lookup that finds no such page is an answer (a check is false); a refusal while looking is a **Failure**. Provider requests themselves are sent once, resent only when rate limited or never connected (`src/lib/server/enrich-failure.ts`).
+A structured reason an enrichment did not produce a value (`rate_limited`, `credits_exhausted`, `credential_missing`, `credential_invalid`, `timeout`, `provider_error`, `input_invalid`) with whether it is retryable; messages are presentation only. It is retryable only when no provider did work for it: the request never reached the provider (DNS failed or the connection was refused), the provider refused it before processing (429), or looot tables's own pre-flight refused it (the **Credit ledger**'s rate limit, or company research another cell is running or that just failed). Anything after a request was sent (a timeout, a server error, a dropped connection, a truncated answer), and any failure once its enrichment paid for anything, is never retried automatically: the provider may have billed the work. What an enrichment paid for is recorded once, where requests leave: each enrichment gets its own spend tracker, and the clients **Provider access** hands out record into it every request a provider may have billed (anything but a refusal, a request that never arrived or a shared-cache hit), with the looot cost shown on the cell, including company research done for it. A page lookup that finds no such page is an answer (a check is false); a refusal while looking is a **Failure**. Provider requests themselves are sent once, resent only when rate limited or never connected (`src/lib/server/enrich-failure.ts`).
 
 ### Providers and credit
 
 **Connection**:
-A provider credential a workspace can use: a pasted key, a Context.dev sign-in grant, a deployment key or an included trial.
+A provider credential a workspace can use: a pasted key or a deployment key.
 _Avoid_: API keys (as a section name), providers (as a section name), edit keys
 
 **Provider access**:
@@ -93,6 +93,5 @@ _Avoid_: Organization key, MCP token
 
 ## Flagged ambiguities
 
-- "organization" meant both the hosted Context.dev organization and the self-hosted container. Resolved: the container is always a **Workspace**; "organization" only names the Context.dev team on enrichable.io.
 - "populate", "add rows" and "find rows" named the same flow. Resolved: **Find rows** in all UI copy; `populate` remains an internal module name.
 - "enriched column", "Use AI" and "rule" named the same thing. Resolved: **AI column**.

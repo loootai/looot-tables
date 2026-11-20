@@ -1,5 +1,5 @@
-CREATE TABLE IF NOT EXISTS enrichable.company_research (
- workspace_id text NOT NULL REFERENCES enrichable.workspaces(id),
+CREATE TABLE IF NOT EXISTS looot_tables.company_research (
+ workspace_id text NOT NULL REFERENCES looot_tables.workspaces(id),
  domain text NOT NULL,
  profile jsonb,
  researched_at bigint,

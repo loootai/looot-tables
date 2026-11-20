@@ -3,7 +3,7 @@ import { memberCookie } from './authenticated-test';
 import type { Sheet, Row } from '../../src/lib/types';
 
 test('completed nulls appear in the formula bar, stay null on blur, and differ from unrun cells', async ({ page, context, baseURL }) => {
- await context.addCookies([{ name: 'enrichable.session', value: memberCookie('null-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+ await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('null-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
  let sheet: Sheet = { id: 'null-test', name: 'Null results', columns: [{ id: 'result', name: 'Result', type: 'source', format: 'text', width: 240, createdAt: 1 }], filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
  let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: { result: { v: null, s: i === 0 ? 'done' : 'idle', t: 1 } } }));
  await page.route('**/api/looot/balance*', (route) => route.fulfill({ json: { available: 5, reserved: 0 } }));

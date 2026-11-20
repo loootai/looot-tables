@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability privately
-    url: https://github.com/context-dot-dev/enrichable/blob/main/SECURITY.md
+    url: https://github.com/loootai/looot-tables/blob/main/SECURITY.md
     about: Follow the private reporting instructions. Do not include vulnerabilities or credentials in public issues.
   - name: Contribution policy
-    url: https://github.com/context-dot-dev/enrichable/blob/main/CONTRIBUTING.md
+    url: https://github.com/loootai/looot-tables/blob/main/CONTRIBUTING.md
     about: Open an issue. Maintainers implement changes; external PRs are not accepted.

@@ -9,7 +9,7 @@ import type { Row, Sheet } from '../../src/lib/types';
 import { testDatabase } from '../support/database';
 
 test('Postgres workspaces share by verified organization, isolate tenants, enforce quotas and reject stale edits', { timeout: 90_000 }, async (t) => {
-	const live = process.env.ENRICHABLE_LIVE_DB_TEST === 'true';
+	const live = process.env.LOOOT_TABLES_LIVE_DB_TEST === 'true';
 	loadEnvConfig(process.cwd());
 	const prefix = `test-${randomUUID()}`;
 	const actor = (user: string, org = 'one', issuer = 'https://workspace-tests.invalid'): Account => ({ issuer, user: { id: user, email: `${user}@example.com`, email_verified: true }, organization: { id: `${prefix}-${org}`, name: 'Test workspace' }, partition: user });
@@ -20,8 +20,8 @@ test('Postgres workspaces share by verified organization, isolate tenants, enfor
 		finally {
 			await database.transaction(async (sql) => {
 				for (const account of [alice, stranger, otherIssuer]) {
-					await sql.query('DELETE FROM enrichable.sheets WHERE workspace_id=$1', [workspaceId(account)]);
-					await sql.query('DELETE FROM enrichable.workspaces WHERE id=$1', [workspaceId(account)]);
+					await sql.query('DELETE FROM looot_tables.sheets WHERE workspace_id=$1', [workspaceId(account)]);
+					await sql.query('DELETE FROM looot_tables.workspaces WHERE id=$1', [workspaceId(account)]);
 				}
 			});
 		}

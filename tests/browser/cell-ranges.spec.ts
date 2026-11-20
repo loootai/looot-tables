@@ -136,7 +136,7 @@ test(`drag selects a rectangle, copies table data, supports Shift extension, and
 
 test('Backspace clears enrichment results and formulas together, supports undo, and persists', async ({ page }) => {
 	await page.evaluate(async () => {
-		const db = await new Promise<IDBDatabase>((resolve) => { const request = indexedDB.open('enrichable.cloud.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396'); request.onsuccess = () => resolve(request.result); });
+		const db = await new Promise<IDBDatabase>((resolve) => { const request = indexedDB.open('looot-tables.cloud.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396'); request.onsuccess = () => resolve(request.result); });
 		await new Promise<void>((resolve, reject) => {
 			const tx = db.transaction(['sheets', 'rows'], 'readwrite');
 			const request = tx.objectStore('sheets').openCursor();

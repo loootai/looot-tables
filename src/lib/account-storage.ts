@@ -13,5 +13,5 @@ export function accountStorageKey(key: string) {
 }
 
 export function accountHeaders(): Record<string, string> {
-	return account ? { 'x-enrichable-account': account.partition, 'x-enrichable-session': account.sessionId } : {};
+	return account ? { 'x-looot-tables-account': account.partition, 'x-looot-tables-session': account.sessionId } : {};
 }

@@ -14,7 +14,7 @@ const sheet: Sheet = { id: 'sheet', name: 'Live sheet', columns: [{ id: 'value',
 
 test('live query capabilities fix workspace and sheet scope, expire quickly, and never reveal branch credentials', async (t) => {
 	const bytes = randomBytes(32);
-	const env = { NEON_REALTIME_URL: 'wss://example.neon.tech/', NEON_REALTIME_SECRET: `nrt_live_1${bytes.toString('base64url')}`, DATABASE_URL: 'postgresql://user:password@example.com/neondb', ENRICHABLE_REALTIME_ENABLED: 'true' };
+	const env = { NEON_REALTIME_URL: 'wss://example.neon.tech/', NEON_REALTIME_SECRET: `nrt_live_1${bytes.toString('base64url')}`, DATABASE_URL: 'postgresql://user:password@example.com/neondb', LOOOT_TABLES_REALTIME_ENABLED: 'true' };
 	const previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
 	Object.assign(process.env, env);
 	t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
@@ -33,7 +33,7 @@ test('live query capabilities fix workspace and sheet scope, expire quickly, and
 	const stranger = await sealWorkspaceQueries(actor('eve', 'other'), 'sheet');
 	assert.ok(stranger.enabled);
 	assert.notEqual(stranger.sheet!.queryFingerprint, bundle.sheet!.queryFingerprint);
-	process.env.ENRICHABLE_REALTIME_ENABLED = 'false';
+	process.env.LOOOT_TABLES_REALTIME_ENABLED = 'false';
 	assert.deepEqual(await sealWorkspaceQueries(actor(), 'sheet'), { enabled: false });
 });
 
@@ -49,12 +49,12 @@ test('presence is organization-scoped, validates cell ownership, prevents impers
 	await assert.rejects(store.presence(actor(), { ...input, clientId: randomUUID(), columnId: 'unknown' }, 2), /Column not found/);
 	await assert.rejects(store.presence(actor(), { ...input, clientId: randomUUID(), rowId: 'foreign' }, 2), /Row not found/);
 	await store.leavePresence(actor(), clientId);
-	assert.equal((await db.query('SELECT * FROM enrichable.sheet_presence')).rows.length, 1);
+	assert.equal((await db.query('SELECT * FROM looot_tables.sheet_presence')).rows.length, 1);
 	const returning = { ...input, clientId: randomUUID() };
 	await store.presence(actor(), returning, 300_000);
-	assert.equal((await db.query('SELECT * FROM enrichable.sheet_presence')).rows.length, 2);
+	assert.equal((await db.query('SELECT * FROM looot_tables.sheet_presence')).rows.length, 2);
 	await store.presence(actor(), returning, 600_002);
-	assert.equal((await db.query('SELECT * FROM enrichable.sheet_presence')).rows.length, 1);
+	assert.equal((await db.query('SELECT * FROM looot_tables.sheet_presence')).rows.length, 1);
 	await store.remove(actor(), 'sheet', 1);
-	assert.equal((await db.query('SELECT * FROM enrichable.sheet_presence')).rows.length, 0);
+	assert.equal((await db.query('SELECT * FROM looot_tables.sheet_presence')).rows.length, 0);
 });

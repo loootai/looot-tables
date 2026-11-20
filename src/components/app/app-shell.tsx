@@ -9,7 +9,7 @@ import { NavigationProvider, Sidebar } from './sidebar';
 import { AccountBoundary, useSessionWarning } from './account-boundary';
 import { SELF_HOSTED_ISSUER, type Account } from '@/lib/auth-identity';
 
-const SETUP_SEEN_KEY = 'enrichable.setup-seen.v1';
+const SETUP_SEEN_KEY = 'looot-tables.setup-seen.v1';
 function setupSeen() {
 	try { return window.localStorage.getItem(accountStorageKey(SETUP_SEEN_KEY)) === '1'; } catch { return false; }
 }

@@ -14,7 +14,7 @@ const actor = (org = 'one', user = 'alice'): Account => ({ issuer: 'https://test
 const access = testAccess({ account: actor(), model: 'test' });
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
  const { db, database } = await testDatabase(t);
- for (const a of [actor(), actor('two')]) await db.query('INSERT INTO enrichable.workspaces (id,issuer,organization_id,name) VALUES ($1,$2,$3,$4)', [workspaceId(a), a.issuer, a.organization.id, a.organization.name]);
+ for (const a of [actor(), actor('two')]) await db.query('INSERT INTO looot_tables.workspaces (id,issuer,organization_id,name) VALUES ($1,$2,$3,$4)', [workspaceId(a), a.issuer, a.organization.id, a.organization.name]);
  return new CompanyContextStore(database);
 }
 
@@ -88,29 +88,29 @@ test('first relevant research reads a bounded website, saves a brief, and concur
 
 
 test('explicit company domains win over missing sign-in context without using an attendee domain', () => {
- const query = "here's people from my event last week can you see if any of them are worth talking to for my company context.dev\nNikhil Radosevich\nAbhijeet Sharma";
- assert.equal(explicitCompanyDomain(query), 'context.dev');
- assert.equal(explicitCompanyDomain('Compare them with our company (https://www.context.dev/about)'), 'context.dev');
- assert.equal(explicitCompanyDomain('My company is context.dev.'), 'context.dev');
+ const query = "here's people from my event last week can you see if any of them are worth talking to for my company looot.ai\nNikhil Radosevich\nAbhijeet Sharma";
+ assert.equal(explicitCompanyDomain(query), 'looot.ai');
+ assert.equal(explicitCompanyDomain('Compare them with our company (https://looot.ai/about)'), 'looot.ai');
+ assert.equal(explicitCompanyDomain('My company is looot.ai.'), 'looot.ai');
  assert.equal(explicitCompanyDomain('Worth talking to for my company? Attendee: jane@example.com'), null);
- assert.equal(explicitCompanyDomain('Research {{My company context.dev}}'), null);
+ assert.equal(explicitCompanyDomain('Research {{My company looot.ai}}'), null);
 });
 
 test('explicit domain cache works after rejected sign-in and stays isolated from saved brand, other domains and tenants', async (t) => {
  const store = await fixture(t);
  await store.claimLookup(actor());
  await store.finishLookup(actor(), 'FREE_EMAIL_DETECTED', null);
- const explicit = await store.forDomain(actor(), 'context.dev');
- assert.equal((await explicit.get(actor()))?.brand?.domain, 'context.dev');
- const profile = { summary: 'Context.dev provides web data APIs.', sources: ['https://context.dev/'] };
+ const explicit = await store.forDomain(actor(), 'looot.ai');
+ assert.equal((await explicit.get(actor()))?.brand?.domain, 'looot.ai');
+ const profile = { summary: 'looot runs data jobs across many providers.', sources: ['https://looot.ai/'] };
  assert.equal(await explicit.claimResearch(actor(), 'explicit'), true);
- const teammate = await store.forDomain(actor('one', 'bob'), 'context.dev');
+ const teammate = await store.forDomain(actor('one', 'bob'), 'looot.ai');
  assert.equal(await teammate.claimResearch(actor('one', 'bob'), 'duplicate'), false);
  await explicit.finishResearch(actor(), 'explicit', profile);
  assert.deepEqual(await researchCompany(access, teammate), profile);
  assert.equal((await store.get(actor()))?.lookup_status, 'FREE_EMAIL_DETECTED');
  assert.equal((await store.get(actor()))?.profile, null);
- assert.equal((await (await store.forDomain(actor('two'), 'context.dev')).get(actor('two')))?.profile, null);
+ assert.equal((await (await store.forDomain(actor('two'), 'looot.ai')).get(actor('two')))?.profile, null);
  assert.equal((await (await store.forDomain(actor(), 'another.example')).get(actor()))?.profile, null);
 });
 

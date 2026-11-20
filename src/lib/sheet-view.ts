@@ -15,7 +15,7 @@ const viewSchema = z.object({ filters: sheetSchema.shape.filters, sort: sheetSch
 const listeners = new Set<() => void>();
 // Views that storage refused (private mode, quota) last for this page.
 const unsaved = new Map<string, string>();
-const storageKey = (sheetId: string) => accountStorageKey(`enrichable.sheet-view.v1.${sheetId}`);
+const storageKey = (sheetId: string) => accountStorageKey(`looot-tables.sheet-view.v1.${sheetId}`);
 
 /** The stored view as text, for useSyncExternalStore: equal text is the same view. */
 export function storedSheetView(sheetId: string): string | null {

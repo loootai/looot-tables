@@ -1,5 +1,5 @@
 {
-  "name": "enrichable",
+  "name": "looot-tables",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -36,7 +36,6 @@
     "@uiw/react-md-editor": "^4.2.3",
     "ai": "^7.0.157",
     "clsx": "^2.1.1",
-    "context.dev": "^3.19.1",
     "dexie": "^4.4.7",
     "dexie-react-hooks": "^4.4.0",
     "fflate": "^0.8.3",
@@ -75,17 +74,17 @@
     "tsx": "^4.23.15",
     "typescript": "^5"
   },
-  "description": "Open-source AI spreadsheet for data enrichment. Build lead lists from a prompt, research every row with live web data, and find work emails. Powered by Context.dev.",
+  "description": "Open-source AI spreadsheet for data enrichment. Build lead lists from a prompt, research every row with live web data, and find work emails and phones through looot, with MoltSets as a flat-fee source.",
   "license": "MIT",
   "engines": {
     "node": ">=22.23.4 <23"
   },
-  "homepage": "https://www.enrichable.io",
+  "homepage": "https://github.com/loootai/looot-tables",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/context-dot-dev/enrichable.git"
+    "url": "git+https://github.com/loootai/looot-tables.git"
   },
   "bugs": {
-    "url": "https://github.com/context-dot-dev/enrichable/issues"
+    "url": "https://github.com/loootai/looot-tables/issues"
   }
 }

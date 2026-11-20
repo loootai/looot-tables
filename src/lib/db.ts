@@ -19,11 +19,11 @@ import type { Cell, CellMeta, CellValue, Column, ColumnOp, ColumnFormat, Populat
 import { decodeLiveSheet, type LiveSheetEntry } from './collaboration';
 import { sheetSchema, rowSchema } from './workspace';
 
-class EnrichableDB extends Dexie {
+class LoootTablesDB extends Dexie {
 	sheets!: EntityTable<Sheet, 'id'>;
 	rows!: EntityTable<Row, 'id'>;
 
-	constructor(name = 'enrichable.signed-out') {
+	constructor(name = 'looot-tables.signed-out') {
 		super(name);
 		this.version(1).stores({
 			sheets: 'id, updatedAt',
@@ -33,7 +33,7 @@ class EnrichableDB extends Dexie {
 }
 
 /** The IndexedDB cache of the workspace's sheets. Every change commits to the workspace (`SheetRemote`) first. */
-export let db = new EnrichableDB();
+export let db = new LoootTablesDB();
 let remote: SheetRemote | undefined;
 let workspacePending: Promise<unknown> = Promise.resolve();
 
@@ -119,10 +119,10 @@ export function sheetSync(sheet: Sheet): SheetSync {
 const behind = (sheet: Sheet | undefined) => Boolean(sheet && sheetSync(sheet) !== 'synced');
 
 export function openAccountDatabase() {
-	const name = accountStorageKey('enrichable.cloud');
+	const name = accountStorageKey('looot-tables.cloud');
 	if (db.name === name) return;
 	db.close();
-	db = new EnrichableDB(name);
+	db = new LoootTablesDB(name);
 }
 
 /** Commit every change to `workspace` (`cloudSheets` in the browser) and load its sheets into the cache. */
@@ -174,7 +174,7 @@ export function loadSheet(sheetId: string): Promise<boolean> {
 export const id = () => nanoid(12);
 
 export function newColumn(input: { name: string; type: Column['type']; op?: ColumnOp; width?: number; format?: ColumnFormat; categoryOptions?: string[]; categoryColors?: Record<string, string>; currency?: string; unit?: string; useGrouping?: boolean; decimalPlaces?: number; dateFormat?: Column['dateFormat'] }): Column {
-	return { id: id(), name: input.name, type: input.type, op: input.op, width: input.width ?? (input.type === 'enriched' ? 220 : 180), format: input.format ?? inferredFormat(input), categoryOptions: input.categoryOptions, categoryColors: input.categoryColors, currency: input.currency, unit: input.unit, useGrouping: input.useGrouping, decimalPlaces: input.decimalPlaces, dateFormat: input.dateFormat, createdAt: Date.now() };
+	return { id: id(), name: input.name, type: input.type, op: input.op, width: input.width ?? (input.type === 'enriched' ? 250 : 180), format: input.format ?? inferredFormat(input), categoryOptions: input.categoryOptions, categoryColors: input.categoryColors, currency: input.currency, unit: input.unit, useGrouping: input.useGrouping, decimalPlaces: input.decimalPlaces, dateFormat: input.dateFormat, createdAt: Date.now() };
 }
 
 export const SHEET_LIMIT_MESSAGE = `Your workspace can have up to ${MAX_SHEETS} sheets. Delete a sheet to create another.`;
@@ -258,9 +258,9 @@ export async function duplicateSheet(sheetId: string): Promise<Sheet | null> {
 }
 
 export async function importMyLocalSheets(): Promise<number> {
-	const name = accountStorageKey('enrichable');
+	const name = accountStorageKey('looot-tables');
 	if (!await Dexie.exists(name)) return 0;
-	const legacy = new EnrichableDB(name);
+	const legacy = new LoootTablesDB(name);
 	try {
 		const sheets = await legacy.sheets.toArray();
 		const snapshots = await Promise.all(sheets.map(async (sheet) => ({ sheet, rows: await legacy.rows.where('sheetId').equals(sheet.id).toArray() })));

@@ -4,7 +4,7 @@ import type { Sheet, Row } from '../../src/lib/types';
 
 // Exercise the actual UI and persistence requests without depending on a live Neon database.
 test('column-wide formats display currency and units and persist checkbox booleans', async ({ page, context, baseURL }) => {
-	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('format-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('format-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 	const columns: Sheet['columns'] = ['Cost', 'Selected', 'Weight'].map((name, i) => ({ id: `c${i}`, name, type: 'source', width: 180, createdAt: 1 }));
 	let sheet: Sheet = { id: 'format-test', name: 'Formats', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: Object.fromEntries(columns.map((column, c) => [column.id, { v: c === 0 ? 1234.5 + i : c === 1 ? 'false' : 12.5 + i, s: 'done', t: 1 }])) }));
@@ -75,7 +75,7 @@ test('column-wide formats display currency and units and persist checkbox boolea
 });
 
 test('years omit commas and column number settings survive reload without changing values', async ({ page, context, baseURL }) => {
-	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('number-format-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('number-format-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 	const columns: Sheet['columns'] = ['Founded', 'Year founded', 'Employees'].map((name, i) => ({ id: `c${i}`, name, type: 'source', format: 'number', width: 180, createdAt: 1 }));
 	let sheet: Sheet = { id: 'number-format-test', name: 'Numbers', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: { c0: { v: 2024 - i, s: 'done', t: 1 }, c1: { v: 2007 + i, s: 'done', t: 1 }, c2: { v: 1234.5 + i, s: 'done', t: 1 } } }));
@@ -127,7 +127,7 @@ test('years omit commas and column number settings survive reload without changi
 
 
 test('category columns offer configured choices, persist selections, and keep existing options on invalid edits', async ({ page, context, baseURL }) => {
-	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('category-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('category-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 	const columns: Sheet['columns'] = ['Cost', 'Selected', 'Weight'].map((name, i) => ({ id: `c${i}`, name, type: 'source', width: 180, createdAt: 1 }));
 	let sheet: Sheet = { id: 'category-test', name: 'Formats', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: Object.fromEntries(columns.map((column, c) => [column.id, { v: c === 0 ? 1234.5 + i : c === 1 ? 'false' : 12.5 + i, s: 'done', t: 1 }])) }));
@@ -168,10 +168,10 @@ test('category columns offer configured choices, persist selections, and keep ex
 	await page.getByRole('textbox', { name: 'Hex color', exact: true }).fill('#abc');
 	await expect(page.getByLabel('Category preview').getByText('=Ready', { exact: true })).toHaveCSS('background-color', 'rgb(170, 187, 204)');
 	await page.getByRole('textbox', { name: 'Hex color', exact: true }).fill('#123456');
-	await page.screenshot({ path: '/private/tmp/enrichable-category-picker.png' });
+	await page.screenshot({ path: '/private/tmp/looot-tables-category-picker.png' });
 	await page.getByRole('button', { name: 'Done', exact: true }).click();
 	await expect(page.getByLabel('Category preview')).toContainText('=Ready');
-	await page.screenshot({ path: '/private/tmp/enrichable-category-editor.png' });
+	await page.screenshot({ path: '/private/tmp/looot-tables-category-editor.png' });
 	await page.getByRole('dialog').getByRole('button', { name: 'Save format', exact: true }).click();
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await expect.poll(() => sheet.columns.at(-1)?.categoryOptions).toEqual(['New', 'Done', '=Ready']);
