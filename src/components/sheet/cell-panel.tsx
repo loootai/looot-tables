@@ -52,7 +52,7 @@ export function CellPanel({ sheet, row, column, onClose, onRerun, onEditColumn, 
 	return (
 		<aside aria-label="Cell details" className={`content-in absolute inset-y-0 right-0 z-30 flex h-full ${panelWidth(document, structured || isEmailColumn(column))} max-w-full flex-col border-l border-line bg-surface shadow-[var(--shadow-floating)] max-md:w-full`}>
 			<CellPanelHeader sheet={sheet} row={row} column={column} cell={cell} emailDraft={emailDraft} onClose={onClose} />
-			<div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-4 py-4">
+			<div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-4 pt-4 pb-8">
 				<CellPanelMain sheet={sheet} row={row} column={column} cell={cell} value={value} structured={structured} editing={editing} setEditing={setEditing} emailDraft={emailDraft} setEmailDraft={setEmailDraft} onSave={onSave} errorAction={errorAction} />
 				{!editing && organizationKind(column) === 'company' && <CompanyPreview row={row} column={column} columns={sheet.columns} />}
 				{cell?.f && <section className="flex flex-col gap-2"><h4 className="text-caption text-fg-subtle">Formula</h4><code className="break-all text-body-sm text-fg">{cell.f}</code></section>}
@@ -262,6 +262,15 @@ function UsageSection({ cell }: { cell: Cell | undefined }) {
 
 // The viewer's locale and time zone only exist in the browser, so a server pass renders no text.
 function LocalTime({ time }: { time: number }) {
-	const text = useSyncExternalStore(subscribeNothing, () => new Date(time).toLocaleString(), () => '');
-	return <span>{text}</span>;
+	const text = useSyncExternalStore(subscribeNothing, () => shortTime(time), () => '');
+	const full = useSyncExternalStore(subscribeNothing, () => new Date(time).toLocaleString(), () => '');
+	return <span title={full}>{text}</span>;
+}
+
+/** "Today 09:41" or "Nov 18, 09:41": short enough for the drawer's third column; the full stamp is in the title. */
+function shortTime(time: number) {
+	const date = new Date(time);
+	const clock = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+	if (date.toDateString() === new Date().toDateString()) return `Today ${clock}`;
+	return `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${clock}`;
 }

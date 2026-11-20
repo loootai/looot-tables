@@ -29,6 +29,13 @@ export function routeLine(call: LoootCallMeta): string {
 	return (call.attempts ?? []).map((attempt) => `${attempt.provider} ${attempt.outcome} ${formatUsd(attempt.costUsd)}${attempt.ms !== undefined ? `, ${ms(attempt.ms)}` : ''}`).join(' → ');
 }
 
+/** "search_business_email_v2" reads as "email lookup"; the raw tool name stays in the title. */
+function toolLabel(tool: string | undefined) {
+	const name = (tool ?? '').toLowerCase();
+	for (const [word, label] of [['email', 'email lookup'], ['mobile', 'mobile lookup'], ['phone', 'mobile lookup'], ['profile', 'profile lookup']] as const) if (name.includes(word)) return label;
+	return name.replace(/_/g, ' ') || 'lookup';
+}
+
 /** Attempt 1 when the column asked MoltSets first: a flat-fee call on the user's own plan, so it never costs dollars. */
 function MoltSetsAttempt({ attempt }: { attempt: MoltSetsCallMeta }) {
 	return (
@@ -37,8 +44,8 @@ function MoltSetsAttempt({ attempt }: { attempt: MoltSetsCallMeta }) {
 				<span className="num w-3 text-[10.5px] text-fg-subtle">1</span>
 				<ProviderTile name="MoltSets" />
 				<div className="min-w-0 flex-1">
-					<p data-looot-provider className="truncate text-body-sm font-medium text-fg">MoltSets · plan · $0</p>
-					<p className="num truncate text-[11px] text-fg-subtle" title={attempt.tool}>{attempt.tool}</p>
+					<p data-looot-provider className="truncate text-body-sm font-medium text-fg">MoltSets</p>
+					<p className="truncate text-[11px] text-fg-subtle" title={attempt.tool}>Your plan · {toolLabel(attempt.tool)}</p>
 				</div>
 				<div className="flex flex-col items-end gap-1">
 					<Outcome outcome={attempt.outcome} />
