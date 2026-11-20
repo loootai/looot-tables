@@ -107,23 +107,23 @@ The same sheet in dark mode, which follows your system setting.
 
 ## Open-source Loopster alternative: MoltSets + looot
 
-Loopster sells a table of enrichment columns for a flat monthly fee. looot tables gives you the table for $0 under MIT. For contact data you can bring a MoltSets plan, which charges a flat monthly fee with limits per window. Everything else goes to looot, which bills each hit to a prepaid balance.
+Loopster sells a table of enrichment columns for a flat monthly fee. looot tables gives you the table for $0 under MIT. For contact data you can bring a MoltSets plan, from $29 a month, which charges a flat fee with limits per window. Everything else goes to looot, which bills each hit to a prepaid balance.
 
 Prices read 2026-11-20 from their public pricing pages. Both vendors change them, so check before you decide.
 
 | | Loopster | MoltSets |
 | --- | --- | --- |
-| Plans | Launch $179/mo, Scale $449/mo, Unlimited $1,299/mo | Solo $27/mo, Pro $97/mo, plus a free tier and larger plans |
+| Plans | Launch $179/mo, Scale $449/mo, Unlimited $1,299/mo | Solo $29/mo, Pro $97/mo, plus a free tier and larger plans |
 | Limits | Requests per day | Records and requests per rolling 5 hours and per week |
 | Work emails | In the plan | $0 per row on the plan |
 | Mobiles | On Scale and Unlimited | Not in the plan. Separate phone tokens, from $27 for 180 ($0.15 each) |
 
 An example. A team finds about 10,000 work emails and 2,000 mobiles a month.
 
-| | Loopster Scale | MoltSets Pro + looot + looot tables |
+| | Loopster Scale | MoltSets + looot + looot tables |
 | --- | --- | --- |
 | Table | In the plan | $0 (MIT) |
-| Flat fee | $449/mo | $97/mo |
+| Flat fee | $449/mo | From $29/mo on MoltSets Solo. Pro is $97/mo for bigger windows |
 | 10,000 work emails | In the plan | $0 per row on MoltSets while the window has room. Misses go to the looot email job, billed per hit |
 | 2,000 mobiles | In the plan | About $300 in phone tokens at $0.15 each, or the looot phone job billed per hit |
 | Everything else | Loopster's vendor wallet | looot jobs, billed per hit |
