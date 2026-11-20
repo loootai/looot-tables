@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Bot, Braces, Download, FileText, Gauge, ListFilter, Mail, Search, Sparkles } from 'lucide-react';
 import { GithubIcon, Logo } from '@/components/ui/logo';
 import { DOCS_URL, GITHUB_URL, MOLTSETS_URL, SITE_DESCRIPTION, SITE_LEDE, SITE_TITLE } from '@/lib/constants';
 import { siteUrl } from '@/lib/server/deployment';
@@ -19,27 +20,30 @@ export const metadata: Metadata = {
 const LOOOT_ORG = 'https://looot.ai/#organization';
 
 const FEATURES = [
-	{ title: 'Build lead lists from a prompt', body: 'Ask for “every Series A fintech in Europe” or “VPs of Sales at US logistics companies”. Matching companies or people stream into the sheet, deduplicated by domain.' },
-	{ title: 'Research every row', body: 'Add a column with a question like “Who is the CEO?” or “Does the pricing page offer a free tier?”. looot tables answers it for each row and links every answer to its sources.' },
-	{ title: 'Qualify and score accounts', body: 'True or false checks, categories and scores on levels you define. Each call comes with a probability or confidence, so you can filter on how sure it is.' },
-	{ title: 'Find work emails and phones', body: 'One column asks looot for a work email. looot tries its email providers one after another, cheapest or most reliable first, and keeps the first address it finds. A phone column and an email check work the same way.' },
-	{ title: 'Run any looot endpoint', body: 'Search the looot catalog in plain words, map an endpoint’s inputs from your columns, and see the cost for the rows you pick before it runs.' },
-	{ title: 'Draft outreach and documents', body: 'Write a personalized email or a branded PDF for every row, using the research already in the sheet.' },
-	{ title: 'Use real spreadsheet formulas', body: 'SUM, IF, VLOOKUP and hundreds more run in your browser through IronCalc, with no API calls and no keys.' },
-	{ title: 'Export anywhere', body: 'Download CSV, Excel or JSON, with or without confidence scores and sources.' },
-	{ title: 'Work from your AI agent', body: 'A built-in MCP server lets Claude Code, Cursor and other MCP clients read sheets, add columns and run enrichment.' },
+	{ title: 'Build lead lists from a prompt', body: 'Type “Series A fintechs in Europe” or “VPs of Sales at US logistics firms”. Rows stream in, one per domain.', icon: Search },
+	{ title: 'Research every row', body: 'Ask “Who is the CEO?” or “Is there a free tier?”. Each answer links the pages it came from.', icon: Sparkles },
+	{ title: 'Qualify and score accounts', body: 'Yes or no checks, categories and scores, each with a confidence you can filter on.', icon: ListFilter },
+	{ title: 'Find work emails and phones', body: 'Each address comes back checked or graded, with the provider that answered named in the cell.', icon: Mail },
+	{ title: 'Run any looot endpoint', body: 'Search the catalog in plain words, map inputs from your columns, see the price first.', icon: Gauge },
+	{ title: 'Draft outreach and documents', body: 'A personal email or a branded PDF per row, written from the research in the sheet.', icon: FileText },
+	{ title: 'Use real spreadsheet formulas', body: 'SUM, IF, VLOOKUP and hundreds more, computed in your browser at no cost.', icon: Braces },
+	{ title: 'Export anywhere', body: 'CSV, Excel or JSON, with or without confidence and sources.', icon: Download },
+	{ title: 'Work from your AI agent', body: 'The built-in MCP server lets Claude Code, Cursor and other clients read and run sheets.', icon: Bot },
 ];
 
-const STEPS = [
-	{ title: 'Find rows', body: 'Describe the companies or people you want, import a CSV, or start from a blank sheet.' },
-	{ title: 'Add AI columns', body: 'Write a question and reference other columns, like {{Website}}. looot tables picks the method: web research, reading a page, a company lookup or an email search.' },
-	{ title: 'Review and export', body: 'Open any cell to see its sources and confidence. Rerun or edit it, filter the rows that pass, and export.' },
+/** The four things that set the sheet apart, each shown with a real capture of the app (demo rows, stand-in providers). */
+const SHOWCASE = [
+	{ eyebrow: 'Receipts', title: 'Click any cell to see who answered.', body: 'Every value keeps the route looot walked: each provider it tried, in order, the one that answered, and what each try cost and took. If an answer is wrong, report it from the same card.', image: '/landing/receipt.webp', width: 710, height: 588, alt: 'A work email receipt: MoltSets missed at $0, then prospeo and hunter missed at $0 and apollo answered for $0.0061.' },
+	{ eyebrow: 'Routing', title: 'Choose how each column spends.', body: 'Cheapest, most reliable, fastest or balanced. The editor lists every provider with its measured hit rate, typical time and price per call. Switch any of them off. looot only moves to the next one on a miss.', image: '/landing/routing.webp', width: 776, height: 713, alt: 'The routing editor for a work email column, listing prospeo, hunter and apollo with hit rate, p50 time and price per call.' },
+	{ eyebrow: 'Quotes and caps', title: 'Know the most a run can cost before you click.', body: 'The Run button carries the server’s quote, here 10 cells for at most $0.12. Each sheet has a spend cap that the server checks before every cell, so no run can go past it.', image: '/landing/quote.webp', width: 843, height: 283, alt: 'The run bar: a cap of $5.00 with a fill meter, and a Run button reading Run 10 cells, up to $0.12.' },
+	{ eyebrow: 'AI research', title: 'Ask a question per row. Check every answer.', body: 'Research columns search the web and read pages for each row, then keep the answer with its confidence, its sources and its cost, so you can trust the sheet before you send from it.', image: '/landing/research.webp', width: 720, height: 455, alt: 'A research answer, Yes: stripe.com/pricing, with confidence 0.94, cost $0.0030 and 2.8 seconds.' },
 ];
+
 
 const FAQ = [
-	{ q: 'What is looot tables?', a: 'looot tables is a free, open-source AI spreadsheet for data enrichment. You describe a list of companies or people, it finds them, and then AI columns research every row with live web data and keep the sources.' },
+	{ q: 'What is looot tables?', a: 'An open-source sheet for enrichment. It builds a list of companies or people from a prompt or a CSV, then fills columns with work emails, phones, company data and AI research, each answer with its receipt and sources.' },
 	{ q: 'Is looot tables free?', a: 'Yes. The code is MIT licensed. A copy runs on your own looot token and OpenAI key, so you pay looot and OpenAI directly for what you use. There is no shared token and no included credit: every run is billed to your own balance.' },
-	{ q: 'What is data enrichment?', a: 'Data enrichment adds missing facts to a list of companies or people: websites, headcount, funding, leadership, tech stack, work emails or anything else on the public web. looot tables does it by researching each row on the live web instead of reading from a static database.' },
+	{ q: 'What is data enrichment?', a: 'Filling in what a list is missing: a website, headcount, funding, who runs the team, the tech stack, a work email. looot tables looks each row up live, through looot’s providers and the web, rather than from one static database.' },
 	{ q: 'Is looot tables an open-source alternative to Clay?', a: 'For the core workflow, yes. It builds lead lists, enriches them with AI research and finds emails through looot, which walks its providers for you. It is open source, you can self-host it, and every run bills your own looot balance.' },
 	{ q: 'Where does the data come from?', a: 'Web search, page reads, company and people data, emails and phone numbers come from looot, which runs each lookup on the best provider for the job. OpenAI models do the reasoning. TypeSafe can make calibrated true or false and category calls.' },
 	{ q: 'Can I self-host looot tables?', a: 'Yes. Deploy it to Vercel with a Postgres database, or run it locally with Node.js 22. You need a looot token and an OpenAI API key. The README on GitHub has the steps.' },
@@ -114,39 +118,42 @@ export default function Landing() {
 				</main>
 			</div>
 
-			<Section id="what-is-looot-tables" title="What is looot tables?">
-				<div className="space-y-4 text-[1.0625rem] leading-relaxed text-fg-muted">
-					<p>
-						<strong className="font-medium text-fg">looot tables is a free, open-source AI spreadsheet for data enrichment.</strong> You describe the list you need, such as “every solar company in the US with 50+ employees”, and it fills a sheet with matching companies or people.
-					</p>
-					<p>Then you add columns by asking questions in plain English. looot tables answers each one for every row by searching the web, reading pages and pulling company and contact data. Every answer keeps its sources, so you can check the work before you use it.</p>
+			<section id="how-it-works" aria-labelledby="how-it-works-title" className="scroll-mt-6">
+				<div className="mx-auto w-full max-w-[1120px] px-5 pt-20 pb-6 md:px-12 md:pt-28">
+					<p className="text-caption font-medium tracking-[0.08em] text-brand uppercase">How it works</p>
+					<h2 id="how-it-works-title" className="mt-3 max-w-[760px] text-[clamp(1.75rem,1.2rem+1.6vw,2.5rem)] leading-[1.1] font-semibold tracking-[-0.03em] text-balance">A spreadsheet that shows its work, row by row and cent by cent.</h2>
+					<p className="mt-4 max-w-[680px] text-[1.0625rem] leading-relaxed text-pretty text-fg-muted">Start from a prompt, a CSV or a blank sheet. Add columns that find emails and phones, pull company data or research a question. Every lookup runs through looot on your own balance.</p>
 				</div>
-			</Section>
-
-			<Section id="features" title="What you can do with it">
-				<ul className="grid gap-x-12 sm:grid-cols-2">
-					{FEATURES.map((feature) => (
-						<li key={feature.title} className="border-t border-line py-6">
-							<h3 className="text-h5 font-medium tracking-[-0.01em]">{feature.title}</h3>
-							<p className="mt-2 leading-relaxed text-pretty text-fg-muted">{feature.body}</p>
-						</li>
-					))}
-				</ul>
-			</Section>
-
-			<Section id="how-it-works" title="How it works">
-				<ol className="overflow-hidden rounded-[10px] border border-line">
-					{STEPS.map((step, index) => (
-						<li key={step.title} className="flex border-b border-line-subtle last:border-b-0">
-							<span aria-hidden className="flex w-12 shrink-0 justify-center border-r border-line-subtle bg-neutral-5 pt-[22px] text-caption text-fg-subtle tabular">{index + 1}</span>
-							<div className="px-5 py-5 md:px-6">
-								<h3 className="text-h5 font-medium tracking-[-0.01em]">{step.title}</h3>
-								<p className="mt-1.5 leading-relaxed text-pretty text-fg-muted">{step.body}</p>
+				<ol className="mx-auto flex w-full max-w-[1120px] flex-col gap-16 px-5 pt-10 pb-20 md:gap-24 md:px-12 md:pb-28">
+					{SHOWCASE.map((item, index) => (
+						<li key={item.eyebrow} className={`grid items-center gap-8 md:gap-14 ${index % 2 ? 'md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]' : 'md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]'}`}>
+							<div className={index % 2 ? 'md:order-2' : undefined}>
+								<p className="flex items-center gap-2 text-caption font-medium text-fg-subtle"><span className="num grid size-5 place-items-center rounded-full bg-success-soft text-[11px] text-brand">{index + 1}</span>{item.eyebrow}</p>
+								<h3 className="mt-3 text-h4 leading-[1.25] font-semibold tracking-[-0.02em] text-balance md:text-[1.625rem]">{item.title}</h3>
+								<p className="mt-3 leading-relaxed text-pretty text-fg-muted">{item.body}</p>
 							</div>
+							<figure className="showcase-frame relative overflow-hidden rounded-[18px] border border-line bg-canvas p-3 shadow-[var(--shadow-card)] md:p-4">
+								<Image src={item.image} alt={item.alt} width={item.width} height={item.height} sizes="(min-width: 768px) 620px, 100vw" className="h-auto w-full rounded-[10px] border border-line-subtle bg-surface" />
+							</figure>
 						</li>
 					))}
 				</ol>
-			</Section>
+			</section>
+
+			<section id="features" aria-labelledby="features-title" className="border-t border-line bg-canvas">
+				<div className="mx-auto w-full max-w-[1120px] px-5 py-20 md:px-12 md:py-24">
+					<h2 id="features-title" className="text-h3 font-semibold tracking-[-0.025em]">Everything else a list needs</h2>
+					<ul className="mt-10 grid gap-px overflow-hidden rounded-[14px] border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
+						{FEATURES.map(({ title, body, icon: Icon }) => (
+							<li key={title} className="flex flex-col gap-2 bg-surface p-6">
+								<Icon aria-hidden className="size-[18px] text-brand" strokeWidth={1.75} />
+								<h3 className="mt-1 text-body-lg font-medium tracking-[-0.01em]">{title}</h3>
+								<p className="text-body-sm leading-relaxed text-pretty text-fg-muted">{body}</p>
+							</li>
+						))}
+					</ul>
+				</div>
+			</section>
 
 			<Section id="open-source" title="Open source, MIT">
 				<div className="space-y-4 text-[1.0625rem] leading-relaxed text-fg-muted">
@@ -173,8 +180,8 @@ export default function Landing() {
 			<section aria-labelledby="try-looot-tables" className="border-t border-line bg-canvas">
 				<div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-6 px-5 py-16 md:flex-row md:items-center md:justify-between md:px-12 md:py-20">
 					<div>
-						<h2 id="try-looot-tables" className="text-h3 font-medium tracking-[-0.02em]">Try it on a list you need this week.</h2>
-						<p className="mt-2 text-fg-muted">Free and open source. Run your own copy.</p>
+						<h2 id="try-looot-tables" className="text-h3 font-medium tracking-[-0.02em]">Bring a list. Get every answer with its receipt.</h2>
+						<p className="mt-2 text-fg-muted">MIT licensed. Runs on your own looot balance, capped per sheet.</p>
 					</div>
 					<div className="flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row sm:gap-3">
 						<Link href="/app" data-track="landing_cta" data-cta="footer_start" className={primaryButton}>

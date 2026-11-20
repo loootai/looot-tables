@@ -48,7 +48,7 @@ export function HeroSheet() {
 							<Cell width={W.company}>Company</Cell>
 							<HeaderCell width={W.email} name="Work email" sub="$0.0068/hit" pill="MoltSets first" fill={0.86} />
 							<HeaderCell width={W.phone} name="Phone" sub="$0.048/hit" pill="Reliable" fill={0.71} />
-							<HeaderCell width={W.industry} name="Industry" sub="unpacked · $0" fill={1} />
+							<HeaderCell width={W.industry} name="Industry" sub="from company data · $0" fill={1} />
 						</div>
 						{ROWS.map((row, index) => (
 							<div key={row.name} className="flex">
@@ -76,7 +76,7 @@ export function HeroSheet() {
 					</div>
 				</div>
 			</div>
-			<figcaption className="pointer-events-none absolute top-[118px] right-[-8px] hidden w-[300px] rounded-[12px] border border-line bg-surface p-3 text-left shadow-[var(--shadow-floating)] lg:block xl:right-[-60px]">
+			<figcaption className="pointer-events-none absolute top-[118px] right-4 hidden w-[336px] rounded-[12px] border border-line bg-surface p-3 text-left shadow-[var(--shadow-floating)] lg:block">
 				<p className="text-[11px] text-fg-subtle">Receipt · Owen Fletcher · Work email</p>
 				<div className="mt-2 flex flex-col gap-1.5 text-[12px] text-fg-muted">
 					<ReceiptLine n={1} provider="MoltSets" outcome="miss" cost="$0" ms="12 ms" note="plan" />
