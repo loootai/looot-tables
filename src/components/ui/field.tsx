@@ -9,7 +9,7 @@ import { announce } from './announcer';
 import { INPUT_CLASS } from './input-styles';
 export { INPUT_CLASS } from './input-styles';
 export { Select } from './select';
-export const TEXTAREA_CLASS = 'w-full resize-none rounded-lg border border-line bg-surface px-3.5 py-2.5 text-body-sm leading-[1.5] text-fg outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-fg-subtle hover:border-line-strong focus:border-brand focus:shadow-[0_0_0_3px_rgb(37_99_235/0.12)]';
+export const TEXTAREA_CLASS = 'w-full resize-none rounded-lg border border-line bg-surface px-3.5 py-2.5 text-body-sm leading-[1.5] text-fg outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-fg-subtle hover:border-line-strong focus:border-brand focus:shadow-ring-brand';
 
 type FieldAria = Pick<AriaAttributes, 'aria-invalid' | 'aria-describedby'>;
 

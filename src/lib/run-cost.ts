@@ -1,6 +1,6 @@
 import { costPerCell as operationCost } from './operations';
 import { formatUsd } from './endpoint-map';
-import type { ColumnOp, FormulaSuggestion } from './types';
+import type { ColumnOp, FormulaSuggestion, LoootCallMeta } from './types';
 
 /** Runs larger than either limit ask before starting. A column on any looot endpoint always asks: its price is the
     reason to look before spending. */
@@ -94,3 +94,8 @@ export function quoteLabel(quote: Pick<RunQuote, 'cells' | 'maxUsd'>, unit = 'ro
 
 /** The confirmation rule against a server quote: above $0.50 or 50 cells. */
 export const quoteAsksFirst = (quote: Pick<RunQuote, 'cells' | 'maxUsd'>) => quote.cells > CONFIRM_CELLS || quote.maxUsd > CONFIRM_USD;
+
+/** What a cell's listed looot runs cost together, rounded to the micro-dollar (a MoltSets attempt is $0 on the user's plan). */
+export function lookupsTotal(calls: readonly Pick<LoootCallMeta, 'costUsd'>[]): number {
+	return Math.round(calls.reduce((sum, call) => sum + call.costUsd, 0) * 1e6) / 1e6;
+}

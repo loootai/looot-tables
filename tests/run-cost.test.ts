@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { asksFirst, CONFIRM_CELLS, costPerCell, estimateCells } from '../src/lib/run-cost';
+import { asksFirst, CONFIRM_CELLS, costPerCell, estimateCells, lookupsTotal } from '../src/lib/run-cost';
 import { previewErrors } from '../src/lib/formula-builder';
 import { runScopeChoice } from '../src/lib/run-scope';
 import type { ColumnOp } from '../src/lib/types';
@@ -58,4 +58,10 @@ test('formula previews may save with some failing rows, not all', () => {
 	assert.deepEqual(previewErrors([{ error: false }, { error: true }, { error: true }, { error: false }]), { errors: 2, blocking: false, message: '2 of 4 preview rows return errors' });
 	assert.equal(previewErrors([{ error: true }, { error: true }]).blocking, true);
 	assert.equal(previewErrors([{ error: false }]).message, null);
+});
+
+test('a receipt total adds the listed looot runs without float drift', () => {
+	assert.equal(lookupsTotal([{ costUsd: 0.0061 }, { costUsd: 0.0019 }]), 0.008);
+	assert.equal(lookupsTotal([{ costUsd: 0.001 }, { costUsd: 0.002 }]), 0.003);
+	assert.equal(lookupsTotal([]), 0);
 });

@@ -2,8 +2,9 @@
 
 import clsx from 'clsx';
 import { useState } from 'react';
-import { Flag } from 'lucide-react';
+import { Copy, Flag } from 'lucide-react';
 import { formatUsd } from '@/lib/endpoint-map';
+import { lookupsTotal } from '@/lib/run-cost';
 import { ProviderMark } from './provider-mark';
 import { reportBadResult } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -29,6 +30,13 @@ export function routeLine(call: LoootCallMeta): string {
 	return (call.attempts ?? []).map((attempt) => `${attempt.provider} ${attempt.outcome} ${formatUsd(attempt.costUsd)}${attempt.ms !== undefined ? `, ${ms(attempt.ms)}` : ''}`).join(' → ');
 }
 
+/** "search_business_email_v2" reads as "email lookup"; the raw tool name stays in the title. */
+function toolLabel(tool: string | undefined) {
+	const name = (tool ?? '').toLowerCase();
+	for (const [word, label] of [['email', 'email lookup'], ['mobile', 'mobile lookup'], ['phone', 'mobile lookup'], ['profile', 'profile lookup']] as const) if (name.includes(word)) return label;
+	return name.replace(/_/g, ' ') || 'lookup';
+}
+
 /** Attempt 1 when the column asked MoltSets first: a flat-fee call on the user's own plan, so it never costs dollars. */
 function MoltSetsAttempt({ attempt }: { attempt: MoltSetsCallMeta }) {
 	return (
@@ -37,8 +45,8 @@ function MoltSetsAttempt({ attempt }: { attempt: MoltSetsCallMeta }) {
 				<span className="num w-3 text-[10.5px] text-fg-subtle">1</span>
 				<ProviderTile name="MoltSets" />
 				<div className="min-w-0 flex-1">
-					<p data-looot-provider className="truncate text-body-sm font-medium text-fg">MoltSets · plan · $0</p>
-					<p className="num truncate text-[11px] text-fg-subtle" title={attempt.tool}>{attempt.tool}</p>
+					<p data-looot-provider className="truncate text-body-sm font-medium text-fg">MoltSets</p>
+					<p className="truncate text-[11px] text-fg-subtle" title={attempt.tool}>Your plan · {toolLabel(attempt.tool)}</p>
 				</div>
 				<div className="flex flex-col items-end gap-1">
 					<Outcome outcome={attempt.outcome} />
@@ -61,10 +69,13 @@ export function LoootCalls({ calls, moltsets }: { calls?: LoootCallMeta[]; molts
 	const total = all.length + (moltsets ? 1 : 0);
 	return (
 		<section aria-label="looot runs" data-looot-calls className="flex flex-col gap-2">
-			<h4 className="text-caption text-fg-subtle">{total === 1 ? 'Receipt' : moltsets ? `Receipt · ${total} attempts` : `Receipt · ${total} looot runs`}</h4>
+			<h4 className="flex items-baseline justify-between gap-2 text-caption text-fg-subtle"><span>{total === 1 ? 'Receipt' : `Receipt · ${total} lookups`}</span>{total > 1 && <span data-lookups-total>Total <span className="num text-fg">{formatUsd(lookupsTotal(all))}</span></span>}</h4>
 			<ul className="flex flex-col gap-2">
 				{moltsets && <MoltSetsAttempt attempt={moltsets} />}
-				{shown.map((call) => (
+				{shown.map((call) => {
+					// One try by the provider that answered: the card's own line says it all, so no route list under it.
+					const single = call.attempts?.length === 1 && call.attempts[0].provider === call.provider ? call.attempts[0] : null;
+					return (
 					<li key={call.runId} className="flex flex-col gap-2 rounded-lg border border-line px-3 py-2.5">
 						<div className="flex items-center gap-2.5">
 							<ProviderTile name={call.provider ?? '?'} />
@@ -74,10 +85,10 @@ export function LoootCalls({ calls, moltsets }: { calls?: LoootCallMeta[]; molts
 							</div>
 							<div className="flex flex-col items-end gap-1">
 								<Outcome outcome={call.outcome} />
-								<span data-looot-cost className="num text-[11.5px] text-fg">{formatUsd(call.costUsd)}</span>
+								<span data-looot-cost className="num text-[11.5px] text-fg">{formatUsd(call.costUsd)}{single && single.ms !== undefined ? <span className="text-fg-subtle"> · {ms(single.ms)}</span> : null}</span>
 							</div>
 						</div>
-						{call.attempts && call.attempts.length > 0 && (
+						{call.attempts && call.attempts.length > 0 && !single && (
 							<ol aria-label="Providers tried" title={routeLine(call)} className="flex flex-col gap-1 border-t border-line-subtle pt-2">
 								{call.attempts.map((attempt, index) => (
 									<li key={`${attempt.endpointId ?? attempt.provider}-${index}`} className="flex items-center gap-2 text-caption text-fg-muted">
@@ -94,15 +105,27 @@ export function LoootCalls({ calls, moltsets }: { calls?: LoootCallMeta[]; molts
 						{call.capped && <p className="text-caption text-warning-strong">The route stopped at this cell’s cap before another provider was tried.</p>}
 						{call.skipped ? <p className="text-caption text-fg-subtle">{call.skipped} other provider{call.skipped === 1 ? '' : 's'} skipped: they could not take this input.</p> : null}
 						<div className="flex items-center justify-between gap-2">
-							<span className="num truncate text-[10.5px] text-fg-subtle" title={call.runId}>{call.runId}</span>
+							<CopyRunId runId={call.runId} />
 							<ReportButton call={call} />
 						</div>
 					</li>
-				))}
+					);
+				})}
 			</ul>
 			{all.length > shown.length && <p className="text-caption text-fg-subtle">{all.length - shown.length} more runs not shown.</p>}
 		</section>
 	);
+}
+
+/** The run id, kept for support but quiet: its last characters and a copy button. */
+function CopyRunId({ runId }: { runId: string }) {
+	const { toast } = useToast();
+	const copy = async () => {
+		try { await navigator.clipboard.writeText(runId); toast('Run id copied'); } catch { toast('Could not copy the run id', 'error'); }
+	};
+	return <button type="button" data-run-id={runId} title={`Copy run id ${runId}`} aria-label={`Copy run id ${runId}`} onClick={() => void copy()} className="inline-flex min-w-0 items-center gap-1 text-caption text-fg-subtle hover:text-fg">
+		<Copy aria-hidden className="size-3 shrink-0" strokeWidth={1.75} /><span className="truncate">Run id</span>
+	</button>;
 }
 
 /** Free: tells looot this run's answer was wrong, with its runId. Sends nothing else from the sheet. */

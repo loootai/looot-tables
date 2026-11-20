@@ -22,3 +22,8 @@ export function withRouting(column: Column, routing: { prefer: Prefer; exclude: 
 	const exclude = routing.exclude.length ? routing.exclude : undefined;
 	return { ...op, prefer: routing.prefer, exclude } as ColumnOp;
 }
+
+/** "Edit column" for a looot lookup column (its job and routing), "Edit AI column" for a column an AI model writes. */
+export function editColumnLabel(op: ColumnOp | undefined): string {
+	return routedJob(op) ? 'Edit column' : 'Edit AI column';
+}

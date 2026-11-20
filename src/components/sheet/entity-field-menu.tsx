@@ -59,7 +59,7 @@ export function EntityFieldMenu({ kind, rowId, remainingRows = 1, totalRows = re
 	const triggerLabel = web ? panelLabel : `Add ${kind} field column`;
 	const groupLabel = group === null ? null : ENTITY_FIELDS[kind][group].label;
 	return <span className="inline-flex shrink-0" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-		<button ref={trigger} type="button" aria-label={triggerLabel} title={triggerLabel} aria-haspopup="dialog" aria-expanded={Boolean(anchor)} onClick={(event) => { if (anchor) close(); else { setAnchor(event.currentTarget.getBoundingClientRect()); } }} className="grid size-4 shrink-0 place-items-center rounded text-fg-subtle hover:bg-neutral-5 hover:text-fg focus-visible:outline-brand">
+		<button ref={trigger} type="button" aria-label={triggerLabel} title={triggerLabel} aria-haspopup="dialog" aria-expanded={Boolean(anchor)} onClick={(event) => { if (anchor) close(); else { setAnchor(event.currentTarget.getBoundingClientRect()); } }} className="grid size-4 shrink-0 place-items-center rounded text-fg-subtle opacity-0 transition-opacity group-hover/row:opacity-100 group-hover/cell:opacity-100 hover:bg-neutral-5 hover:text-fg focus-visible:opacity-100 focus-visible:outline-brand aria-expanded:opacity-100 [@media(hover:none)]:opacity-100">
 			<ChevronDown className="size-3" strokeWidth={1.75} />
 		</button>
 		{anchor && <FloatingMenu anchor={anchor} onClose={close} width="w-64" role="dialog" label={panelLabel}>

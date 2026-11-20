@@ -133,7 +133,7 @@ export function KeysDialog({ onClose }: { onClose: () => void }) {
 					{!isReady(connections.moltsets) && <VerifiedKeyField provider="moltsets" value={moltsetsKey} onChange={setMoltsetsKey} help="Optional. Emails, mobiles and profiles are tried on your MoltSets plan first, then on looot." />}
 				</ProviderCard>
 				{needs.showPassword && <Field label="Deployment password" help="Use the keys this deployment provides instead of your own.">{(id) => <Input id={id} type="password" autoComplete="off" value={password} onChange={(event) => setPassword(event.target.value)} />}</Field>}
-				<p className="text-caption text-fg-subtle">One looot token covers search, pages, company and people data, emails and phones. TypeSafe is optional and lives in Configuration → Connections.</p>
+				<p className="rounded-lg bg-canvas px-3 py-2 text-caption text-fg-muted">The sheet’s Run button shows the most a run can cost before you click. Each sheet also has a spend cap the server enforces.</p>
 				{saveError && <p role="alert" className="text-body-sm text-danger">{saveError}</p>}
 			</div>
 		</Dialog>
