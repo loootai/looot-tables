@@ -19,16 +19,32 @@ export const metadata: Metadata = {
 
 const LOOOT_ORG = 'https://looot.ai/#organization';
 
+/** Spend guards the app enforces (README, "How costs and caps work"). */
+const GUARDS = [
+	{ value: '$5.00', label: 'default cap per sheet, held on the server' },
+	{ value: '3×', label: 'a column’s usual price: the most one cell may spend' },
+	{ value: '$0.50 / 50', label: 'dollars or cells before a run asks you first' },
+	{ value: '20', label: 'misses in a row before a column pauses' },
+];
+
+const SELF_HOST = [
+	{ cmd: 'git clone https://github.com/loootai/looot-tables', note: '' },
+	{ cmd: 'cd looot-tables && npm ci', note: '' },
+	{ cmd: 'cp .env.example .env.local', note: 'set DATABASE_URL' },
+	{ cmd: 'npm run db:migrate', note: '' },
+	{ cmd: 'npm run dev', note: '' },
+];
+
 const FEATURES = [
-	{ title: 'Build lead lists from a prompt', body: 'Type “Series A fintechs in Europe” or “VPs of Sales at US logistics firms”. Rows stream in, one per domain.', icon: Search },
-	{ title: 'Research every row', body: 'Ask “Who is the CEO?” or “Is there a free tier?”. Each answer links the pages it came from.', icon: Sparkles },
-	{ title: 'Qualify and score accounts', body: 'Yes or no checks, categories and scores, each with a confidence you can filter on.', icon: ListFilter },
-	{ title: 'Find work emails and phones', body: 'Each address comes back checked or graded, with the provider that answered named in the cell.', icon: Mail },
-	{ title: 'Run any looot endpoint', body: 'Search the catalog in plain words, map inputs from your columns, see the price first.', icon: Gauge },
-	{ title: 'Draft outreach and documents', body: 'A personal email or a branded PDF per row, written from the research in the sheet.', icon: FileText },
-	{ title: 'Use real spreadsheet formulas', body: 'SUM, IF, VLOOKUP and hundreds more, computed in your browser at no cost.', icon: Braces },
-	{ title: 'Export anywhere', body: 'CSV, Excel or JSON, with or without confidence and sources.', icon: Download },
-	{ title: 'Work from your AI agent', body: 'The built-in MCP server lets Claude Code, Cursor and other clients read and run sheets.', icon: Bot },
+	{ title: 'Lists from one sentence', body: 'Type “Series A fintechs in Europe” or “VPs of Sales at US logistics firms”. Rows stream in, one per domain.', icon: Search },
+	{ title: 'Answers that cite their pages', body: 'Ask “Who is the CEO?” or “Is there a free tier?” for every row. Each answer links what it read.', icon: Sparkles },
+	{ title: 'Scores you can filter', body: 'Yes or no, a category or a level, each with a confidence, so you keep only the rows you trust.', icon: ListFilter },
+	{ title: 'Emails and phones, graded', body: 'Each address comes back checked or graded, with the provider that answered named in the cell.', icon: Mail },
+	{ title: 'Any looot endpoint as a column', body: 'Find it in plain words, map its inputs to your columns, and see the price before it runs.', icon: Gauge },
+	{ title: 'An email or a PDF per row', body: 'Personal outreach or a branded one-pager, written from the research already in the sheet.', icon: FileText },
+	{ title: 'Formulas that run locally', body: 'IF, VLOOKUP, SUM and the rest, computed in your browser. No API call, no cost.', icon: Braces },
+	{ title: 'CSV, Excel or JSON out', body: 'Export the sheet with or without each cell’s confidence and sources.', icon: Download },
+	{ title: 'Your agent can drive it', body: 'Claude Code, Cursor and other MCP clients read sheets, add columns and run them.', icon: Bot },
 ];
 
 /** The four things that set the sheet apart, each shown with a real capture of the app (demo rows, stand-in providers). */
@@ -42,13 +58,14 @@ const SHOWCASE = [
 
 const FAQ = [
 	{ q: 'What is looot tables?', a: 'An open-source sheet for enrichment. It builds a list of companies or people from a prompt or a CSV, then fills columns with work emails, phones, company data and AI research, each answer with its receipt and sources.' },
-	{ q: 'Is looot tables free?', a: 'Yes. The code is MIT licensed. A copy runs on your own looot token and OpenAI key, so you pay looot and OpenAI directly for what you use. There is no shared token and no included credit: every run is billed to your own balance.' },
+	{ q: 'How do I know what a column will cost?', a: 'Before: each column header shows its price per hit or per row, and the Run button shows the most the run can cost. During: the sheet’s spend cap is checked by the server before every cell. After: every cell’s receipt lists what each provider charged.' },
+	{ q: 'Is looot tables free?', a: 'The code is, under the MIT license. You bring a looot token and an OpenAI key and pay those services for what you use. There is no shared token and no bundled credit.' },
+	{ q: 'Is looot tables an open-source alternative to Clay?', a: 'For building and enriching lead lists, yes: prompts to rows, AI research columns, emails and phones through looot’s providers. The difference is that every answer shows who gave it and what it cost, and you can run your own copy.' },
 	{ q: 'What is data enrichment?', a: 'Filling in what a list is missing: a website, headcount, funding, who runs the team, the tech stack, a work email. looot tables looks each row up live, through looot’s providers and the web, rather than from one static database.' },
-	{ q: 'Is looot tables an open-source alternative to Clay?', a: 'For the core workflow, yes. It builds lead lists, enriches them with AI research and finds emails through looot, which walks its providers for you. It is open source, you can self-host it, and every run bills your own looot balance.' },
-	{ q: 'Where does the data come from?', a: 'Web search, page reads, company and people data, emails and phone numbers come from looot, which runs each lookup on the best provider for the job. OpenAI models do the reasoning. TypeSafe can make calibrated true or false and category calls.' },
-	{ q: 'Can I self-host looot tables?', a: 'Yes. Deploy it to Vercel with a Postgres database, or run it locally with Node.js 22. You need a looot token and an OpenAI API key. The README on GitHub has the steps.' },
-	{ q: 'Can AI agents use looot tables?', a: 'Yes. looot tables includes an MCP server, so Claude Code, Cursor and other MCP clients can list sheets, read rows, add columns and run enrichment in the same workspace you use in the browser.' },
-	{ q: 'How big can a sheet be?', a: 'Up to 1,000 rows per sheet and 10 sheets per workspace by default. Self-hosted copies can change both limits.' },
+	{ q: 'Where does the data come from?', a: 'Lookups (search, pages, company and people data, emails, phones) run through looot, which picks a provider per job and walks to the next one on a miss. OpenAI models write the answers. TypeSafe can make calibrated yes or no and category calls.' },
+	{ q: 'Can I self-host looot tables?', a: 'Yes: on Vercel with any Postgres database, or locally on Node.js 22, with your looot token and OpenAI key. The README walks through it.' },
+	{ q: 'Can AI agents use looot tables?', a: 'Yes. The built-in MCP server lets Claude Code, Cursor and other clients list sheets, read rows, add columns and run them in the same workspace you see in the browser.' },
+	{ q: 'How big can a sheet be?', a: '1,000 rows per sheet and 10 sheets per workspace out of the box. A self-hosted copy can raise both.' },
 ];
 
 function structuredData() {
@@ -72,11 +89,14 @@ function structuredData() {
 
 const primaryButton = 'inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-brand px-6 text-[1rem] font-medium text-brand-fg shadow-[0_1px_2px_oklch(0.37_0.09_163/0.3),0_8px_24px_-8px_oklch(0.37_0.09_163/0.5)] transition-[background-color,box-shadow,scale,translate] duration-200 ease-[var(--ease-emphasized)] hover:-translate-y-0.5 hover:bg-brand-hover hover:shadow-[0_2px_4px_oklch(0.37_0.09_163/0.3),0_14px_32px_-10px_oklch(0.37_0.09_163/0.6)] [&_svg]:transition-transform hover:[&_svg]:translate-x-0.5 motion-reduce:hover:translate-y-0 active:scale-[0.98] motion-reduce:active:scale-100';
 const secondaryButton = 'inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-surface px-[22px] text-[1rem] font-medium shadow-[inset_0_0_0_1px_var(--color-line-strong)] transition-[box-shadow,scale,translate] duration-200 hover:-translate-y-0.5 hover:shadow-[inset_0_0_0_1px_var(--color-fg),0_10px_24px_-12px_oklch(0.2_0.025_165/0.35)] motion-reduce:hover:translate-y-0 active:scale-[0.98] motion-reduce:active:scale-100';
+/** Footer links: 24px tall targets with an underline that fades in, not a colour change alone. */
+const footerLink = 'inline-flex min-h-6 items-center underline decoration-transparent underline-offset-4 transition-[color,text-decoration-color] hover:text-fg hover:decoration-line-strong';
 const inlineLink = 'font-medium text-fg underline decoration-line-strong underline-offset-[3px] transition-colors hover:decoration-fg';
 
 export default function Landing() {
 	return (
 		<div className="bg-surface text-fg">
+			<a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2 focus:text-body-sm focus:font-medium focus:shadow-[var(--shadow-floating)]">Skip to content</a>
 			<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData()).replace(/</g, '\\u003c') }} />
 
 			<div className="relative isolate overflow-hidden border-b border-line bg-canvas">
@@ -86,16 +106,16 @@ export default function Landing() {
 						<span className="text-[17px] font-semibold tracking-[-0.01em]">looot tables</span>
 					</Link>
 					<nav aria-label="Site" className="flex items-center gap-1 text-body text-fg-muted">
-						<a href="#how-it-works" className="hidden rounded-md px-2.5 py-1.5 transition-colors hover:text-fg sm:block">How it works</a>
-						<a href="#faq" className="hidden rounded-md px-2.5 py-1.5 transition-colors hover:text-fg sm:block">FAQ</a>
-						<Link href="/app" className="hidden rounded-md px-2.5 py-1.5 transition-colors hover:text-fg sm:block">Open the app</Link>
+						<a href="#how-it-works" className="hidden rounded-md px-2.5 py-1.5 underline decoration-transparent underline-offset-[6px] transition-[color,text-decoration-color] hover:text-fg hover:decoration-brand sm:block">How it works</a>
+						<a href="#faq" className="hidden rounded-md px-2.5 py-1.5 underline decoration-transparent underline-offset-[6px] transition-[color,text-decoration-color] hover:text-fg hover:decoration-brand sm:block">FAQ</a>
+						<Link href="/app" className="hidden rounded-md px-2.5 py-1.5 underline decoration-transparent underline-offset-[6px] transition-[color,text-decoration-color] hover:text-fg hover:decoration-brand sm:block">Open the app</Link>
 						<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 transition-colors hover:text-fg">
 							<GithubIcon className="size-4" /> GitHub
 						</a>
 					</nav>
 				</header>
 
-				<main className="mx-auto flex w-full max-w-[1180px] flex-col items-center px-5 pt-4 pb-14 text-center md:px-12 md:pt-5 md:pb-20">
+				<main id="main" className="mx-auto flex w-full max-w-[1180px] flex-col items-center px-5 pt-4 pb-14 text-center md:px-12 md:pt-5 md:pb-20">
 					<p className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-caption text-fg-muted">
 						<span className="num text-brand">0 API keys</span><span aria-hidden className="h-3 w-px bg-line-strong" />one looot token runs every lookup
 					</p>
@@ -155,16 +175,28 @@ export default function Landing() {
 				</div>
 			</section>
 
-			<Section id="open-source" title="Open source, MIT">
-				<div className="space-y-4 text-[1.0625rem] leading-relaxed text-fg-muted">
-					<p>
-						looot tables is MIT licensed. Every search, page read, company lookup, person lookup, email and phone lookup runs as a <a href="https://looot.ai" target="_blank" rel="noopener" className={inlineLink}>looot</a> job on your own looot balance. With a <a href={MOLTSETS_URL} target="_blank" rel="noopener" className={inlineLink}>MoltSets</a> key, work emails come from your flat-fee plan first and looot only answers the misses.
-						</p>
-						<p>
-							<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className={inlineLink}>Self-host it</a> with your own looot token and OpenAI key. Your sheets live in your own Postgres database.
-					</p>
+			<section id="open-source" aria-labelledby="open-source-title" className="border-t border-line">
+				<div className="mx-auto grid w-full max-w-[1120px] items-start gap-10 px-5 py-20 md:grid-cols-2 md:gap-14 md:px-12 md:py-24">
+					<div>
+						<p className="text-caption font-medium tracking-[0.08em] text-brand uppercase">Open source, MIT</p>
+						<h2 id="open-source-title" className="mt-3 text-h3 font-semibold tracking-[-0.025em] text-balance">Your copy, your keys, your caps.</h2>
+						<p className="mt-4 leading-relaxed text-pretty text-fg-muted">Every lookup runs as a <a href="https://looot.ai" target="_blank" rel="noopener" className={inlineLink}>looot</a> job on your own balance. With a <a href={MOLTSETS_URL} target="_blank" rel="noopener" className={inlineLink}>MoltSets</a> key, emails come from your flat-fee plan first and looot answers only the misses. Sheets live in your own Postgres.</p>
+						<ul className="mt-6 grid gap-px overflow-hidden rounded-[12px] border border-line bg-line sm:grid-cols-2">
+							{GUARDS.map((guard) => (
+								<li key={guard.label} className="bg-surface px-4 py-3">
+									<p className="num text-body-lg font-medium text-fg">{guard.value}</p>
+									<p className="mt-0.5 text-caption text-fg-muted">{guard.label}</p>
+								</li>
+							))}
+						</ul>
+					</div>
+					<figure className="overflow-hidden rounded-[14px] border border-neutral-80 bg-neutral-90 shadow-[var(--shadow-card)]">
+						<figcaption className="flex items-center gap-1.5 border-b border-white/10 px-4 py-2.5 text-caption text-neutral-40"><span aria-hidden className="size-2 rounded-full bg-white/15" /><span aria-hidden className="size-2 rounded-full bg-white/15" /><span aria-hidden className="size-2 rounded-full bg-white/15" /><span className="ml-2">Run your own copy</span></figcaption>
+						<pre className="overflow-x-auto px-4 py-4 text-[13px] leading-[1.75] text-neutral-10"><code>{SELF_HOST.map((line) => <span key={line.cmd} className="block"><span aria-hidden className="text-blue-60 select-none">$ </span>{line.cmd}{line.note && <span className="text-neutral-50">{`   # ${line.note}`}</span>}</span>)}</code></pre>
+						<p className="border-t border-white/10 px-4 py-2.5 text-caption text-neutral-40">Then open <span className="num text-neutral-10">localhost:3000/app</span> and paste your looot token. <a href={`${GITHUB_URL}#self-hosting`} target="_blank" rel="noopener noreferrer" className="text-neutral-10 underline decoration-white/30 underline-offset-4 hover:decoration-white">Full guide</a></p>
+					</figure>
 				</div>
-			</Section>
+			</section>
 
 			<Section id="faq" title="Frequently asked questions">
 				<dl className="grid gap-x-12 sm:grid-cols-2">
@@ -201,10 +233,10 @@ export default function Landing() {
 						<PoweredBy className="ml-2 font-normal text-fg-subtle" />
 					</div>
 					<div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-						<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="hover:text-fg">GitHub</a>
-						<a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="hover:text-fg">Docs</a>
-						<a href={`${GITHUB_URL}/blob/main/docs/mcp.md`} target="_blank" rel="noopener noreferrer" className="hover:text-fg">MCP</a>
-						<a href={`${GITHUB_URL}/blob/main/THIRD_PARTY_NOTICES.md`} target="_blank" rel="noopener noreferrer" className="hover:text-fg">Third-party notices</a>
+						<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className={footerLink}>GitHub</a>
+						<a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className={footerLink}>Docs</a>
+						<a href={`${GITHUB_URL}/blob/main/docs/mcp.md`} target="_blank" rel="noopener noreferrer" className={footerLink}>MCP</a>
+						<a href={`${GITHUB_URL}/blob/main/THIRD_PARTY_NOTICES.md`} target="_blank" rel="noopener noreferrer" className={footerLink}>Third-party notices</a>
 					</div>
 				</div>
 			</footer>
