@@ -25,6 +25,7 @@ import { RunScopeButton, type RunScope } from './run-scope-button';
 import { plural } from './sheet-page-utils';
 import './populate-dialog.css';
 import './column-editor.css';
+import { editColumnLabel } from '@/lib/job-of';
 
 /**
  * Where the editor is. `ask`: only the prompt is shown. `composing`: AI is choosing an operation, from the
@@ -126,7 +127,7 @@ function isComposerOnly(column: Column | undefined, dedicatedEmail: boolean, ste
 }
 
 function editorTitle(column: Column | undefined, dedicatedEmail: boolean) {
-	if (column) return 'Edit AI column';
+	if (column) return editColumnLabel(column.op);
 	return dedicatedEmail ? 'Find email' : 'Add AI column';
 }
 

@@ -25,6 +25,7 @@ import { CompanyEditor } from './company-editor';
 import { CompanyPreview } from './company-preview';
 import { ImagePreviews } from './image-previews';
 import { organizationKind } from '@/lib/organization-logo';
+import { editColumnLabel } from '@/lib/job-of';
 
 type SaveCell = (rowId: string, columnId: string, cell: Cell) => Promise<void>;
 
@@ -68,7 +69,7 @@ export function CellPanel({ sheet, row, column, onClose, onRerun, onEditColumn, 
 						<RefreshCw strokeWidth={1.75} /> Re-run cell
 					</Button>
 					<Button size="sm" onClick={onEditColumn}>
-						Edit AI column
+						{editColumnLabel(column.op)}
 					</Button>
 				</div>
 			)}
