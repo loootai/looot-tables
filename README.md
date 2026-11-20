@@ -15,7 +15,11 @@
   <a href="#self-hosting"><img src="https://img.shields.io/badge/self--host-Node%2022%20%2B%20Postgres-004e32?style=flat-square" alt="Self-host with Node 22 and Postgres" /></a>
 </p>
 
-looot tables is an open-source spreadsheet for sales and growth teams who build lead lists and enrich them. You describe the companies or people you want, it finds the rows, and each new column fills every row with a work email, a phone, company data or an AI answer. Every outside lookup runs as a [looot](https://looot.ai) job on your own looot balance, and each cell keeps a receipt with the providers looot tried, in order, with the price and time of each. If you pay for a [MoltSets](https://moltsets.com) plan, work email and phone columns ask MoltSets first at $0 per row and send only the misses to looot.
+# looot tables: open-source enrichment spreadsheet and Clay alternative
+
+looot tables is an open-source enrichment spreadsheet, MIT licensed, that you can self-host on Node 22 and Postgres. Describe the companies or people you want and it finds the rows, or import a CSV. Each new column then fills every row with a work email, a phone number, company data or an AI research answer. It is an open-source alternative to Clay and Loopster for teams who build and enrich lead lists.
+
+Every cell is a [looot](https://looot.ai) job with a receipt: the providers looot tried, in order, with the price and time of each. Contact columns run as a waterfall, so looot asks the next provider only after a miss. With a [MoltSets](https://moltsets.com) plan, from $29/mo, work email columns ask MoltSets first at $0 per row and send only the misses to looot; phone columns use MoltSets phone tokens first. Before a run, the Run button shows the most it can cost, and each sheet starts with a $5.00 cap you can raise.
 
 ## Tour
 
