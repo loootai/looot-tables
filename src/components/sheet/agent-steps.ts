@@ -22,7 +22,7 @@ export function stepText(tool: string, input: Data = {}, output?: Data): string 
 	switch (tool) {
 		case 'list_sheets': return done ? `Read ${count((output.sheets as unknown[])?.length, 'sheet')}` : 'Reading sheets';
 		case 'get_sheet': return done ? `Read ${String((output.sheet as Data)?.name ?? 'the sheet')}` : 'Reading the sheet';
-		case 'query_rows': return done ? `Read ${count(output.matched, 'row')}` : 'Reading rows';
+		case 'query_rows': { if (!done) return 'Reading rows'; const read = (output.rows as unknown[])?.length ?? 0, matched = Number(output.matched ?? read); return read < matched ? `Read ${read} of ${count(matched, 'row')}` : `Read ${count(read, 'row')}`; }
 		case 'create_sheet': return done ? `Created sheet ${String((output.sheet as Data)?.name ?? input.name ?? '')}` : `Creating sheet ${String(input.name ?? '')}`;
 		case 'rename_sheet': return `Renamed the sheet to ${String(input.name ?? '')}`;
 		case 'duplicate_sheet': return done ? `Copied the sheet · ${count(output.rows, 'row')}` : 'Copying the sheet';

@@ -305,7 +305,7 @@ const textOf = (content) => typeof content === 'string' ? content : Array.isArra
 
 function agentPlan(request) {
 	const messages = request.messages ?? [];
-	const sheetId = /sheetId ([A-Za-z0-9_-]+)\)/.exec(textOf(messages.find((m) => m.role === 'system')?.content))?.[1] ?? 'sheet';
+	const sheetId = /sheetId ([A-Za-z0-9_-]+)\)/.exec(textOf(messages.find((m) => m.role === 'system' || m.role === 'developer')?.content))?.[1] ?? 'sheet';
 	const lastUser = messages.findLastIndex((m) => m.role === 'user');
 	const said = textOf(messages[lastUser]?.content);
 	const calls = new Map(messages.flatMap((m) => (m.tool_calls ?? []).map((call) => [call.id, call.function.name])));

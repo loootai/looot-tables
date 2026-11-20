@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { AlertCircle, ArrowUp, Check, RotateCcw, Sparkles, Square, X } from 'lucide-react';
+import { AlertCircle, ArrowUp, Check, Play, RotateCcw, Sparkles, Square, X } from 'lucide-react';
 import { getToolName, isToolUIPart, type UIMessage } from 'ai';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, IconButton } from '@/components/ui/button';
@@ -14,6 +14,9 @@ import { useAgent, type CardRun, type QuoteCard } from './use-agent';
    runs. The agent itself never runs anything that costs money. */
 
 type Data = Record<string, unknown>;
+/** The message the panel sends after the user runs a card (see useAgent); shown as a note, not as something they typed. */
+const RUN_REPORT = /^Done: /;
+const textOf = (message: UIMessage) => message.parts.map((part) => part.type === 'text' ? part.text : '').join('');
 const usd = (value: number) => `$${value < 0.01 && value > 0 ? value.toFixed(4) : value.toFixed(2)}`;
 
 function cardOf(tool: string, output: Data): QuoteCard | null {
@@ -60,7 +63,7 @@ function QuoteCardView({ card, output, runs, onRun, onCancel }: { card: QuoteCar
 		<div className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-3 shadow-[0_1px_2px_rgb(0_0_0/0.04)]" data-quote-card>
 			<div className="flex flex-col gap-0.5">
 				<span className="text-body-sm font-medium text-fg tabular">{card.label}</span>
-				<span className="text-caption text-fg-subtle">{card.kind === 'find' ? `${String(output.entity ?? 'rows')} · ${Number(output.searches ?? 0)} searches` : `${card.column} · ${String(output.job ?? output.operation ?? '')}`}{sheet ? ` · sheet cap ${usd(sheet.capUsd)}, ${usd(sheet.remainingUsd)} left` : ''}</span>
+				<span className="text-caption text-fg-subtle">{card.kind === 'find' ? `${String(output.entity ?? 'rows')} · ${Number(output.searches ?? 0)} searches` : `${card.column} · ${String(output.job ?? output.operation ?? '')}`}{sheet ? ` · cap ${usd(sheet.remainingUsd)} left of ${usd(sheet.capUsd)}` : ''}</span>
 			</div>
 			{mine.map((run, index) => <RunLine key={index} card={card} run={run} />)}
 			{!mine.length && (empty ? <p className="text-caption text-fg-subtle">{String(output.next ?? 'Nothing to run.')}</p>
@@ -95,7 +98,7 @@ function AssistantParts({ message, runs, onRun, onCancel }: { message: UIMessage
 		const output = (part.output ?? {}) as Data;
 		if (typeof output.error === 'string') return <Step key={index} state="error">{stepText(tool, input)}: {output.error}</Step>;
 		const card = (tool === 'quote_run' || tool === 'quote_find_rows') ? cardOf(tool, output) : null;
-		if (card) return <div key={index} className="flex flex-col gap-1.5"><Step state="done">{stepText(tool, input, output)}</Step><QuoteCardView card={card} output={output} runs={runs} onRun={(rows) => onRun(card, rows)} onCancel={() => onCancel(card)} /></div>;
+		if (card) return <QuoteCardView key={index} card={card} output={output} runs={runs} onRun={(rows) => onRun(card, rows)} onCancel={() => onCancel(card)} />;
 		return <Step key={index} state="done">{stepText(tool, input, output)}</Step>;
 	})}</>;
 }
@@ -111,11 +114,11 @@ export function AgentPanel({ sheetId, onClose, keyReady, onOpenKeys }: { sheetId
 	const submit = () => { if (!draft.trim() || busy) return; void agent.send(draft); setDraft(''); };
 
 	return (
-		<aside aria-label="Agent" className="glass-frame sheet-pane flex min-h-0 w-[400px] shrink-0 flex-col overflow-hidden max-lg:w-[360px] max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:h-[80dvh] max-md:w-full max-md:rounded-b-none max-md:border-t max-md:border-line">
+		<aside aria-label="Agent" className="glass-frame sheet-pane flex min-h-0 w-[380px] shrink-0 flex-col overflow-hidden max-lg:w-[340px] max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:h-[80dvh] max-md:w-full max-md:rounded-b-none max-md:border-t max-md:border-line">
 			<header className="flex h-12 shrink-0 items-center gap-2 border-b border-line-subtle px-3">
 				<span aria-hidden className="grid size-6 place-items-center rounded-md bg-blue-10 text-brand"><Sparkles className="size-3.5" strokeWidth={1.75} /></span>
 				<h2 className="text-body-sm font-medium text-fg">Agent</h2>
-				<span className="text-caption text-fg-subtle">Free steps run, paid ones wait for you</span>
+				<span className="truncate text-caption text-fg-subtle">Paid steps wait for your click</span>
 				<div className="ml-auto flex items-center">
 					{agent.messages.length > 0 && <IconButton size="sm" label="New conversation" disabled={busy} onClick={agent.reset}><RotateCcw /></IconButton>}
 					<IconButton size="sm" label="Close agent (⌘K)" onClick={onClose}><X /></IconButton>
@@ -136,7 +139,9 @@ export function AgentPanel({ sheetId, onClose, keyReady, onOpenKeys }: { sheetId
 						</div>
 					</div>
 				)}
-				{agent.messages.map((message) => message.role === 'user'
+				{agent.messages.map((message) => message.role === 'user' && RUN_REPORT.test(textOf(message))
+					? <p key={message.id} className="flex items-start gap-2 self-end text-caption text-fg-subtle"><Play aria-hidden className="mt-0.5 size-3 shrink-0 fill-current" />{textOf(message).replace(RUN_REPORT, 'You ran it: ').replace(/ \(column [^)]+\)/, '')}</p>
+					: message.role === 'user'
 					? <div key={message.id} className="ml-8 self-end rounded-2xl rounded-br-md bg-blue-10 px-3 py-2 text-body-sm whitespace-pre-wrap text-fg">{message.parts.map((part) => part.type === 'text' ? part.text : '').join('')}</div>
 					: <div key={message.id} className="flex flex-col gap-2"><AssistantParts message={message} runs={agent.runs} onRun={(card, rows) => void agent.runCard(card, rows)} onCancel={agent.cancelCard} /></div>)}
 				{busy && agent.messages.at(-1)?.role === 'user' && <span role="status" className="flex items-center gap-2 text-caption text-fg-subtle"><span className="spinner" />Thinking</span>}

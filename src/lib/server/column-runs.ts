@@ -57,7 +57,8 @@ export async function quoteColumnRun(tools: SheetTools, args: z.infer<typeof SHE
 	const remainingUsd = spend ? round(Math.max(0, spend.capUsd - spend.spentUsd - spend.heldUsd)) : null;
 	const saved = await tools.ledger.saveQuote({ kind: 'column', sheetId: args.sheetId, columnId: column.id, request: { rowIds: chosen.map((plan) => plan.row.id), mode: args.mode }, opHash: opHash(column.op), cells: chosen.length, perCellUsd: quote.perCellMaxUsd, maxUsd: quote.maxUsd });
 	const tryRows = Math.min(TRY_ROWS, chosen.length);
-	const tryMaxUsd = round(Math.min(quote.maxUsd, tryRows * quote.perCellMaxUsd));
+	// The trial's share of the quote, never below one cell's cap so its first cell can always start.
+	const tryMaxUsd = chosen.length ? round(Math.min(quote.maxUsd, Math.max(quote.perCellMaxUsd, (quote.maxUsd * tryRows) / chosen.length))) : 0;
 	const missing = missingProviders(column.op, (provider) => Boolean(access.key(provider)));
 	return {
 		quoteId: saved.id, sheetId: args.sheetId, columnId: column.id, column: column.name, operation: column.op.kind,

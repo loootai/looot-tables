@@ -77,7 +77,9 @@ export class SheetTools extends McpOperations {
 			const room = MAX_ROWS - snapshot.rows.length;
 			if (room <= 0) throw new WorkspaceError(`This sheet already has ${MAX_ROWS} rows.`, 422);
 			const columns = [...snapshot.sheet.columns];
-			const added = foundRowColumns(entity, columns).missing.map((entry) => { const column = this.newColumn(entry.name, columns, { format: entry.format, width: entry.width ?? 180 }); columns.push(column); return column; });
+			// Only the layout columns some found row fills: a search that returns no schools adds no Schools column.
+			const filled = new Set(foundRecords(entity, found, columns).records.flatMap((record) => Object.entries(record).filter(([, value]) => value !== null && value !== '' && !(Array.isArray(value) && !value.length)).map(([name]) => name.toLowerCase())));
+			const added = foundRowColumns(entity, columns).missing.filter((entry) => filled.has(entry.name.toLowerCase())).map((entry) => { const column = this.newColumn(entry.name, columns, { format: entry.format, width: entry.width ?? 180 }); columns.push(column); return column; });
 			const { records, cellMeta } = foundRecords(entity, found.slice(0, room), columns);
 			const now = Date.now();
 			let order = Math.max(-1, ...snapshot.rows.map((row) => row.order));
@@ -98,7 +100,7 @@ export class SheetTools extends McpOperations {
 	}
 
 	/** Configure one column through configure_column, so new columns get every check an edited one gets. */
-	private async configure(sheetId: string, revision: number, column: { id: string; name: string; type: 'enriched' | 'source'; op?: ColumnOp; format?: Column['format'] }) {
+	private async configure(sheetId: string, revision: number, column: { id: string; name: string; type: 'enriched' | 'source'; op?: ColumnOp; format?: Column['format']; width?: number }) {
 		return super.call('configure_column', { sheetId, revision, column }) as Promise<{ revision: number }>;
 	}
 
@@ -211,9 +213,9 @@ export class SheetTools extends McpOperations {
 		let revision = args.revision, taken = [...columns];
 		if (args.email) {
 			if (!identity.name || !identity.domain) throw new WorkspaceError('Finding an email needs a name and a company website or company column.', 400);
-			const column = this.newColumn('Work email', taken);
+			const column = this.newColumn('Work email', taken, { width: 250 });
 			const op = ColumnOpSchema.parse({ kind: 'email-enrichment', ...identity, prefer: args.prefer, verify: args.verify, ...(args.source ? { source: args.source } : {}) });
-			({ revision } = await this.configure(args.sheetId, revision, { id: column.id, name: column.name, type: 'enriched', op }));
+			({ revision } = await this.configure(args.sheetId, revision, { id: column.id, name: column.name, type: 'enriched', op, width: column.width }));
 			taken = [...taken, column];
 			added.push({ columnId: column.id, name: column.name });
 		}
