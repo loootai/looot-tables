@@ -293,7 +293,7 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 		<SheetColumnsContext.Provider value={sheet.columns}>
 		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 		<div ref={scrollRef} tabIndex={0} onPointerDownCapture={() => { suppressClickUntil.current = 0; }} onScroll={(event) => { if (footerRef.current) footerRef.current.style.transform = `translateX(${-event.currentTarget.scrollLeft}px)`; if (loadingRows) { const node = event.currentTarget; followArrivals.current = node.scrollHeight - node.scrollTop - node.clientHeight < ROW_HEIGHT * 2; } }} onKeyDown={onKeyDown} onContextMenu={openContextMenu} onDragStart={(event) => event.preventDefault()} onClickCapture={(event) => { if (performance.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); suppressClickUntil.current = 0; } }} aria-multiselectable="true" aria-label="Sheet grid" role="grid" aria-activedescendant={activeDescendant(active, columns, (rowId) => virtualItems.some((item) => rows[item.index]?.id === rowId))} aria-busy={loadingRows} aria-rowcount={rowCount} aria-colcount={columns.length} style={{ scrollSnapType: 'x proximity', scrollPaddingLeft: INDEX_WIDTH + (columns[0]?.width ?? 0) }} className="scrollbar-thin relative min-h-0 min-w-0 flex-1 touch-auto select-none overflow-auto overscroll-contain bg-surface outline-none">
-			<div style={{ width: totalWidth, height: HEADER_HEIGHT + virtualizer.getTotalSize() + ROW_HEIGHT + 24, position: 'relative' }}>
+			<div style={{ width: totalWidth, height: HEADER_HEIGHT + virtualizer.getTotalSize() + ROW_HEIGHT + 24, minHeight: '100%', position: 'relative' }}>
 				<GridHeader stats={stats} ghosts={ghosts} onAddNextStep={onAddNextStep} onRoutingMenu={onRoutingMenu} sheet={sheet} sort={sort} columns={columns} offsets={offsets} totalWidth={totalWidth} rows={rows} selected={selected} columnDrag={columnDrag} renamingColumnId={renamingColumnId} onToggleAll={onToggleAll} onAddColumn={onAddColumn} onStartDrag={beginColumnDrag} onColumnMenu={onColumnMenu} onResizeColumn={onResizeColumn} onPreviewResize={previewResize} onSortColumn={onSortColumn} onRenameColumn={onRenameColumn} onCancelRenameColumn={onCancelRenameColumn} />
 
 				{/* Rows */}
@@ -344,6 +344,7 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 
 				{fillHandle && <FillHandle formula={fill.formulaFill} left={offsets[fillHandle.right + 1] - 5} top={HEADER_HEIGHT + (fillHandle.bottom + 1) * ROW_HEIGHT - 5} onPointerDown={(event) => { event.stopPropagation(); beginCellDrag({ rowId: rows[fillHandle.bottom].id, columnId: columns[fillHandle.right].id }, event, true); }} />}
 				{editConflict && <EditConflictDialog conflict={editConflict} onClose={() => setEditConflict(null)} onKeep={() => { onEditCell(editConflict.rowId, editConflict.columnId, editConflict.draft, editConflict.company); setEditConflict(null); }} />}
+				<SheetRunout top={HEADER_HEIGHT + virtualizer.getTotalSize()} offsets={offsets} />
 				<AddRowFooter top={HEADER_HEIGHT + virtualizer.getTotalSize()} totalWidth={totalWidth} firstColumnWidth={columns[0]?.width} onAddRow={onAddRow} />
 				</div>
 			</div>
@@ -384,6 +385,14 @@ function FillHandle({ formula, left, top, onPointerDown }: { formula: boolean; l
 
 function EditConflictDialog({ conflict, onClose, onKeep }: { conflict: EditConflict; onClose: () => void; onKeep: () => void }) {
 	return <ConfirmDialog title="This cell changed while you were editing" description={<span className="flex flex-col gap-2"><span>Another edit was saved. Cancel keeps the current value; your draft is shown below so you can copy it.</span><span>Current: <span className="select-all">{conflict.current || '(empty)'}</span></span><span>Your edit: <span className="select-all whitespace-pre-wrap">{conflict.draft || '(empty)'}</span></span></span>} confirmLabel="Keep my edit" onClose={onClose} onConfirm={onKeep} />;
+}
+
+/** Below the last row the column guides and row lines carry on and fade out, so a short sheet still reads as a sheet. */
+function SheetRunout({ top, offsets }: { top: number; offsets: readonly number[] }) {
+	return <div aria-hidden data-sheet-runout className="pointer-events-none absolute bottom-0 left-0 [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" style={{ top, width: offsets[offsets.length - 1] ?? 0, backgroundImage: `repeating-linear-gradient(to bottom, transparent 0 ${ROW_HEIGHT - 1}px, var(--color-line-subtle) ${ROW_HEIGHT - 1}px ${ROW_HEIGHT}px)` }}>
+		<div className="absolute inset-y-0 left-0 border-r border-line-subtle bg-neutral-5/60" style={{ width: INDEX_WIDTH }} />
+		{offsets.slice(1).map((left) => <div key={left} className="absolute inset-y-0 w-px bg-line-subtle" style={{ left: left - 1 }} />)}
+	</div>;
 }
 
 function AddRowFooter({ top, totalWidth, firstColumnWidth = 120, onAddRow }: { top: number; totalWidth: number; firstColumnWidth?: number; onAddRow: () => void }) {
