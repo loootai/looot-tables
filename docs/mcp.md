@@ -42,24 +42,103 @@ Use the people template, import the supplied names and identity clues, then call
 
 The browser's people-list flow uses the same lookup helper. Named lists enrich their supplied identities; unresolved names use people search and enrich a unique matching profile. Broad discovery searches first, then enriches accepted profiles for photos. Missing or ambiguous matches keep the supplied name and a placeholder. Both paths render the photo inside the first Name cell.
 
+## Connect a client
+
+Every client needs the endpoint (`https://your-deployment.example/mcp`), the organization key as `Authorization: Bearer …`, and, on a self-hosted copy, your own `x-looot-key` (and `x-openai-key` for AI columns).
+
+**Claude Code**
+
+```bash
+claude mcp add --transport http looot-tables https://your-deployment.example/mcp \
+  --header "Authorization: Bearer YOUR_MCP_KEY" \
+  --header "x-looot-key: YOUR_LOOOT_TOKEN" \
+  --header "x-openai-key: YOUR_OPENAI_KEY"
+```
+
+**Cursor**: add the server to `~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project) with the `mcpServers` block above.
+
+**ChatGPT**: ChatGPT's custom connectors accept OAuth or no authentication, and this endpoint needs a bearer key, so ChatGPT cannot connect to it directly yet. From the OpenAI Responses API, use the remote MCP tool, which sends headers:
+
+```json
+{
+  "type": "mcp",
+  "server_label": "looot-tables",
+  "server_url": "https://your-deployment.example/mcp",
+  "headers": { "Authorization": "Bearer YOUR_MCP_KEY", "x-looot-key": "YOUR_LOOOT_TOKEN" },
+  "require_approval": { "always": { "tool_names": ["run_column", "find_rows", "enrich_cells", "delete_sheet", "delete_rows", "update_spend_guard"] } }
+}
+```
+
+**eve**: `examples/eve-agent/` is an [eve](https://eve.dev) agent whose only connection is this server. Its connection file sends the key as headers and asks for approval before every paid or deleting tool:
+
+```ts
+// examples/eve-agent/agent/connections/looot-tables.ts
+export default defineMcpClientConnection({
+  url: process.env.LOOOT_TABLES_MCP_URL ?? "http://localhost:3000/mcp",
+  description: "looot tables: lead-list spreadsheets …",
+  headers: () => ({ Authorization: `Bearer ${process.env.LOOOT_TABLES_MCP_KEY}`, "x-looot-key": process.env.LOOOT_TOKEN ?? "" }),
+  approval: ({ toolName }) => (ASK_FIRST.some((name) => toolName.endsWith(`__${name}`)) ? "user-approval" : "not-applicable"),
+});
+```
+
+See [examples/eve-agent/README.md](../examples/eve-agent/README.md) to run it with `eve dev`.
+
+## Money: quote, then run with a budget
+
+Tools that spend looot credit never run on an agent's word alone:
+
+1. `quote_run` (a column) or `quote_find_rows` (a search) is free. It returns a `quoteId`, a `label` such as "Run 50 rows · up to $0.21", `tryFirst` (the same run on 5 rows) and the sheet's cap and what is left.
+2. Show the label to the user. Run only after they agree.
+3. `run_column` or `find_rows` needs the `quoteId`, `maxUsd` (no more than the user approved) and an `idempotencyKey`. A call without them is refused.
+
+On the server each paid cell is held against its per-cell cap (sent to looot as `fallback.maxCostUsd`), the run's `maxUsd`, and the sheet's spend cap (default $5) before it starts. A cell that does not fit does not start, and nothing is sent to looot. A column that changed after its quote is refused, and the client has to quote again. Repeating a quote with the same key returns the first run. `get_run_status` shows progress, fill rate and spend, and `cancel_run` stops a run from starting more cells. New columns: run `rows: 5` first.
+
 ## Tools
 
-| Tool | Behavior |
-| --- | --- |
-| `list_sheets` | Lists compact summaries with column names/IDs, revisions, row counts, and app links. Set `includeDefinitions: true` for full definitions. |
-| `get_sheet` | Returns columns, revision, up to 100 rows, a relative app URL, and `nextOffset`. Pin subsequent pages to the first revision. |
-| `create_sheet` | The single spreadsheet-creation tool: choose `template: "blank" | "companies" | "people" | "websites"` to reuse app layouts, or supply complete custom `columns`. Optional `enrichments` configure built-in operations immediately; matching preset column names are replaced, other names appended. Repeating a matching definition returns the existing sheet. Creation does not execute provider calls. |
-| `upsert_rows` | Inserts or partially updates up to 100 rows using caller-supplied stable row IDs. Cell maps use column IDs. |
-| `update_cells` | Changes up to 100 literal cell values. |
-| `configure_column` | Adds or replaces a column definition using the existing typed operation schema; renamed references are updated and a rename alone keeps results current. A changed operation keeps saved values, as a browser edit does; they become outdated and are rerun only with `enrich_cells` and `overwrite: true`. |
-| `delete_rows` | Deletes up to 100 rows. |
-| `delete_sheet` | Deletes a sheet and its rows. |
-| `get_cell_details` | Returns the saved cell, including status, sources, reasoning, confidence, timing, and errors when present. |
-| `enrich_cells` | Runs up to five rows in one enrichment column, sequentially, and saves each result. Finished cells are skipped unless `overwrite: true`; each skipped outcome says `outdated: true` or `false`. |
+33 tools. **Kind** says what a tool may do: read (no change, no spend), write (changes the workspace, spends nothing), paid (spends looot credit, needs a quote and a budget), destructive (deletes or loosens a guard). Each tool's description ends with one example call.
 
-Row/cell/column mutations and deletions require the current sheet revision. A conflict means the agent must reread the sheet and reconsider its edit. Caller-provided values are literals, including strings beginning with `=`. Existing workspace limits of 10 sheets and 1,000 rows per sheet apply.
+| Tool | Kind | What it does |
+| --- | --- | --- |
+| `list_sheets` | read | Sheets with column names and ids, revisions, row counts and app links. |
+| `get_sheet` | read | Columns, revision and up to 100 rows with full cells. Page with `offset`. |
+| `query_rows` | read | Rows as plain values (column name → value), filtered, searched and sorted, 100 per page. Use it to look at data. |
+| `get_cell_details` | read | One cell's value, status, sources, confidence and receipt: each looot run, the providers tried in order, outcome and cost. |
+| `export_sheet` | read | The sheet as CSV or JSON text, optionally with confidence and sources, up to 1 MB. |
+| `create_sheet` | write | A sheet from a template (blank, companies, people, websites) or custom columns, with optional enrichment columns. |
+| `rename_sheet` | write | Rename a sheet. |
+| `duplicate_sheet` | write | Copy a sheet, with or without its rows and results. |
+| `save_view` | write | Save filters and a sort as the sheet's starting view. |
+| `upsert_rows` | write | Insert or update up to 100 rows by id. |
+| `update_cells` | write | Edit up to 100 cells. |
+| `delete_rows` | write | Delete up to 100 rows. |
+| `import_rows` | write | Append rows from CSV text or a public https CSV URL (2 MB at most). New headers become columns. |
+| `dedupe_rows` | write | Find rows with the same key columns (dry run by default) and delete all but the first or last. |
+| `configure_column` | write | Add or change any column: every operation (AI research with sources, company and person data, find and verify email, phone, scrape, search, check, classify, score, email draft, template, any looot endpoint). |
+| `add_looot_column` | write | A column on any looot catalog endpoint or job, inputs mapped from `{{Column}}` templates. Inspects the endpoint for input types and price. |
+| `add_contact_columns` | write | Work email (find, then verify in the same cell) and optionally Phone, with inputs taken from the sheet's Name, Company, website and LinkedIn columns. |
+| `unpack_column` | write | Turn a company or looot column's stored answers into columns (Industry, Headcount, HQ, Funding, Stage, Founded). $0. |
+| `set_column_routing` | write | A looot column's provider order (balanced, cheapest, reliable, fastest), providers to skip, and MoltSets source. |
+| `get_next_steps` | read | Follow-up jobs looot suggested after hits (verify, phone, tech stack…), with a price per row and the column to add. |
+| `quote_run` | read | Free. Cells a column run would fill and the most it can cost, the 5-row trial, and the sheet cap. |
+| `run_column` | paid | Run a quote with `maxUsd` and an idempotency key, 4 cells at a time. `rows: 5` runs the trial. |
+| `enrich_cells` | paid | Run up to 5 cells of a column. Paid columns need `maxUsd`. Prefer `quote_run` and `run_column`. |
+| `get_run_status` | read | A run's progress and spend, and the column's fill rate, errors, cost and providers. |
+| `cancel_run` | write | Stop a run from starting more cells. |
+| `quote_find_rows` | read | Free. Price a search for companies (company.search with filters) or people (people.search by title at given domains, a column's domains, or companies found from a description). |
+| `find_rows` | paid | Run a find-rows quote within `maxUsd`. Duplicates of rows already in the sheet are skipped. |
+| `search_catalog` | read | Free. looot endpoints and jobs for a task, with price, success rate and latency. |
+| `inspect_endpoint` | read | Free. An endpoint's inputs and price. |
+| `get_spend` | read | looot balance, and a sheet's cap, spend, holds and halted columns. |
+| `update_spend_guard` | destructive | Change a sheet's spend cap or resume a halted column. Only on the user's request. |
+| `moltsets_plan` | read | Free. The MoltSets plan meter: records left in the 5-hour and weekly windows. |
+| `delete_sheet` | destructive | Delete a sheet. `confirm` must be the sheet's name, after the user agreed. |
 
-A sheet saved by an older version is upgraded the first time an agent reads it, as the browser upgrades it when it opens: a website column still named Domain becomes Website, and references to it follow, so `{{Website}}` and repeated `create_sheet` calls match. The upgrade advances the revision once. Sheets with formulas are upgraded by the browser instead.
+Row, cell and column changes need the current sheet revision. A conflict means the agent has to read the sheet again. Values are literals, including strings that start with `=`. Workspace limits are 10 sheets and 1,000 rows per sheet. Errors say what to do next, for example "Unknown quoteId. Call quote_run … first" or "maxUsd $0.01 is below one cell's cap ($0.069)".
+
+## Resources and prompts
+
+- **Resource** `looot-tables://sheets/{sheetId}.csv`: each sheet's visible columns as CSV, listed per sheet.
+- **Prompts** (recipes): `find-people-verify-emails` (role, companies, count), `research-companies` (companies, question) and `enrich-my-csv` (CSV URL, what to add). Each one lists the tools in the order that keeps money behind a quote. The in-app agent offers the same three as starter prompts.
 
 ## Example workflow
 
@@ -81,13 +160,14 @@ A single `create_sheet` call can create the app’s Companies layout with an exi
 }
 ```
 
-Read the returned column IDs before importing rows (`source_1` is Company and `source_2` is Website for this preset), then call `enrich_cells`. Creation returns built-in operation guidance. No separate creation or operation-discovery tool is needed. Existing explicit-column requests still work:
+Read the returned column IDs before importing rows (`source_1` is Company and `source_2` is Website for this preset), then run the columns (`quote_run`, then `run_column`). Creation returns built-in operation guidance. No separate creation or operation-discovery tool is needed. Existing explicit-column requests still work:
 
 1. `create_sheet` with `sheetId: "prospects"`, `name: "Prospects"`, and columns `[{"id":"website","name":"Website","type":"source"}]`.
 2. `upsert_rows` with the returned revision and rows such as `{"id":"example","cells":{"website":"example.com"}}`.
 3. `configure_column` with the current revision and `{"id":"description","name":"Description","type":"enriched","op":{"kind":"company","domain":"{{Website}}","field":"description"}}`.
-4. `enrich_cells` with `sheetId`, `columnId: "description"`, `rowIds: ["example"]`, and a fresh `idempotencyKey`.
-5. Inspect outcomes and repeat for the next rows. The agent supplies row discovery itself; automatic population is outside this version.
+4. `quote_run` with `sheetId` and `columnId: "description"`. Show the user its `label`.
+5. After they agree, `run_column` with the `quoteId`, `maxUsd` from the quote and a fresh `idempotencyKey`. Inspect the outcomes with `query_rows` or `get_cell_details`.
+6. To add rows by search instead of by hand, `quote_find_rows`, then `find_rows`.
 
 ## Execution and retry semantics
 
@@ -106,10 +186,12 @@ If the process dies, the original request remains `running` until ten minutes af
 ## Current limits
 
 - Formula sheets can be read and deleted, but other MCP mutations/enrichment are rejected because formula calculation currently requires the browser worker.
-- Enrichment runs only during an active HTTP request. The external agent must continue the workflow; there is no promise of completion after disconnects.
+- Runs happen only during an active HTTP request (about 280 seconds of cells per call). Cells left come back `not_started`: run the quote again with a new idempotency key to continue.
 - Browser views refresh through the existing focus and polling behavior, rather than immediate push updates.
-- No autonomous population, exports, MCP OAuth, permission scopes, or background jobs are added by this version.
+- No MCP OAuth, permission scopes or background jobs. `find_rows` searches with filters; the browser's populate agent is not exposed.
 
 ## Verification
+
+`node --conditions=react-server --test --import tsx tests/server/sheet-tools.test.ts` runs every new tool against the looot and MoltSets stand-ins, including the quote and budget rules. `scripts/mcp-smoke.mjs` runs a people search, a verified email column and a 5-row trial through the official MCP client against a running server.
 
 `node --conditions=react-server --test --import tsx tests/server/mcp.test.ts` runs the migration and operations against embedded Postgres, including key sharing/rotation, isolation, revision conflicts, dependencies, replay, concurrent edits, and a real MCP SDK client using stateless HTTP.

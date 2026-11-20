@@ -25,6 +25,36 @@ Every screenshot below comes from a production build running against the local s
 
 Ten contacts at ten companies, with Industry, Funding, Work email and Phone filled in. Each email cell shows a grade (A to F from MoltSets, or Valid, Risky, Catch-all and Invalid from a looot check) and the logo of the provider that answered. The bottom bar reads "Spent $0.231 on this sheet · 87% found" next to the sheet's cap, "Cap $5.00 · $0.231 used".
 
+### Agents and MCP
+
+Type what you want and an agent builds the sheet. Open a sheet, click **Agent** (or press ⌘K) and ask: "Find heads of RevOps at 50-500 person SaaS companies, then get their work emails and verify them."
+
+<img src="docs/media/19-agent-panel.png" alt="The agent panel next to a sheet of 10 heads of RevOps with verified work emails, showing its steps, two run cards with provider logos and the result" width="100%" />
+
+The agent creates columns, adds rows and searches the catalog by itself, and shows each step in one line. It never spends on its own: paid work comes back as a quote card, and the agent continues after you click. Here a people search found 10 contacts for $0.03, and the Work email column ran on 5 rows, then on the other 5: 8 addresses found and checked (4 valid, 2 risky, 1 catch-all, 1 invalid) and 2 misses, $0.03 per run.
+
+<img src="docs/media/20-agent-confirm.png" alt="A quote card reading Run 10 rows · up to $0.242 with Run 10 rows, Try 5 rows and Cancel" width="100%" />
+
+Each card names the column, the job, the most the run can cost and what is left under the sheet's cap. A new column highlights **Try 5 rows**. The agent runs on Claude (`claude-sonnet-5-5`) with your Anthropic key, or on your OpenAI model. See [docs/agent.md](docs/agent.md).
+
+Agents outside the app use the same tools through the MCP server at `/mcp`: Claude Code, Cursor, the OpenAI Responses API, or an [eve](https://eve.dev) agent ([examples/eve-agent](examples/eve-agent)).
+
+```bash
+claude mcp add --transport http looot-tables https://your-deployment.example/mcp \
+  --header "Authorization: Bearer YOUR_MCP_KEY" --header "x-looot-key: YOUR_LOOOT_TOKEN"
+```
+
+| Area | Tools |
+| --- | --- |
+| Sheets | `list_sheets`, `get_sheet`, `create_sheet`, `rename_sheet`, `duplicate_sheet`, `delete_sheet` (with confirm), `save_view` |
+| Rows | `query_rows`, `upsert_rows`, `update_cells`, `delete_rows`, `import_rows` (CSV text or URL), `dedupe_rows`, `export_sheet` |
+| Find rows | `quote_find_rows`, `find_rows` (company.search and people.search with filters) |
+| Columns | `configure_column` (every column type), `add_looot_column` (any looot endpoint), `add_contact_columns` (find and verify email, phone), `unpack_column`, `set_column_routing`, `get_next_steps` |
+| Runs | `quote_run`, `run_column`, `get_run_status`, `cancel_run`, `get_cell_details` (the receipt), `enrich_cells` |
+| Money and catalog | `get_spend`, `update_spend_guard`, `search_catalog`, `inspect_endpoint`, `moltsets_plan` |
+
+Every paid tool needs a quote id, a budget and an idempotency key, and the server holds each cell against its per-cell cap and the sheet's spend cap. The server also offers each sheet as a CSV resource and three recipe prompts. Details are in [docs/mcp.md](docs/mcp.md).
+
 ### Find rows
 
 <img src="docs/media/12-find-rows.png" alt="A people search filling a new sheet row by row" width="100%" />
@@ -161,7 +191,7 @@ Open [localhost:3000/app](http://localhost:3000/app). The setup dialog asks for 
 The stand-ins answer like looot, OpenAI and MoltSets with invented data, and no call costs money. You still need the Postgres database from above.
 
 ```bash
-node scripts/mock-looot.mjs --openai   # looot on :4546, an OpenAI-compatible model on :4545
+node scripts/mock-looot.mjs --openai   # looot on :4546, an OpenAI-compatible model on :4545 (it also plays the agent)
 node scripts/mock-moltsets.mjs         # MoltSets on :4547
 
 LOOOT_API_URL=http://127.0.0.1:4546 \
@@ -203,6 +233,7 @@ Each browser gets a private workspace tied to a cookie. A workspace holds up to 
 | `OPENAI_API_KEY` | Server-side OpenAI key. |
 | `TYPESAFE_API_KEY` | Optional server-side TypeSafe key for true/false and category columns. |
 | `MOLTSETS_API_KEY` | Optional server-side MoltSets key. Contact columns try it before looot. |
+| `ANTHROPIC_API_KEY` | Optional server-side Anthropic key. The agent runs on Claude with it. |
 | `LOOOT_TABLES_PASSWORD` | The server-side keys above are used only when the browser sends this password. |
 | `LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD` | `true` lets anyone with the URL spend the server keys. Off by default. |
 | `LOOOT_API_URL` | Reach looot through a proxy or a stand-in instead of `https://api.looot.ai`. |
@@ -217,7 +248,7 @@ Each browser gets a private workspace tied to a cookie. A workspace holds up to 
 
 ### MCP server
 
-The app serves a Streamable HTTP MCP endpoint at `/mcp`. Claude Code, Cursor and other MCP clients can read, edit and enrich your sheets with an agent key from Configuration → Agent access. Setup and tools are in [docs/mcp.md](docs/mcp.md).
+The app serves a Streamable HTTP MCP endpoint at `/mcp`. Claude Code, Cursor, the OpenAI Responses API, eve and other MCP clients can build, enrich and export your sheets with an agent key from Configuration → Agent access. Setup, the 33 tools and the money rules are in [docs/mcp.md](docs/mcp.md); the in-app agent is in [docs/agent.md](docs/agent.md).
 
 ## Development and tests
 

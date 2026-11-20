@@ -1,0 +1,22 @@
+{
+  "name": "looot-tables-eve-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A sales research agent built with eve whose only tools are the looot tables MCP server (and, optionally, the looot MCP).",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "eve dev",
+    "build": "eve build",
+    "start": "eve start",
+    "info": "eve info --json"
+  },
+  "dependencies": {
+    "ai": "7.0.157",
+    "eve": "0.91.0",
+    "zod": "4.6.7"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
