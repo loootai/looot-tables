@@ -75,7 +75,7 @@ test('credentials sealed before the shared envelope still decrypt',async t=>{
 });
 
 test('MCP authenticates with only its org key, uses organization providers/models, and preserves explicit overrides',async t=>{
- const {store,keys,sheets}=await fixture(t);
+ const {store,keys,sheets,database}=await fixture(t);
  await store.patch(actor(),{revision:0,preferences:{model:'org-model',classifierModel:'org-classifier'},providers:{openai:'org-openai',looot:'org-looot'},importOnly:false});
  const resolved=await mcpAccess(new Headers(),actor('one','bob'),store);
  assert.equal(resolved.key('openai'),'org-openai');assert.equal(resolved.key('looot'),'org-looot');assert.equal(resolved.model,'org-model');assert.equal(resolved.classifierModel,'org-classifier');
@@ -88,7 +88,7 @@ test('MCP authenticates with only its org key, uses organization providers/model
  assert.equal(resolveGrant(MCP_POLICY,await mcpInputs(changedEndpoint,actor(),store)).openaiBaseUrl,'https://example.com/v1');
  const key=await keys.issueKey(actor());
  const client=new Client({name:'org-key-only',version:'1'});
- await client.connect(new StreamableHTTPClientTransport(new URL('http://localhost/mcp'),{requestInit:{headers:{authorization:`Bearer ${key.secret}`}},fetch:async(input,init)=>handleMcpRequest(new Request(input,init),{keys,sheets,organization:store})}));
+ await client.connect(new StreamableHTTPClientTransport(new URL('http://localhost/mcp'),{requestInit:{headers:{authorization:`Bearer ${key.secret}`}},fetch:async(input,init)=>handleMcpRequest(new Request(input,init),{keys,sheets,organization:store,database})}));
  t.after(()=>client.close());
  const created=await client.callTool({name:'create_sheet',arguments:{sheetId:'org-sheet',name:'Org sheet'}});
  assert.ok(!created.isError);

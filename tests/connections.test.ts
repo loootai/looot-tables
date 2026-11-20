@@ -3,10 +3,10 @@ import { test } from 'node:test';
 import { DEFAULT_SETTINGS } from '../src/lib/keys';
 import { CONNECTION_ORDER, deriveConnections, formatExpiry, isReady, mcpConfig, REQUIRED_PROVIDERS } from '../src/components/app/providers';
 
-const server = { openai: false, looot: false, typesafe: false, moltsets: false, passwordRequired: false };
+const server = { openai: false, looot: false, typesafe: false, moltsets: false, anthropic: false, passwordRequired: false };
 
 test('one looot token replaces the data provider and every email provider, and MoltSets is an optional extra', () => {
-	assert.deepEqual([...CONNECTION_ORDER], ['looot', 'openai', 'typesafe', 'moltsets']);
+	assert.deepEqual([...CONNECTION_ORDER], ['looot', 'openai', 'anthropic', 'typesafe', 'moltsets']);
 	assert.deepEqual([...REQUIRED_PROVIDERS], ['looot', 'openai']);
 });
 

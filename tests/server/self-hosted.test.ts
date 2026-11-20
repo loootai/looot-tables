@@ -71,5 +71,5 @@ test('self-hosted deployments use manual keys, expose no sign-in routes and neve
  assert.equal(credentials.keys.looot, 'my-looot');
  assert.equal('trialAccount' in credentials, false, 'no run is billed to a shared token on someone else’s behalf');
  const availability = await serverKeyAvailability(request);
- assert.deepEqual(availability, { openai: false, looot: false, typesafe: false, moltsets: false, passwordRequired: false });
+ assert.deepEqual(availability, { openai: false, looot: false, typesafe: false, moltsets: false, anthropic: false, passwordRequired: false });
 });

@@ -8,8 +8,10 @@ import { workspaceId, type Database, type Sql } from '../../src/lib/server/datab
 import { MCP_ATTEMPT_LEASE_MS, McpStore, hashMcpSecret } from '../../src/lib/server/mcp-store';
 import { ENTITY_COLUMNS, type Row, type Sheet } from '../../src/lib/types';
 import { McpOperations } from '../../src/lib/server/mcp-tools';
+import { SpendGuard } from '../../src/lib/server/spend-guard';
 import { MCP_POLICY, mcpAccess, resolveAccess } from '../../src/lib/server/provider-access';
 import { handleMcpRequest } from '../../src/lib/server/mcp';
+import { TOOL_NAMES } from '../../src/lib/server/tool-specs';
 import type { runOp } from '../../src/lib/server/enrich';
 import { BUSY_MESSAGE, STALLED_ENRICHMENT_MS } from '../../src/lib/enrichment-plan';
 import { inputFingerprint, inputRecord } from '../../src/lib/enrichment-freshness';
@@ -247,26 +249,26 @@ test('interrupted requests become uncertain once the function limit has passed a
 });
 
 test('agents get the browser’s retry rule: a provider failure after the request was sent is not retryable', async (t) => {
-	const { keys, sheets } = await fixture(t);
+	const { database, keys, sheets } = await fixture(t);
 	let calls = 0;
 	t.mock.method(globalThis, 'fetch', async () => { calls++; return Response.json({ error: 'upstream failed' }, { status: 503 }); });
 	const access = resolveAccess(MCP_POLICY, { account: actor(), headers: new Headers({ 'x-looot-key': 'test-looot' }) });
-	const ops = new McpOperations(sheets, keys, actor(), access);
+	const ops = new McpOperations(sheets, keys, actor(), access, undefined, undefined, new SpendGuard(database, actor()));
 	await seed(ops);
 	await ops.call('configure_column', { sheetId: 'companies', revision: 2, column: { id: 'site', name: 'Site', type: 'enriched', op: { kind: 'search', query: 'retry rule {{Domain}}', pick: 'url', numResults: 1 } } });
-	const result = await ops.call('enrich_cells', { sheetId: 'companies', columnId: 'site', rowIds: ['r1'], idempotencyKey: 'provider-failure' });
+	const result = await ops.call('enrich_cells', { sheetId: 'companies', columnId: 'site', rowIds: ['r1'], idempotencyKey: 'provider-failure', maxUsd: 0.01 });
 	const [outcome] = result.outcomes as Array<{ status: string; failure?: unknown }>;
 	assert.deepEqual([outcome.status, outcome.failure, calls], ['error', { reason: 'provider_error', retryable: false, provider: 'looot' }, 1]);
 });
 
 test('rows start only when their worst case ends before the function limit, and failures stay structured', async (t) => {
-	const { keys, sheets } = await fixture(t);
+	const { database, keys, sheets } = await fixture(t);
 	let clock = 0, step = 100_000;
 	const execute: typeof runOp = async (_credentials, _op, row) => {
 		clock += step;
 		return row.Domain === 'example.com' ? { value: null, error: 'Rate limited (429). Wait a moment and try again.', failure: { reason: 'rate_limited', retryable: true } } : { value: `answer ${row.Domain}` };
 	};
-	const ops = new McpOperations(sheets, keys, actor(), credentials, execute, () => clock);
+	const ops = new McpOperations(sheets, keys, actor(), credentials, execute, () => clock, new SpendGuard(database, actor()));
 	await seed(ops);
 	await ops.call('upsert_rows', { sheetId: 'companies', revision: 2, rows: ['r3', 'r4'].map((id) => ({ id, cells: { domain: `${id}.example` } })) });
 	const result = await ops.call('enrich_cells', { sheetId: 'companies', columnId: 'answer', rowIds: ['r1', 'r2', 'r3', 'r4'], idempotencyKey: 'deadline' });
@@ -277,7 +279,7 @@ test('rows start only when their worst case ends before the function limit, and 
 	const { sheet } = await sheets.get(actor(), 'companies');
 	await ops.call('configure_column', { sheetId: 'companies', revision: sheet.revision, column: { id: 'research', name: 'Research', type: 'enriched', op: { kind: 'answer', task: 'About {{Domain}}' } } });
 	clock = 0; step = 160_000;
-	const slow = await ops.call('enrich_cells', { sheetId: 'companies', columnId: 'research', rowIds: ['r2', 'r3', 'r4'], idempotencyKey: 'slow' });
+	const slow = await ops.call('enrich_cells', { sheetId: 'companies', columnId: 'research', rowIds: ['r2', 'r3', 'r4'], idempotencyKey: 'slow', maxUsd: 1 });
 	assert.deepEqual((slow.outcomes as Array<{ status: string }>).map((o) => o.status), ['done', 'not_started', 'not_started'], 'a 130 s operation cannot start after 160 s');
 });
 
@@ -297,7 +299,8 @@ test('real MCP client discovers and calls tools over stateless HTTP; auth and or
 	await client.connect(transport);
 	t.after(() => client.close());
 	const tools = await client.listTools();
-	assert.equal(tools.tools.length, 10);
+	assert.equal(tools.tools.length, TOOL_NAMES.length);
+	assert.equal(tools.tools.find((tool) => tool.name === 'run_column')?.annotations?.readOnlyHint, false);
 	assert.ok(tools.tools.find((tool) => tool.name === 'configure_column')?.inputSchema.properties);
 	const created = await client.callTool({ name: 'create_sheet', arguments: { sheetId: 'native', name: 'Agent created', columns: [{ id: 'name', name: 'Name', type: 'source' }] } });
 	assert.ok(!created.isError);
@@ -318,6 +321,12 @@ test('real MCP client discovers and calls tools over stateless HTTP; auth and or
 	assert.ok(!preset.isError);
 	assert.equal((preset.structuredContent as { sheet: { columns: { id: string }[] } }).sheet.columns.length, ENTITY_COLUMNS.companies.length);
 	assert.match(client.getInstructions() ?? '', /Prefer looot tables built-in operations/);
+	assert.deepEqual((await client.listPrompts()).prompts.map((prompt) => prompt.name), ['find-people-verify-emails', 'research-companies', 'enrich-my-csv']);
+	const recipe = await client.getPrompt({ name: 'find-people-verify-emails', arguments: { role: 'VP Sales' } });
+	assert.match(JSON.stringify(recipe.messages), /VP Sales.*quote_find_rows/);
+	assert.ok((await client.listResources()).resources.some((resource) => resource.uri === 'looot-tables://sheets/native.csv'));
+	const csv = await client.readResource({ uri: 'looot-tables://sheets/native.csv' });
+	assert.match(String((csv.contents[0] as { text: string }).text), /^Name,Greeting\r\nFrom the agent,Hello From the agent$/);
 	await services.keys.issueKey(actor(), key.version);
 	const revoked = await handleMcpRequest(new Request(url, { method: 'POST', headers: { authorization: `Bearer ${key.secret}` } }), services);
 	assert.equal(revoked.status, 401);
@@ -476,7 +485,7 @@ test('MCP column inputs preserve shared column refinements and support category 
 });
 
 test('MCP enriches source names in place, preserves supplied spelling, and replays without spending again', async (t) => {
-	const { keys, sheets } = await fixture(t);
+	const { database, keys, sheets } = await fixture(t);
 	let calls = 0;
 	const execute: typeof runOp = async (_credentials, op, row) => {
 		calls++;
@@ -484,12 +493,12 @@ test('MCP enriches source names in place, preserves supplied spelling, and repla
 		assert.equal(row.Name, 'Dominik Koch');
 		return { value: 'Dominik K.', meta: { person: { name: 'Dominik K.', avatarUrl: 'https://cdn.example/dominik.png' }, sources: ['https://linkedin.com/in/dominikkoch'] } };
 	};
-	const ops = new McpOperations(sheets, keys, actor(), credentials, execute);
+	const ops = new McpOperations(sheets, keys, actor(), credentials, execute, undefined, new SpendGuard(database, actor()));
 	await ops.call('create_sheet', { sheetId: 'people', name: 'People', template: 'people' });
 	const initial = await sheets.get(actor(), 'people');
 	const column = (name: string) => initial.sheet.columns.find(c => c.name === name)!.id;
 	await ops.call('upsert_rows', { sheetId: 'people', revision: initial.sheet.revision, rows: [{ id: 'dominik', cells: { [column('Name')]: 'Dominik Koch', [column('Company')]: 'Notra', [column('LinkedIn')]: 'https://linkedin.com/in/dominikkoch' } }] });
-	const args = { sheetId: 'people', columnId: column('Name'), rowIds: ['dominik'], idempotencyKey: 'person-photo' };
+	const args = { sheetId: 'people', columnId: column('Name'), rowIds: ['dominik'], idempotencyKey: 'person-photo', maxUsd: 0.1 };
 	const result = await ops.call('enrich_cells', args);
 	assert.equal(result.status, 'finished');
 	assert.deepEqual(await ops.call('enrich_cells', args), result);

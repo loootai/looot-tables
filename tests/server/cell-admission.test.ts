@@ -4,6 +4,7 @@ import type { Account } from '../../src/lib/auth-identity';
 import { WorkspaceStore } from '../../src/lib/server/workspace-store';
 import { McpStore } from '../../src/lib/server/mcp-store';
 import { McpOperations } from '../../src/lib/server/mcp-tools';
+import { SpendGuard } from '../../src/lib/server/spend-guard';
 import { MCP_POLICY, resolveAccess } from '../../src/lib/server/provider-access';
 import type { runOp } from '../../src/lib/server/enrich';
 import type { Cell, Column, Row, Sheet } from '../../src/lib/types';
@@ -14,7 +15,7 @@ const actor: Account = { issuer: 'https://admission-tests.invalid', organization
 async function fixture(t: { after(fn: () => Promise<void>): void }, execute?: typeof runOp) {
 	const { database } = await testDatabase(t);
 	const sheets = new WorkspaceStore(database);
-	const ops = new McpOperations(sheets, new McpStore(database, () => 'test-encryption-root-that-is-shared-across-environments'), actor, resolveAccess(MCP_POLICY, { account: actor, headers: new Headers() }), execute);
+	const ops = new McpOperations(sheets, new McpStore(database, () => 'test-encryption-root-that-is-shared-across-environments'), actor, resolveAccess(MCP_POLICY, { account: actor, headers: new Headers() }), execute, undefined, new SpendGuard(database, actor));
 	return { sheets, ops };
 }
 
@@ -48,7 +49,7 @@ test('an MCP enrichment result the format cannot hold is saved as a failed cell'
 	const { sheets, ops } = await fixture(t, execute);
 	await ops.call('create_sheet', { sheetId: 'answers', name: 'Answers', columns: [{ id: 'company', name: 'Company', type: 'source' }], enrichments: [{ id: 'site', name: 'Website', format: 'website', op: { kind: 'ai', prompt: 'Website of {{Company}}', output: 'text', research: 'web' } }] });
 	await ops.call('upsert_rows', { sheetId: 'answers', revision: 1, rows: [{ id: 'r1', cells: { company: 'Acme' } }] });
-	const result = await ops.call('enrich_cells', { sheetId: 'answers', columnId: 'site', rowIds: ['r1'], idempotencyKey: 'unfit' });
+	const result = await ops.call('enrich_cells', { sheetId: 'answers', columnId: 'site', rowIds: ['r1'], idempotencyKey: 'unfit', maxUsd: 1 });
 	assert.equal((result.outcomes as Array<{ status: string }>)[0].status, 'error');
 	const cell = (await sheets.get(actor, 'answers')).rows[0].cells.site;
 	assert.deepEqual([cell.v, cell.s], [null, 'error']);

@@ -9,7 +9,7 @@ import { generateText, isStepCount, type StopCondition, tool, type ToolSet } fro
 import { z } from 'zod';
 import { foundRowKey, foundRowKeyField } from '../found-rows';
 import type { CellValue, FoundRow, PopulateEvent, PopulateRequest } from '../types';
-import { companySearch, peopleSearch, webSearchCountries, type CompanyHit } from './looot-jobs';
+import { companySearch, peopleSearch, webSearchCountries, type CompanyHit, type PersonHit } from './looot-jobs';
 import type { ProviderAccess } from './provider-access';
 import { createPopulateSearchQueue } from './populate-search-queue';
 import { classifyFailure } from './enrich-failure';
@@ -143,19 +143,7 @@ async function runPopulate(access: ProviderAccess, request: PopulateRequest, emi
 					const key = foundRowKey(hit.linkedin || `${hit.name}|${hit.company ?? ''}`);
 					if (!key || seen.has(key)) continue;
 					seen.add(key);
-					rows.push({
-						Name: hit.name,
-						'Profile photo': profileUrl(hit.avatarUrl),
-						Title: hit.title,
-						Company: hit.company ?? company ?? null,
-						'Company domain': hit.companyDomain ?? (domain ? domain.replace(/^www\./, '') : null),
-						Location: hit.location,
-						LinkedIn: hit.linkedin,
-						Schools: hit.schools,
-						Skills: hit.skills.slice(0, 15),
-						'Years of experience': hit.yearsOfExperience,
-						Summary: hit.bio,
-					});
+					rows.push(personRow(hit, { company, domain }));
 				}
 				const accepted = push(rows);
 				return { ...summarise(accepted.length, accepted.map((row) => String(row.Name ?? '')), response.next_cursor, response.returned), title_matches: response.results.length };
@@ -212,7 +200,25 @@ async function runPopulate(access: ProviderAccess, request: PopulateRequest, emi
 	emit({ type: 'done', total: state.added, message: summary && summary.length < 400 ? summary : undefined });
 }
 
-function companyRow(hit: CompanyHit): FoundRow {
+/** One found person as a row: their employer falls back to the company the search was for. */
+export function personRow(hit: PersonHit, searched: { company?: string; domain?: string } = {}): FoundRow {
+	return {
+		Name: hit.name,
+		'Profile photo': profileUrl(hit.avatarUrl),
+		Title: hit.title,
+		Company: hit.company ?? searched.company ?? null,
+		'Company domain': hit.companyDomain ?? (searched.domain ? searched.domain.replace(/^www\./, '') : null),
+		Location: hit.location,
+		LinkedIn: hit.linkedin,
+		Schools: hit.schools,
+		Skills: hit.skills.slice(0, 15),
+		'Years of experience': hit.yearsOfExperience,
+		Summary: hit.bio,
+	};
+}
+
+/** One found company as a row. */
+export function companyRow(hit: CompanyHit): FoundRow {
 	const hq = [hit.headquarters?.city, hit.headquarters?.region, hit.headquarters?.country_code].filter(Boolean).join(', ');
 	const employees: CellValue = hit.employees?.count ?? hit.employees?.max ?? hit.employees?.min ?? null;
 	return {

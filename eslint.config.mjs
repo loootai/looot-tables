@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "test-results/**",
     "playwright-report/**",
+    // Separate packages with their own dependencies and Node version.
+    "examples/**",
   ]),
 ]);
 
