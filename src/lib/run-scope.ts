@@ -1,10 +1,10 @@
-export type RunCount = 1 | 10 | 100 | 'all' | 'column';
+export type RunCount = 1 | 5 | 10 | 100 | 'all' | 'column';
 export interface RunScope { count: number; scope: 'cell' | 'below' | 'column' }
 export interface RunScopeOption { value: RunCount; label: string }
 
 export function parseRunCount(saved: string | null | undefined): RunCount {
 	if (saved === 'all' || saved === 'column') return saved;
-	if (saved === '10' || saved === '100') return Number(saved) as 10 | 100;
+	if (saved === '5' || saved === '10' || saved === '100') return Number(saved) as 5 | 10 | 100;
 	return 1;
 }
 
@@ -24,9 +24,10 @@ export function runScopeChoice(saved: RunCount, remainingRows: number, totalRows
 	if (totalRows <= 1) effective = 1;
 	const count = effective === 'column' ? totalRows : effective === 'all' ? available : effective;
 	const scope: RunScope = { count, scope: effective === 'column' ? 'column' : effective === 1 ? 'cell' : 'below' };
-	const label = effective === 1 ? one : effective === 'column' ? all : rows(count);
+	const label = effective === 1 ? one : effective === 'column' ? all : effective === 5 ? `Try ${count} rows` : rows(count);
 	const options: RunScopeOption[] = [
 		{ value: 1, label: one },
+		...(available > 5 ? [{ value: 5 as const, label: 'Try 5 rows' }] : []),
 		...([10, 100] as const).filter((n) => n < available).map((value) => ({ value, label: rows(value) })),
 		...(available > 1 && !restIsAll ? [{ value: 'all' as const, label: rows(available) }] : []),
 		{ value: 'column', label: all },

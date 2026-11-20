@@ -1,11 +1,13 @@
 'use client';
 
 import { nanoid } from 'nanoid';
-import { ApiError, enrichCell } from './api';
+import { ApiError, enrichCell, runBatchCall } from './api';
 import { canonicalJson } from './cell-content';
 import { cellTransition, isPendingCell } from './cell-lifecycle';
 import { db, updateCellsIf, type CellChange } from './db';
 import { failureCell, planCell, readsWholeSheet, recheck, resultCell, settleCell, startCell, type EnrichmentPlan, type Grid, type PlanContext } from './enrichment-plan';
+import { batchKey, type BatchResponse, type ColumnTally } from './batch-types';
+import { BATCH_MAX_ROWS } from './run-cost';
 import { loadSettings } from './keys';
 import { renderEmailDraft } from './email-draft';
 import { CloudError } from './sheet-remote';
@@ -21,7 +23,7 @@ import type { Cell, CellMeta, CellValue, Column, ColumnOp, EnrichFailure, Enrich
    metadata until its result lands. A cell another tab or an agent is running is waited on, never run twice. */
 
 export type PendingStatus = 'queued' | 'running';
-export type HaltReason = 'credits_exhausted' | 'credential_missing' | 'credential_invalid' | 'save_failed';
+export type HaltReason = 'credits_exhausted' | 'credential_missing' | 'credential_invalid' | 'save_failed' | 'spend_capped' | 'column_halted';
 
 /** A sheet paused because every further request would fail the same way (or results could not be saved). */
 export interface RunHalt {
@@ -30,6 +32,8 @@ export interface RunHalt {
 	provider?: FailureProvider;
 	/** The first failure's message, safe to show. */
 	message: string;
+	/** The column a miss limit stopped. */
+	columnId?: string;
 	/** Cells that failed this way. `retryFailed` runs them again. */
 	failedCells: number;
 }
@@ -49,7 +53,12 @@ export interface RunnerSnapshot {
 	bySheet: Readonly<Record<string, SheetProgress>>;
 	/** Paused sheets by ID. Their queued cells wait for `resume` or `retryFailed`; a new run also resumes. */
 	halted: Readonly<Record<string, RunHalt>>;
+	/** Live rows-batch progress by sheet, then column. */
+	batches: Readonly<Record<string, Readonly<Record<string, ColumnTally>>>>;
 }
+
+/** One cell, as the server's spend guard knows it. */
+export interface CellAddress { sheetId: string; rowId: string; columnId: string }
 
 export interface CancelFilter { sheetId?: string; columnId?: string; rowIds?: string[] }
 
@@ -64,8 +73,13 @@ export interface RunnerStore {
 
 export interface RunnerPorts {
 	store: RunnerStore;
-	/** `attempt` names this cell attempt: every looot run it makes derives its idempotency key from it. */
-	enrich(op: ColumnOp, record: Record<string, CellValue>, signal: AbortSignal, attempt?: string): Promise<EnrichResponse>;
+	/** `attempt` names this cell run (the same for its retries): every looot run it makes derives its idempotency key from
+	    it, and the server stores it before dispatch against `cell`'s sheet cap. */
+	enrich(op: ColumnOp, record: Record<string, CellValue>, signal: AbortSignal, attempt?: string, cell?: CellAddress): Promise<EnrichResponse>;
+	/** One call of a rows batch (see `enqueueBatch`); the same key continues it. Absent: columns run cell by cell. */
+	batch?(op: ColumnOp, rows: Array<{ rowId: string; record: Record<string, CellValue> }>, key: string, cell: { sheetId: string; columnId: string }, signal: AbortSignal): Promise<BatchResponse>;
+	/** Pause between calls of an incomplete batch. */
+	batchPollMs?: number;
 	concurrency(): number;
 	/** How long a cell waiting on one running in another tab or an agent waits before looking again. */
 	waitMs: number;
@@ -79,7 +93,9 @@ export interface RunnerPorts {
 type TaskState =
 	| { phase: 'queued'; starting: boolean }
 	| { phase: 'running'; controller: AbortController; op: string; signature: string }
-	| { phase: 'backoff'; controller: AbortController; op: string };
+	| { phase: 'backoff'; controller: AbortController; op: string }
+	/** Sent as part of a rows batch; every task of one batch shares its controller. */
+	| { phase: 'batch'; controller: AbortController; op: string };
 
 /** A finished run whose cell could not be saved yet: the save is retried on resume, and the provider is never asked again. */
 interface Unsaved { plan: EnrichmentPlan; duplicates: Row[]; marker: Cell | undefined; next: Cell; op: string }
@@ -111,14 +127,18 @@ type CommitOutcome = 'applied' | 'stale' | 'superseded' | 'skipped';
 const MAX_ATTEMPTS = 3;
 const PUBLISH_MS = 100;
 const YIELD_MS = 40;
-const FATAL: ReadonlySet<FailureReason> = new Set(['credits_exhausted', 'credential_missing', 'credential_invalid']);
+const FATAL: ReadonlySet<FailureReason> = new Set(['credits_exhausted', 'credential_missing', 'credential_invalid', 'spend_capped', 'column_halted']);
+/** The first chunk of a batch is small, so a column whose inputs are wrong halts before it spends on hundreds of rows. */
+const FIRST_CHUNK = 25;
+/** Calls of one incomplete batch before its unsettled rows are given back as failed (a later run continues it). */
+const MAX_BATCH_CALLS = 30;
 
 /** Cell identity for maps only. It is never parsed, so IDs may contain any character. */
 const cellKey = (sheetId: string, rowId: string, columnId: string) => JSON.stringify([sheetId, rowId, columnId]);
 const byOrder = (a: Row, b: Row) => a.order - b.order;
 /** A saved cell's status and time: whoever saves a result there changes them. */
 const basisOf = (cell: Cell | undefined) => JSON.stringify([cell?.s ?? 'idle', cell?.t ?? 0]);
-const statusOf = (task: Task): PendingStatus => task.state.phase === 'running' || task.state.phase === 'queued' && task.state.starting ? 'running' : 'queued';
+const statusOf = (task: Task): PendingStatus => task.state.phase === 'running' || task.state.phase === 'batch' || task.state.phase === 'queued' && task.state.starting ? 'running' : 'queued';
 
 function yieldToMain(): Promise<void> {
 	const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
@@ -175,7 +195,9 @@ export class Runner {
 	private runs = new Map<string, Task>();
 	private halts = new Map<string, { halt: RunHalt; cells: Array<{ rowId: string; columnId: string }> }>();
 	private listeners = new Set<() => void>();
-	private snapshot: RunnerSnapshot = { queued: 0, running: 0, active: false, bySheet: {}, halted: {} };
+	private snapshot: RunnerSnapshot = { queued: 0, running: 0, active: false, bySheet: {}, halted: {}, batches: {} };
+	/** Live batch tallies by sheet, then column. */
+	private tallies = new Map<string, Map<string, ColumnTally>>();
 	private dirty = false;
 	private notifyTimer: ReturnType<typeof setTimeout> | undefined;
 	private ticking = false;
@@ -259,7 +281,9 @@ export class Runner {
 		}
 		const halted: Record<string, RunHalt> = Object.create(null);
 		for (const [sheetId, { halt }] of this.halts) halted[sheetId] = halt;
-		this.snapshot = { queued, running, active: this.tasks.size > 0 || this.runs.size > 0 || this.failing.size > 0, bySheet, halted };
+		const batches: Record<string, Record<string, ColumnTally>> = Object.create(null);
+		for (const [sheetId, columns] of this.tallies) batches[sheetId] = Object.fromEntries([...columns].map(([columnId, tally]) => [columnId, { ...tally }]));
+		this.snapshot = { queued, running, active: this.tasks.size > 0 || this.runs.size > 0 || this.failing.size > 0, bySheet, halted, batches };
 	}
 
 	/** Queue cells and return how many were added. Which cells to run is the caller's plan (see `EnrichmentPlan.complete`).
@@ -294,6 +318,131 @@ export class Runner {
 		trackStarted(added.length);
 		this.tick();
 		return added.length;
+	}
+
+
+	/** Run `rows` of a batchable column through looot's rows batch: up to 500 rows a call, settling cells as rows come back.
+	    Rows that are not ready (inputs still running, a company name instead of a domain) take the normal queue. `fresh`
+	    starts new looot batches instead of continuing earlier ones for the same rows. */
+	async enqueueBatch(sheetId: string, rows: Row[], column: Column, options: { fresh?: boolean } = {}): Promise<number> {
+		if (!this.ports.batch || column.type !== 'enriched' || !column.op) return this.enqueue(sheetId, rows, [column]);
+		const controller = new AbortController();
+		const op = canonicalJson(column.op)!;
+		const tasks: Task[] = [];
+		for (const row of rows) {
+			const key = cellKey(sheetId, row.id, column.id);
+			if (this.tasks.has(key) || this.runs.has(key)) continue;
+			const task: Task = { key, sheetId, rowId: row.id, columnId: column.id, attempts: 0, runId: crypto.randomUUID(), basis: basisOf(row.cells[column.id]), state: { phase: 'batch', controller, op } };
+			this.tasks.set(key, task);
+			tasks.push(task);
+		}
+		if (!tasks.length) return 0;
+		this.halts.delete(sheetId);
+		this.publish(true);
+		trackStarted(tasks.length);
+		void this.runBatch(sheetId, column.id, tasks, controller, options.fresh ? crypto.randomUUID() : '').catch((error) => {
+			for (const task of tasks) if (this.tasks.get(task.key) === task) this.tasks.delete(task.key);
+			this.halt(sheetId, { reason: 'save_failed', message: error instanceof Error ? error.message : 'The batch could not run.' });
+		}).finally(() => { this.generation += 1; this.publish(); this.tick(); });
+		return tasks.length;
+	}
+
+	/** Give a batch task to the normal queue. */
+	private toQueue(task: Task) {
+		if (this.tasks.get(task.key) !== task) return;
+		this.tasks.set(task.key, { ...task, state: { phase: 'queued', starting: false } });
+	}
+
+	private tally(sheetId: string, columnId: string): ColumnTally {
+		let columns = this.tallies.get(sheetId);
+		if (!columns) this.tallies.set(sheetId, columns = new Map());
+		let tally = columns.get(columnId);
+		if (!tally) columns.set(columnId, tally = { total: 0, settled: 0, hits: 0, weak: 0, misses: 0, errors: 0, chargedUsd: 0 });
+		return tally;
+	}
+
+	private async runBatch(sheetId: string, columnId: string, tasks: Task[], controller: AbortController, nonce: string) {
+		const { signal } = controller;
+		const [sheet, rows] = await Promise.all([this.sheet(sheetId), this.store.rows(sheetId)]);
+		const mine = (task: Task) => this.tasks.get(task.key) === task;
+		if (!sheet) { for (const task of tasks) if (mine(task)) this.tasks.delete(task.key); return; }
+		const grid = { sheet, rows }, context = this.context(sheetId), at = this.now();
+		const ready: Array<{ task: Task; plan: EnrichmentPlan; marker: Cell }> = [];
+		for (const task of tasks) {
+			const plan = planCell(grid, task, context);
+			if (!plan || plan.column.type !== 'enriched') { this.tasks.delete(task.key); continue; }
+			if (this.finishedSince(task, plan)) { this.tasks.delete(task.key); continue; }
+			if (plan.busy || plan.local || plan.readiness.kind !== 'ready') { this.toQueue(task); continue; }
+			ready.push({ task, plan, marker: startCell(plan, this.owner, at) });
+		}
+		this.tick();
+		if (!ready.length || signal.aborted) return;
+		const started = await this.store.updateCells(sheetId, ready.map(({ task, plan, marker }) => ({ rowId: task.rowId, columnId, expected: plan.cell, update: (freshSheet, freshRows) => recheck(plan, { sheet: freshSheet, rows: [...freshRows].sort(byOrder) }) === 'applied' ? marker : undefined })));
+		const running = ready.filter((entry, index) => { if (!started[index]) this.toQueue(entry.task); return started[index]; });
+		this.tick();
+		const tally = this.tally(sheetId, columnId);
+		tally.total += running.length;
+		this.publish(true);
+		const op = running[0]?.plan.op;
+		/** Write one settled row; the task leaves the queue whatever happens to the write. */
+		const settle = async (entry: (typeof running)[number], next: Cell) => {
+			this.tasks.delete(entry.task.key);
+			await this.store.updateCells(sheetId, [{ rowId: entry.task.rowId, columnId, expected: entry.marker, update: (freshSheet, freshRows) => settleCell(entry.plan, { sheet: freshSheet, rows: [...freshRows].sort(byOrder) }, next, entry.marker).cell }]);
+		};
+		/** Give unsent or unsettled cells back as they were, or (with a message) as failed. */
+		const release = async (entries: typeof running, message?: string, meta?: CellMeta) => {
+			const live = entries.filter((entry) => mine(entry.task));
+			for (const entry of live) this.tasks.delete(entry.task.key);
+			if (live.length) await this.store.updateCells(sheetId, live.map((entry) => ({ rowId: entry.task.rowId, columnId, expected: entry.marker, update: () => message ? failureCell(entry.plan, message, meta, undefined, entry.marker) : cellTransition(entry.marker, { type: 'cancel' }) })));
+		};
+		const chunks: Array<typeof running> = [];
+		for (let start = 0; start < running.length;) { const size = chunks.length ? BATCH_MAX_ROWS : FIRST_CHUNK; chunks.push(running.slice(start, start + size)); start += size; }
+		try {
+			for (const [chunkIndex, chunk] of chunks.entries()) {
+				if (signal.aborted || !op) return;
+				const key = await batchKey([sheetId, columnId, canonicalJson(op), chunk.map((entry) => [entry.task.rowId, entry.plan.version])], nonce);
+				const open = new Map(chunk.map((entry) => [entry.task.rowId, entry]));
+				for (let call = 0; open.size && call < MAX_BATCH_CALLS; call++) {
+					if (signal.aborted) return;
+					// Every call sends the whole chunk: the same rows with the same key continue one looot batch.
+					const answer = await this.ports.batch!(op, chunk.map((entry) => ({ rowId: entry.task.rowId, record: entry.plan.record })), key, { sheetId, columnId }, signal);
+					if (signal.aborted) return;
+					if (answer.refused) {
+						const reason = answer.refused.failure?.reason;
+						await release(chunks.slice(chunkIndex).flat());
+						if (reason && FATAL.has(reason)) this.halt(sheetId, { reason: reason as HaltReason, provider: answer.refused.failure?.provider, message: answer.refused.error ?? 'The batch was refused.', ...(reason === 'column_halted' ? { columnId } : {}) });
+						return;
+					}
+					for (const row of answer.rows) {
+						const entry = open.get(row.rowId);
+						if (!entry || 'pending' in row) continue;
+						open.delete(row.rowId);
+						if ('single' in row) { await release([entry]); this.add(sheetId, [{ row: entry.plan.row, column: entry.plan.column }], {}); continue; }
+						const { response } = row;
+						tally.settled += 1;
+						tally.chargedUsd = Math.round((tally.chargedUsd + (response.meta?.costUsd ?? 0)) * 1e6) / 1e6;
+						if (response.error) tally.errors += 1;
+						else if (response.value === null || response.value === '') tally.misses += 1;
+						else if (['catch_all', 'risky', 'unknown'].includes(response.meta?.verification ?? '') || response.meta?.looot?.some((entryCall) => entryCall.outcome === 'weak')) tally.weak += 1;
+						else tally.hits += 1;
+						await settle(entry, response.error ? failureCell(entry.plan, response.error, response.meta, undefined, entry.marker) : resultCell(entry.plan, response.value, response.meta));
+						this.publish();
+					}
+					if (answer.halted) {
+						await release(chunks.slice(chunkIndex + 1).flat());
+						this.halt(sheetId, { reason: 'column_halted', provider: 'looot', message: 'This column stopped after too many misses or errors in a row. Check its inputs, then resume it.', columnId });
+						break;
+					}
+					if (answer.complete) break;
+					await sleep(this.ports.batchPollMs ?? 1_500, signal);
+				}
+				// Rows looot has not settled yet: running the column again sends the same key and picks them up at no extra charge.
+				await release([...open.values()], 'looot is still settling this row. Run the column again to continue its batch; settled rows are not charged twice.');
+				if (this.halts.has(sheetId)) { await release(chunks.slice(chunkIndex + 1).flat()); return; }
+			}
+		} finally {
+			if (signal.aborted) await release(running);
+		}
 	}
 
 	/** Stop matching cells: drop queued ones, abort running ones, and give saved cells back their previous values.
@@ -363,7 +512,13 @@ export class Runner {
 		return added;
 	}
 
-	private halt(sheetId: string, cause: { reason: HaltReason; provider?: FailureProvider; message: string }, cell?: { rowId: string; columnId: string }) {
+	/** Forget a column's queued (not yet started) tasks. */
+	private dropQueued(sheetId: string, columnId: string) {
+		for (const task of this.tasks.values()) if (task.sheetId === sheetId && task.columnId === columnId && task.state.phase === 'queued') this.tasks.delete(task.key);
+		this.publish(true);
+	}
+
+	private halt(sheetId: string, cause: { reason: HaltReason; provider?: FailureProvider; message: string; columnId?: string }, cell?: { rowId: string; columnId: string }) {
 		const entry = this.halts.get(sheetId) ?? { halt: { sheetId, ...cause, failedCells: 0 }, cells: [] };
 		if (cell) entry.cells.push(cell);
 		entry.halt = { ...entry.halt, failedCells: entry.cells.length };
@@ -665,14 +820,16 @@ export class Runner {
 		try {
 			if (signal.aborted) return;
 			let result: EnrichResponse | undefined, error: unknown;
-			try { result = await this.ports.enrich(op, plan.record, signal, `${task.runId}-${task.attempts}`); }
+			try { result = await this.ports.enrich(op, plan.record, signal, task.runId, { sheetId, rowId: row.id, columnId: column.id }); }
 			catch (caught) { error = caught; }
 			if (signal.aborted) return;
 			if (result && !result.error) { await finish(resultCell(plan, result.value, result.meta)); return; }
 			const { message, failure, meta, retryable } = describeFailure(result, error);
 			if (failure && FATAL.has(failure.reason)) {
 				const applied = await finish(failureCell(plan, message, meta, undefined, current)) === 'applied';
-				this.halt(task.sheetId, { reason: failure.reason as HaltReason, provider: failure.provider, message }, applied ? { rowId: row.id, columnId: column.id } : undefined);
+				// The server refuses every further cell of a halted column: drop them rather than fail them one by one.
+				if (failure.reason === 'column_halted') this.dropQueued(task.sheetId, column.id);
+				this.halt(task.sheetId, { reason: failure.reason as HaltReason, provider: failure.provider, message, ...(failure.reason === 'column_halted' ? { columnId: column.id } : {}) }, applied ? { rowId: row.id, columnId: column.id } : undefined);
 				return;
 			}
 			if (retryable && task.attempts + 1 < MAX_ATTEMPTS) return await this.backoff(task, controller, opJson);
@@ -727,4 +884,4 @@ function tabOwner() {
 	try { return claimTabOwner(sessionStorage, navigator.locks); } catch { return undefined; }
 }
 
-export const runner = new Runner({ store: indexedDbStore, enrich: enrichCell, concurrency: () => loadSettings().concurrency, waitMs: 2_000, owner: tabOwner(), now: serverNow });
+export const runner = new Runner({ store: indexedDbStore, enrich: enrichCell, batch: runBatchCall, concurrency: () => loadSettings().concurrency, waitMs: 2_000, owner: tabOwner(), now: serverNow });

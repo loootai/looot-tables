@@ -1,6 +1,6 @@
 import type { Column } from './types';
 
-export const CATEGORY_COLORS = ['#dbeafe', '#dcfce7', '#fef3c7', '#fce7f3', '#ede9fe', '#ffedd5', '#cffafe', '#f1f5f9'];
+export const CATEGORY_COLORS = ['#d9f2e6', '#dcfce7', '#fef3c7', '#fce7f3', '#ede9fe', '#ffedd5', '#cffafe', '#f1f5f9'];
 
 export function categoryColor(column: Pick<Column, 'categoryOptions' | 'categoryColors'>, option: string) {
 	return column.categoryColors && Object.hasOwn(column.categoryColors, option) ? column.categoryColors[option] : CATEGORY_COLORS[Math.max(0, column.categoryOptions?.indexOf(option) ?? 0) % CATEGORY_COLORS.length];

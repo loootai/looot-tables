@@ -1,56 +1,59 @@
 @import 'tailwindcss';
 
-/* Enrichable design tokens. Mirrors the Context.dev / brand.dev dashboard system: flat white surfaces on a
-   near-white canvas, one brand blue, neutrals derived from black at fixed opacities, hairline cards. */
+/* looot design tokens (light first, dark below). Graphite green ink on warm white; looot forest green is the one
+   accent, kept for Run, selection, verified hits and the balance. Amber means weak or stale, rose means error. The
+   older names (brand, blue-*, neutral-*) stay so every component reads the palette from one place. */
 @theme {
-	--font-sans: var(--font-rethink-sans), system-ui, sans-serif;
-	--font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+	--font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
 
-	--color-brand: #2563eb;
-	--color-brand-hover: #1d58d8;
-	--color-blue-10: #e9effd;
-	--color-blue-20: #d3e0fb;
-	--color-blue-30: #bed0f9;
-	--color-blue-60: #7ca1f3;
-	--color-blue-90: #3b73ed;
+	--color-brand: oklch(0.37 0.09 163);
+	--color-brand-hover: oklch(0.32 0.085 163);
+	--color-brand-fg: oklch(0.985 0.008 96);
+	--color-ring: oklch(0.53 0.09 163);
+	--color-blue-10: oklch(0.965 0.018 152);
+	--color-blue-20: oklch(0.93 0.028 151);
+	--color-blue-30: oklch(0.88 0.04 152);
+	--color-blue-60: oklch(0.62 0.1 163);
+	--color-blue-90: oklch(0.44 0.09 163);
 
-	--color-neutral-5: #f8f8f8;
-	--color-neutral-10: #e6e6e6;
-	--color-neutral-20: #cccccc;
-	--color-neutral-30: #b2b2b2;
-	--color-neutral-40: #999999;
-	--color-neutral-50: #808080;
-	--color-neutral-60: #666666;
-	--color-neutral-70: #4d4d4d;
-	--color-neutral-80: #333333;
-	--color-neutral-90: #191919;
+	--color-neutral-5: oklch(0.975 0.006 110);
+	--color-neutral-10: oklch(0.93 0.01 115);
+	--color-neutral-20: oklch(0.86 0.012 120);
+	--color-neutral-30: oklch(0.78 0.014 125);
+	--color-neutral-40: oklch(0.68 0.016 135);
+	--color-neutral-50: oklch(0.58 0.018 145);
+	--color-neutral-60: oklch(0.5 0.02 155);
+	--color-neutral-70: oklch(0.4 0.022 160);
+	--color-neutral-80: oklch(0.3 0.024 163);
+	--color-neutral-90: oklch(0.22 0.025 165);
 
-	--color-surface: #ffffff;
-	--color-canvas: #fafafa;
-	--color-frame: #f2f2f2;
-	--color-fg: #000000;
-	--color-fg-muted: #4d4d4d;
-	--color-fg-subtle: #707070;
-	--color-line: #e6e6e6;
-	--color-line-subtle: #f0f0f0;
-	--color-line-strong: #cccccc;
-	--color-success: #15803d;
-	--color-success-soft: #ecfdf3;
-	--color-danger: #dc2626;
-	--color-danger-strong: #b91c1c;
-	--color-danger-soft: #fef2f2;
-	--color-danger-line: #fecaca;
-	--color-warning: #b45309;
-	--color-warning-strong: #854d0e;
-	--color-warning-soft: #fffbeb;
-	--color-warning-line: #f4d46c;
-	--color-tint: #000000;
-	--color-scrim: rgb(0 0 0 / 0.1);
-	--color-hairline: rgb(0 0 0 / 0.06);
+	--color-surface: oklch(1 0 0);
+	--color-canvas: oklch(0.985 0.006 100);
+	--color-frame: oklch(0.97 0.014 115);
+	--color-fg: oklch(0.2 0.025 165);
+	--color-fg-muted: oklch(0.36 0.025 165);
+	--color-fg-subtle: oklch(0.5 0.025 165);
+	--color-line: oklch(0.88 0.018 120);
+	--color-line-subtle: oklch(0.935 0.012 115);
+	--color-line-strong: oklch(0.8 0.02 120);
+	--color-success: oklch(0.37 0.09 163);
+	--color-success-soft: oklch(0.96 0.025 152);
+	--color-danger: oklch(0.577 0.245 27.325);
+	--color-danger-strong: oklch(0.5 0.2 27);
+	--color-danger-soft: oklch(0.97 0.018 27);
+	--color-danger-line: oklch(0.88 0.06 27);
+	--color-warning: oklch(0.6 0.13 85);
+	--color-warning-strong: oklch(0.45 0.1 70);
+	--color-warning-soft: oklch(0.975 0.035 92);
+	--color-warning-line: oklch(0.86 0.1 92);
+	--color-tint: oklch(0.2 0.025 165);
+	--color-scrim: oklch(0.2 0.025 165 / 0.12);
+	--color-hairline: oklch(0.2 0.025 165 / 0.07);
 
-	--radius-card: 8px;
-	--radius-window: 10px;
-	--radius-shell: 12px;
+	--radius-card: 0.6rem;
+	--radius-window: 0.75rem;
+	--radius-shell: 0.9rem;
 
 	--ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
 
@@ -73,13 +76,108 @@
 	--text-caption: 0.75rem;
 	--text-caption--line-height: 1.3;
 
-	--shadow-card: 0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 1px rgb(0 0 0 / 0.05), 0 2px 4px rgb(0 0 0 / 0.06), 0 4px 14px -4px rgb(0 0 0 / 0.1);
-	--shadow-floating: 0 0 0 1px rgb(0 0 0 / 0.06), 0 0.5rem 1.5rem -0.5rem rgb(0 0 0 / 0.16);
-	--shadow-ring-brand: 0 0 0 4px rgb(37 99 235 / 0.12);
+	--shadow-card: 0 0 0 1px var(--color-hairline), 0 1px 1px oklch(0.2 0.025 165 / 0.04), 0 2px 4px oklch(0.2 0.025 165 / 0.05), 0 4px 14px -4px oklch(0.2 0.025 165 / 0.09);
+	--shadow-floating: 0 0 0 1px var(--color-hairline), 0 0.5rem 1.5rem -0.5rem oklch(0.2 0.025 165 / 0.18);
+	--shadow-ring-brand: 0 0 0 4px oklch(0.53 0.09 163 / 0.16);
+}
+
+/* Dark: the near-black green background and bright mint primary. Follows the system unless the page sets data-theme. */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		color-scheme: dark;
+		--color-brand: oklch(0.75 0.14 163);
+		--color-brand-hover: oklch(0.8 0.13 163);
+		--color-brand-fg: oklch(0.16 0.02 165);
+		--color-ring: oklch(0.65 0.12 163);
+		--color-blue-10: oklch(0.25 0.03 160);
+		--color-blue-20: oklch(0.29 0.04 160);
+		--color-blue-30: oklch(0.35 0.05 160);
+		--color-blue-60: oklch(0.6 0.11 163);
+		--color-blue-90: oklch(0.72 0.13 163);
+		--color-neutral-5: oklch(0.225 0.016 160);
+		--color-neutral-10: oklch(0.27 0.016 158);
+		--color-neutral-20: oklch(0.34 0.016 155);
+		--color-neutral-30: oklch(0.42 0.016 150);
+		--color-neutral-40: oklch(0.52 0.018 145);
+		--color-neutral-50: oklch(0.6 0.018 140);
+		--color-neutral-60: oklch(0.68 0.02 140);
+		--color-neutral-70: oklch(0.76 0.015 135);
+		--color-neutral-80: oklch(0.85 0.012 130);
+		--color-neutral-90: oklch(0.92 0.01 125);
+		--color-surface: oklch(0.2 0.018 165);
+		--color-canvas: oklch(0.16 0.016 165);
+		--color-frame: oklch(0.185 0.018 165);
+		--color-fg: oklch(0.94 0.01 120);
+		--color-fg-muted: oklch(0.82 0.014 130);
+		--color-fg-subtle: oklch(0.68 0.02 140);
+		--color-line: oklch(1 0 0 / 0.1);
+		--color-line-subtle: oklch(1 0 0 / 0.06);
+		--color-line-strong: oklch(1 0 0 / 0.18);
+		--color-success: oklch(0.75 0.14 163);
+		--color-success-soft: oklch(0.27 0.05 163);
+		--color-danger: oklch(0.704 0.191 22.216);
+		--color-danger-strong: oklch(0.78 0.15 22);
+		--color-danger-soft: oklch(0.26 0.05 22);
+		--color-danger-line: oklch(0.42 0.1 22);
+		--color-warning: oklch(0.78 0.13 92);
+		--color-warning-strong: oklch(0.86 0.1 92);
+		--color-warning-soft: oklch(0.26 0.04 92);
+		--color-warning-line: oklch(0.45 0.08 92);
+		--color-tint: oklch(1 0 0);
+		--color-scrim: oklch(0 0 0 / 0.45);
+		--color-hairline: oklch(1 0 0 / 0.08);
+		--shadow-card: 0 0 0 1px var(--color-hairline), 0 4px 14px -4px oklch(0 0 0 / 0.5);
+		--shadow-floating: 0 0 0 1px var(--color-hairline), 0 0.5rem 1.5rem -0.5rem oklch(0 0 0 / 0.6);
+	}
+}
+:root[data-theme='dark'] {
+	color-scheme: dark;
+	--color-brand: oklch(0.75 0.14 163);
+	--color-brand-hover: oklch(0.8 0.13 163);
+	--color-brand-fg: oklch(0.16 0.02 165);
+	--color-ring: oklch(0.65 0.12 163);
+	--color-blue-10: oklch(0.25 0.03 160);
+	--color-blue-20: oklch(0.29 0.04 160);
+	--color-blue-30: oklch(0.35 0.05 160);
+	--color-blue-60: oklch(0.6 0.11 163);
+	--color-blue-90: oklch(0.72 0.13 163);
+	--color-neutral-5: oklch(0.225 0.016 160);
+	--color-neutral-10: oklch(0.27 0.016 158);
+	--color-neutral-20: oklch(0.34 0.016 155);
+	--color-neutral-30: oklch(0.42 0.016 150);
+	--color-neutral-40: oklch(0.52 0.018 145);
+	--color-neutral-50: oklch(0.6 0.018 140);
+	--color-neutral-60: oklch(0.68 0.02 140);
+	--color-neutral-70: oklch(0.76 0.015 135);
+	--color-neutral-80: oklch(0.85 0.012 130);
+	--color-neutral-90: oklch(0.92 0.01 125);
+	--color-surface: oklch(0.2 0.018 165);
+	--color-canvas: oklch(0.16 0.016 165);
+	--color-frame: oklch(0.185 0.018 165);
+	--color-fg: oklch(0.94 0.01 120);
+	--color-fg-muted: oklch(0.82 0.014 130);
+	--color-fg-subtle: oklch(0.68 0.02 140);
+	--color-line: oklch(1 0 0 / 0.1);
+	--color-line-subtle: oklch(1 0 0 / 0.06);
+	--color-line-strong: oklch(1 0 0 / 0.18);
+	--color-success: oklch(0.75 0.14 163);
+	--color-success-soft: oklch(0.27 0.05 163);
+	--color-danger: oklch(0.704 0.191 22.216);
+	--color-danger-strong: oklch(0.78 0.15 22);
+	--color-danger-soft: oklch(0.26 0.05 22);
+	--color-danger-line: oklch(0.42 0.1 22);
+	--color-warning: oklch(0.78 0.13 92);
+	--color-warning-strong: oklch(0.86 0.1 92);
+	--color-warning-soft: oklch(0.26 0.04 92);
+	--color-warning-line: oklch(0.45 0.08 92);
+	--color-tint: oklch(1 0 0);
+	--color-scrim: oklch(0 0 0 / 0.45);
+	--color-hairline: oklch(1 0 0 / 0.08);
+	--shadow-card: 0 0 0 1px var(--color-hairline), 0 4px 14px -4px oklch(0 0 0 / 0.5);
+	--shadow-floating: 0 0 0 1px var(--color-hairline), 0 0.5rem 1.5rem -0.5rem oklch(0 0 0 / 0.6);
 }
 
 html {
-	/* Light-only for now: keeps native controls, autofill and scrollbars from rendering in dark UA colors. */
 	color-scheme: light;
 	font-family: var(--font-sans);
 	color: var(--color-fg);
@@ -88,9 +186,14 @@ html {
 	-moz-osx-font-smoothing: grayscale;
 	-webkit-tap-highlight-color: transparent;
 }
+@media (prefers-color-scheme: dark) {
+	html:not([data-theme='light']) { color-scheme: dark; }
+}
 
 body {
 	min-height: 100dvh;
+	background: var(--color-canvas);
+	color: var(--color-fg);
 }
 
 /* A focused form field must stay legible without Safari zooming the page. */
@@ -239,7 +342,7 @@ body {
 	content: '';
 	position: absolute;
 	inset: 0;
-	background: linear-gradient(90deg, transparent, #ededed, transparent);
+	background: linear-gradient(90deg, transparent, var(--color-neutral-10), transparent);
 	animation: skeleton-shimmer 1.4s linear infinite;
 }
 
@@ -282,7 +385,7 @@ body {
 	flex-direction: column;
 	width: 180px;
 	font-size: 0.8125rem;
-	color: #8a8a8a;
+	color: var(--color-fg-subtle);
 }
 .sheet-backdrop-column > span {
 	display: flex;
@@ -296,11 +399,11 @@ body {
 .sheet-backdrop-column > .sheet-backdrop-head {
 	font-size: 0.75rem;
 	font-weight: 500;
-	color: #9e9e9e;
+	color: var(--color-fg-subtle);
 }
 .sheet-backdrop-column > .sheet-backdrop-active {
 	gap: 8px;
-	background: #eef3fe;
+	background: var(--color-blue-10);
 	box-shadow: inset 0 0 0 1.5px var(--color-brand);
 	font-weight: 500;
 	color: var(--color-brand);

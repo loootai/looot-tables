@@ -95,7 +95,7 @@ function SheetTitle({ name, onSave, onMobileRename }: { name: string; onSave: (n
 function MenuCheckbox({ checked, onChange, children }: { checked: boolean; onChange: (checked: boolean) => void; children: ReactNode }) {
 	return (
 		<button type="button" role="menuitemcheckbox" aria-checked={checked} onClick={() => onChange(!checked)} className={clsx(MENU_ROW, 'text-fg hover:bg-tint/[0.05]')}>
-			<span aria-hidden className={clsx('grid size-4 shrink-0 place-items-center rounded border transition-colors', checked ? 'border-brand bg-brand text-white' : 'border-line-strong bg-surface')}>{checked && <Check className="!size-3 !text-white" strokeWidth={2.5} />}</span>
+			<span aria-hidden className={clsx('grid size-4 shrink-0 place-items-center rounded border transition-colors', checked ? 'border-brand bg-brand text-brand-fg' : 'border-line-strong bg-surface')}>{checked && <Check className="!size-3 !text-brand-fg" strokeWidth={2.5} />}</span>
 			<span className="min-w-0 flex-1">{children}</span>
 		</button>
 	);

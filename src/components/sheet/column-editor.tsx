@@ -190,7 +190,7 @@ export function ColumnEditorDialog({ sheet, column, sampleRow, rows, insertAt, i
 
 	const { footer, footerNote } = composerOnly || op.kind === 'formula' ? {} : editorFooter({
 		submit, valid, editing: Boolean(column), hint: setupHint(validation, dangling, name),
-		run: <RunScopeButton remainingRows={remainingRows} totalRows={totalRows} startRow={sampleRowNumber(rows, sampleRow)} disabled={!valid || saving} loading={saving} onRun={run} />,
+		run: <RunScopeButton tryFirst={!column} remainingRows={remainingRows} totalRows={totalRows} startRow={sampleRowNumber(rows, sampleRow)} disabled={!valid || saving} loading={saving} onRun={run} />,
 		onBack: () => setSubmit({ state: 'idle' }), onSave: (next) => void save(next),
 	});
 
@@ -292,7 +292,7 @@ function editorFooter({ submit, valid, editing, hint, run, onBack, onSave }: { s
 	const { scope, estimate } = submit;
 	const cells = plural(estimate.cells, 'cell');
 	return {
-		footer: <><Button size="sm" onClick={onBack}>Back</Button><Button size="sm" variant="primary" className="bg-black text-white" autoFocus onClick={() => onSave({ scope, seen: estimate })}>Run {cells}</Button></>,
+		footer: <><Button size="sm" onClick={onBack}>Back</Button><Button size="sm" variant="primary" className="bg-brand text-brand-fg" autoFocus onClick={() => onSave({ scope, seen: estimate })}>Run {cells}</Button></>,
 		footerNote: <span role="status" className="flex flex-col gap-0.5"><span className="text-body-sm text-fg">Run {cells}?</span><span>{estimate.message}</span></span>,
 	};
 }

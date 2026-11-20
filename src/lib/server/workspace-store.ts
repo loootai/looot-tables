@@ -12,7 +12,7 @@ type Actor = Pick<Account, 'issuer' | 'user' | 'organization'>;
 
 export function collaboratorIdentity(account: Account) {
 	const userId = createHash('sha256').update(JSON.stringify([account.issuer, account.user.id])).digest('hex');
-	const colors = ['#2563eb', '#9333ea', '#059669', '#dc2626', '#d97706', '#0891b2'];
+	const colors = ['#1f7a5a', '#9333ea', '#059669', '#dc2626', '#d97706', '#0891b2'];
 	return { userId, name: (account.user.name || account.user.email.split('@')[0] || 'Teammate').slice(0, 128), color: colors[parseInt(userId.slice(0, 4), 16) % colors.length] };
 }
 

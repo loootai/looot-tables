@@ -33,14 +33,16 @@ function remember(count: RunCount) {
 	listeners.forEach((listener) => listener());
 }
 
-export function useRunScope(remainingRows: number, totalRows: number, startRow?: number) {
+export function useRunScope(remainingRows: number, totalRows: number, startRow?: number, override?: RunCount | null) {
 	const saved = useSyncExternalStore(subscribe, snapshot, () => 1 as const);
-	return runScopeChoice(saved, remainingRows, totalRows, startRow);
+	return runScopeChoice(override ?? saved, remainingRows, totalRows, startRow);
 }
 
 /** Shared by chip extensions and AI column setup. */
-export function RunScopeButton({ remainingRows, totalRows, startRow, onRun, submit = false, disabled, loading, fieldCount, className }: { className?: string; remainingRows: number; totalRows: number; startRow?: number; onRun?: (scope: RunScope) => void; submit?: boolean; disabled?: boolean; loading?: boolean; fieldCount?: number }) {
-	const { scope, label, options, selected } = useRunScope(remainingRows, totalRows, startRow);
+/** `tryFirst`: a new column, which offers "Try 5 rows" before the whole column. */
+export function RunScopeButton({ remainingRows, totalRows, startRow, onRun, submit = false, disabled, loading, fieldCount, className, tryFirst = false }: { className?: string; remainingRows: number; totalRows: number; startRow?: number; onRun?: (scope: RunScope) => void; submit?: boolean; disabled?: boolean; loading?: boolean; fieldCount?: number; tryFirst?: boolean }) {
+	const [override, setOverride] = useState<RunCount | null>(tryFirst && totalRows > 5 ? 5 : null);
+	const { scope, label, options, selected } = useRunScope(remainingRows, totalRows, startRow, override);
 	const [anchor, setAnchor] = useState<DOMRect | null>(null);
 	const [portalTarget, setPortalTarget] = useState<HTMLElement>();
 	const wrapper = useRef<HTMLDivElement>(null);
@@ -52,11 +54,11 @@ export function RunScopeButton({ remainingRows, totalRows, startRow, onRun, subm
 		setAnchor(anchor ? null : wrapper.current?.getBoundingClientRect() ?? null);
 	};
 	return <div ref={wrapper} className={`relative flex gap-0.5 ${className ?? ''}`}>
-		<Button type={submit ? 'submit' : 'button'} size="sm" variant="primary" disabled={disabled || totalRows === 0} loading={loading} onClick={() => onRun?.(scope)} className={`min-w-0 flex-1 !whitespace-normal bg-black px-2 text-caption leading-3.5 text-white ${choosable ? 'rounded-r-none' : ''}`} aria-label={fieldCount === undefined ? label : `${label}, ${fieldCount} ${fieldCount === 1 ? 'field' : 'fields'} selected`}>
+		<Button type={submit ? 'submit' : 'button'} size="sm" variant="primary" disabled={disabled || totalRows === 0} loading={loading} onClick={() => onRun?.(scope)} className={`min-w-0 flex-1 !whitespace-normal bg-brand px-2 text-caption leading-3.5 text-brand-fg ${choosable ? 'rounded-r-none' : ''}`} aria-label={fieldCount === undefined ? label : `${label}, ${fieldCount} ${fieldCount === 1 ? 'field' : 'fields'} selected`}>
 			<span className="min-w-0 flex-1">{label}</span>
 			{fieldCount !== undefined && <span aria-hidden className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-white/20 px-1 text-[11px] font-medium tabular-nums">{fieldCount}</span>}
 		</Button>
-		{choosable && <Button ref={trigger} size="sm" variant="primary" disabled={disabled || loading} aria-label="Choose which rows to run" aria-haspopup="menu" aria-expanded={anchor !== null} className="w-8 rounded-l-none bg-black px-0 text-white" onClick={toggle}><ChevronDown className="size-3.5" /></Button>}
-		{anchor && <FloatingMenu portalTarget={portalTarget} label="Run scope" anchor={anchor} align="right" width="w-64" onClose={() => { setAnchor(null); trigger.current?.focus(); }} items={options.map((option) => ({ label: option.label, checked: selected === option.value, onSelect: () => remember(option.value) }))} />}
+		{choosable && <Button ref={trigger} size="sm" variant="primary" disabled={disabled || loading} aria-label="Choose which rows to run" aria-haspopup="menu" aria-expanded={anchor !== null} className="w-8 rounded-l-none bg-brand px-0 text-brand-fg" onClick={toggle}><ChevronDown className="size-3.5" /></Button>}
+		{anchor && <FloatingMenu portalTarget={portalTarget} label="Run scope" anchor={anchor} align="right" width="w-64" onClose={() => { setAnchor(null); trigger.current?.focus(); }} items={options.map((option) => ({ label: option.label, checked: selected === option.value, onSelect: () => { setOverride(null); remember(option.value); } }))} />}
 	</div>;
 }

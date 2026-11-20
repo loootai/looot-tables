@@ -19,7 +19,7 @@
 .formula-token-boolean { color: #7e22ce; }
 .formula-token-operator, .formula-token-punctuation { color: #606060; }
 .formula-token-error { color: #b91c1c; text-decoration: underline wavy; }
-.formula-reference-0 { color: #2563eb; }
+.formula-reference-0 { color: var(--color-brand); }
 .formula-reference-1 { color: #c2410c; }
 .formula-reference-2 { color: #0f766e; }
 .formula-reference-3 { color: #9333ea; }

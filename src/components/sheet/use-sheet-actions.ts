@@ -11,7 +11,9 @@ import { newColumn } from '@/lib/db';
 import { applySort } from '@/lib/filters';
 import { cellFromInput } from '@/lib/formula-input';
 import { uniqueName } from '@/lib/references';
-import { asksFirst, type RunEstimate } from '@/lib/run-cost';
+import { asksFirst, quoteAsksFirst, quoteLabel, type RunEstimate } from '@/lib/run-cost';
+import { quotePlan } from '@/lib/run-quote';
+import { formatUsd } from '@/lib/endpoint-map';
 import type { RunMode, RunPlan, SheetCommands } from '@/lib/sheet-commands';
 import { exportFile, type ExportFormat } from '@/lib/sheet-export';
 import type { Column, Row, Sheet } from '@/lib/types';
@@ -58,8 +60,19 @@ export function useSheetActions({ sheet, commands, content, selection, overlays,
 		}
 		if (plan.kind === 'nothing') { toast(NOTHING_TO_RUN[plan.reason], 'info'); return; }
 		const { estimate } = plan;
-		if (!asksFirst(estimate, seen)) { void plan.execute().catch(report('Could not queue these cells. Please try again.')); return; }
-		setConfirm({ title: `Run ${plural(estimate.cells, 'cell')}?`, description: estimate.usd ? `${estimate.message}. looot bills your own balance, and only for the runs that happen.` : 'Each cell is a separate request to your AI and data providers.', label: 'Run', action: plan.execute });
+		const run = () => void plan.execute().catch(report('Could not queue these cells. Please try again.'));
+		const priced = plan.groups.some((group) => group.op.kind === 'looot');
+		// A run no bigger than one the user already accepted starts at once.
+		if (seen && !asksFirst(estimate, seen)) { run(); return; }
+		// The price comes from the server's quote; without it, the catalog estimate asks first like before.
+		void quotePlan(plan, sheet.id).then((quote) => {
+			if (!quoteAsksFirst(quote) && !priced) { run(); return; }
+			const cap = quote.sheet ? ` This sheet has spent ${formatUsd(quote.sheet.spentUsd)} of its ${formatUsd(quote.sheet.capUsd)} cap; the server stops any cell that would pass it.` : '';
+			setConfirm({ title: `${quoteLabel(quote, 'cell')}?`, description: quote.maxUsd ? `At most ${formatUsd(quote.maxUsd)} from your own looot balance, usually about ${formatUsd(quote.typicalUsd)}. Each cell is capped at ${formatUsd(quote.perCellMaxUsd)}, and a miss on a fallback route costs only the attempts that ran.${cap}` : 'Each cell is a separate request to your AI and data providers.', label: quoteLabel(quote, 'cell'), action: plan.execute });
+		}, () => {
+			if (!asksFirst(estimate, seen)) { run(); return; }
+			setConfirm({ title: `Run ${plural(estimate.cells, 'cell')}?`, description: estimate.usd ? `${estimate.message}. looot bills your own balance, and only for the runs that happen.` : 'Each cell is a separate request to your AI and data providers.', label: 'Run', action: plan.execute });
+		});
 	};
 	const runCells = (targets: Row[], columns: Column[], mode: RunMode, options: { limitToRows?: boolean; optimistic?: boolean } = {}) => request(commands.plan(targets, columns, mode, { ready: providerReady, grid: content.grid, sheetColumns: sheet.columns, ...options }));
 	const confirmDeleteRows = (targets: Row[]) => setConfirm({

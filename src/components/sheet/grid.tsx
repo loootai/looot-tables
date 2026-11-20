@@ -377,7 +377,7 @@ function GridHeader({ sheet, sort, columns, offsets, totalWidth, rows, selected,
 	return (
 		<div role="row" className="sticky top-0 z-20 flex bg-neutral-5" style={{ height: HEADER_HEIGHT, width: totalWidth }}>
 			<div role="columnheader" className="sticky left-0 z-30 flex items-center justify-center border-r border-b border-line bg-neutral-5" style={{ width: INDEX_WIDTH, flexShrink: 0 }}>
-				<button type="button" role="checkbox" aria-checked={allSelected} aria-label="Select all rows" onClick={onToggleAll} className={clsx('grid size-4 place-items-center rounded-[4px] border transition-colors', allSelected ? 'border-brand bg-brand text-white' : 'border-line-strong bg-surface text-transparent hover:border-fg-subtle')}>
+				<button type="button" role="checkbox" aria-checked={allSelected} aria-label="Select all rows" onClick={onToggleAll} className={clsx('grid size-4 place-items-center rounded-[4px] border transition-colors', allSelected ? 'border-brand bg-brand text-brand-fg' : 'border-line-strong bg-surface text-transparent hover:border-fg-subtle')}>
 					<Check className="size-3" strokeWidth={3} />
 				</button>
 			</div>
@@ -482,8 +482,8 @@ const GridRow = memo(function GridRow({ sheet, referenceRows, newColumnSelected,
 	const style: CSSProperties = { position: 'absolute', top, left: 0, width: totalWidth, height: ROW_HEIGHT };
 	return (
 		<div role="row" data-grid-row={row.id} aria-rowindex={index + 1} aria-selected={selected} className={clsx('group/row flex border-b border-line-subtle', selected ? 'bg-blue-10/50' : activeColumnId ? 'bg-brand/[0.03]' : 'hover:bg-neutral-5/70')} style={style}>
-			<div role="rowheader" className={clsx('sticky left-0 z-10 flex items-center justify-center border-r border-line-subtle text-caption text-fg-subtle tabular', selected ? 'bg-[#f1f5fe]' : 'bg-surface group-hover/row:bg-[#fbfbfb]')} style={{ width: INDEX_WIDTH, flexShrink: 0 }}>
-				<button type="button" role="checkbox" aria-checked={selected} aria-label={`Select row ${index + 1}`} onClick={(event) => onToggle(row.id, event.shiftKey)} className={clsx('grid size-4 place-items-center rounded-[4px] border transition-opacity [@media(pointer:coarse)]:size-7', selected ? 'border-brand bg-brand text-white' : 'border-line-strong bg-surface text-transparent opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100')}>
+			<div role="rowheader" className={clsx('sticky left-0 z-10 flex items-center justify-center border-r border-line-subtle text-caption text-fg-subtle tabular', selected ? 'bg-blue-10' : 'bg-surface group-hover/row:bg-neutral-5')} style={{ width: INDEX_WIDTH, flexShrink: 0 }}>
+				<button type="button" role="checkbox" aria-checked={selected} aria-label={`Select row ${index + 1}`} onClick={(event) => onToggle(row.id, event.shiftKey)} className={clsx('grid size-4 place-items-center rounded-[4px] border transition-opacity [@media(pointer:coarse)]:size-7', selected ? 'border-brand bg-brand text-brand-fg' : 'border-line-strong bg-surface text-transparent opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100')}>
 					<Check className="size-3" strokeWidth={3} />
 				</button>
 				{/* The number overlaps the checkbox even when transparent; never let it intercept selection. */}
