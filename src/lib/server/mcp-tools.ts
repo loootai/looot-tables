@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import type { Account } from '../auth-identity';
-import { ENTITY_COLUMNS, ENTITY_KINDS, ColumnOpSchema, type Cell, type Column, type EnrichFailure, type Row, type Sheet } from '../types';
+import { ENTITY_COLUMNS, ENTITY_KINDS, ColumnOpSchema, type Cell, type Column, type EnrichFailure, type EnrichResponse, type Row, type Sheet } from '../types';
 import { parseInput, SHEET_DATA_VERSION, WorkspaceError, sheetSchema } from '../workspace';
 import { assertNoEnrichmentCycles } from '../enrichment-dependencies';
 import { BUSY_MESSAGE, failureCell, planCell, renameColumn, resultCell, settleCell, startCell, upgradeLegacyResults, type CommitOutcome, type EnrichmentPlan, type Grid } from '../enrichment-plan';
@@ -16,8 +16,12 @@ import { cellTransition } from '../cell-lifecycle';
 import type { ProviderAccess } from './provider-access';
 import { hashMcpSecret, type McpStore } from './mcp-store';
 import { logWorkspaceError } from './workspace-logging';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { WorkspaceStore } from './workspace-store';
+import { refusal, verdictOf } from './guarded-run';
+import { EnrichError } from './enrich-failure';
+import type { CellRef, SpendGuard } from './spend-guard';
+import { Budget } from './run-budget';
 
 const id = z.string().min(1).max(128);
 const revision = z.number().int().positive();
@@ -48,12 +52,12 @@ export const mcpTools = {
 	delete_rows: { description: 'Permanently delete rows from a sheet. Requires the current revision.', schema: z.object({ ...mutation, rowIds: z.array(id).min(1).max(100) }) },
 	delete_sheet: { description: 'Permanently delete a sheet and all its rows. Requires the current revision.', schema: z.object(mutation) },
 	get_cell_details: { description: 'Read a cell value, status, sources, confidence, reasoning, and errors.', schema: z.object({ ...sheetId, rowId: id, columnId: id }) },
-	enrich_cells: { description: 'Synchronously execute up to 5 cells in one column and persist results. A source person-name column (Name, Full name, Person, or Contact) is enriched in place with a matched profile photo using the row company, email, and LinkedIn clues. Source names are preserved; no duplicate Profile column is needed. The caller coordinates dependencies, subsequent batches, and retries. Only one MCP batch runs per organization at a time. Repeat identical arguments with the same idempotencyKey to retrieve the recorded outcome without rerunning. Finished cells are skipped unless overwrite=true, each reported as skipped with outdated=true when its operation or the values it reads changed since it ran. To refresh outdated cells, rerun prerequisites, then dependents, with overwrite=true and fresh keys. Interrupted outcomes may be uncertain; a new key may spend credits again. Uses organization provider connections automatically; optional overrides must be HTTP headers.', schema: z.object({ ...sheetId, columnId: id, rowIds: z.array(id).min(1).max(5), idempotencyKey: id, overwrite: z.boolean().default(false) }) },
+	enrich_cells: { description: 'Synchronously execute up to 5 cells in one column and persist results. A column that spends looot credit (cellCapUsd above $0) needs maxUsd, the most this call may spend, and every cell also counts against the sheet spend cap; prefer quote_run then run_column for paid columns. A source person-name column (Name, Full name, Person, or Contact) is enriched in place with a matched profile photo using the row company, email, and LinkedIn clues. Source names are preserved; no duplicate Profile column is needed. The caller coordinates dependencies, subsequent batches, and retries. Only one MCP batch runs per organization at a time. Repeat identical arguments with the same idempotencyKey to retrieve the recorded outcome without rerunning. Finished cells are skipped unless overwrite=true, each reported as skipped with outdated=true when its operation or the values it reads changed since it ran. To refresh outdated cells, rerun prerequisites, then dependents, with overwrite=true and fresh keys. Interrupted outcomes may be uncertain; a new key may spend credits again. Uses organization provider connections automatically; optional overrides must be HTTP headers.', schema: z.object({ ...sheetId, columnId: id, rowIds: z.array(id).min(1).max(5), idempotencyKey: id, overwrite: z.boolean().default(false), maxUsd: z.number().min(0).max(1000).optional().describe('The most this call may spend on looot, in USD. Required for paid columns.') }) },
 } as const;
 
-type Snapshot = { sheet: Sheet; rows: Row[] };
+export type Snapshot = { sheet: Sheet; rows: Row[] };
 /** `outdated` (with `skipped`): the finished result's operation or inputs changed since it ran. */
-type CellOutcome = { rowId: string; status: string; error?: string; failure?: EnrichFailure; cell?: Cell; outdated?: boolean };
+export type CellOutcome = { rowId: string; status: string; error?: string; failure?: EnrichFailure; cell?: Cell; outdated?: boolean; costUsd?: number };
 
 /* A row starts only if its slowest plausible run still ends before the 300 s function limit. A killed request
    strands its attempt as running until MCP_ATTEMPT_LEASE_MS expires and blocks every enrich_cells call meanwhile; its
@@ -63,13 +67,15 @@ const CONFLICT_MESSAGE = 'Inputs or cell changed during enrichment. Result was n
 
 export class McpOperations {
 	/** Saved in the cells this request runs, so browser tabs and other requests wait for them (see `startCell`). */
-	private readonly owner = `mcp-${randomUUID()}`;
-	constructor(private sheets: WorkspaceStore, private keys: McpStore, private actor: Account, private access: ProviderAccess, private execute: typeof runOp = runOp, private now: () => number = Date.now) {}
-	private async snapshot(sheetId: string): Promise<Snapshot> { return this.upgrade(await this.sheets.snapshot(this.actor, sheetId)); }
+	protected readonly owner = `mcp-${randomUUID()}`;
+	/** `guard`: the server's spend guard. With one, every paid cell is admitted against the sheet's spend cap first and
+	    settled after, as browser runs are; without one (no database), paid cells are refused. */
+	constructor(protected sheets: WorkspaceStore, protected keys: McpStore, protected actor: Account, protected access: ProviderAccess, protected execute: typeof runOp = runOp, protected now: () => number = Date.now, protected guard?: SpendGuard) {}
+	protected async snapshot(sheetId: string): Promise<Snapshot> { return this.upgrade(await this.sheets.snapshot(this.actor, sheetId)); }
 	/** A sheet saved by an older version, upgraded as the browser upgrades one it loads (see `upgradeGrid`), so agents and
 	    the browser read the same columns. Stamped even when nothing changes, so it is read whole only once. A sheet with
 	    formulas waits for the browser, which recalculates them. */
-	private async upgrade(snapshot: Snapshot): Promise<Snapshot> {
+	protected async upgrade(snapshot: Snapshot): Promise<Snapshot> {
 		if ((snapshot.sheet.dataVersion ?? 0) >= SHEET_DATA_VERSION || snapshot.rows.some((row) => Object.values(row.cells).some((cell) => cell.f))) return snapshot;
 		const next = upgradeGrid(snapshot) ?? snapshot;
 		try { await this.sheets.patch(this.actor, snapshot.sheet.id, { revision: snapshot.sheet.revision, sheet: next.sheet, rows: next.rows.filter((row, index) => row !== snapshot.rows[index]), deleted: [] }); }
@@ -81,20 +87,20 @@ export class McpOperations {
 		return this.sheets.snapshot(this.actor, snapshot.sheet.id);
 	}
 	/** Every sheet, each upgraded first (see `upgrade`). */
-	private async list() {
+	protected async list() {
 		const entries = await this.sheets.list(this.actor);
 		return Promise.all(entries.map(async (entry) => (entry.sheet.dataVersion ?? 0) >= SHEET_DATA_VERSION ? entry : { ...entry, sheet: (await this.snapshot(entry.sheet.id)).sheet }));
 	}
-	private assertWritable(snapshot: Snapshot) {
+	protected assertWritable(snapshot: Snapshot) {
 		if (snapshot.rows.some((row) => Object.values(row.cells).some((cell) => cell.f))) throw new WorkspaceError('MCP edits to sheets containing formulas are not supported yet. Formula recalculation requires the browser.', 422);
 	}
-	private async editable(sheetId: string, expected: number) {
+	protected async editable(sheetId: string, expected: number) {
 		const snapshot = await this.snapshot(sheetId);
 		if (snapshot.sheet.revision !== expected) throw new WorkspaceError('Sheet changed. Read the current revision and retry your edit.', 409);
 		this.assertWritable(snapshot);
 		return snapshot;
 	}
-	private async patch(snapshot: Snapshot, rows: Row[], deleted: string[] = []) {
+	protected async patch(snapshot: Snapshot, rows: Row[], deleted: string[] = []) {
 		const merged = new Map(snapshot.rows.map((row) => [row.id, row]));
 		for (const row of rows) merged.set(row.id, row);
 		for (const rowId of deleted) merged.delete(rowId);
@@ -103,19 +109,19 @@ export class McpOperations {
 	}
 	/** An agent's value as its column stores it, normalized to the column's format. A value the format cannot hold is
 	    added to `refused`; see `refuse`. */
-	private cell(column: Column, rowId: string, value: z.infer<typeof edit>['value'], refused: string[]): Cell {
+	protected cell(column: Column, rowId: string, value: z.infer<typeof edit>['value'], refused: string[]): Cell {
 		const admission = admitCell(column, { v: value, s: 'done', t: Date.now() }, 'agent');
 		if (admission.ok) return admission.cell;
 		refused.push(`Row “${rowId}”, column “${column.name}”: ${admission.error}`);
 		return { v: null, s: 'idle', t: 0 };
 	}
 	/** One refused value fails the whole call, naming every refused cell, so the agent can fix them and retry. */
-	private refuse(refused: string[]) {
+	protected refuse(refused: string[]) {
 		if (refused.length) throw new WorkspaceError(`Nothing was written: ${refused.length === 1 ? 'a value does' : `${refused.length} values do`} not fit the column format. ${refused.slice(0, 10).join(' ')}${refused.length > 10 ? ` …and ${refused.length - 10} more.` : ''}`, 422);
 	}
 	/** Checks only the columns being written (all by default), so a reference left dangling elsewhere, say by a
 	    column deleted in the browser, never blocks configuring the rest of the sheet. */
-	private validateColumns(columns: Column[], changed?: string) {
+	protected validateColumns(columns: Column[], changed?: string) {
 		for (const c of changed === undefined ? columns : columns.filter((entry) => entry.id === changed)) {
 			if (nameTaken(c.name, columns, c.id)) throw new WorkspaceError('Column names must be unique.');
 			if ((c.type === 'enriched') !== Boolean(c.op)) throw new WorkspaceError('Enriched columns require an operation; source columns cannot have one.');
@@ -227,63 +233,97 @@ export class McpOperations {
 		}
 	}
 	/** Plan a requested cell. Source person-name columns are enriched in place; see `EnrichmentPlan.inPlace`. */
-	private plan(snapshot: Snapshot, rowId: string, columnId: string): EnrichmentPlan {
+	protected plan(snapshot: Snapshot, rowId: string, columnId: string): EnrichmentPlan {
 		this.assertWritable(snapshot);
 		const plan = planCell(snapshot, { rowId, columnId }, { now: this.now(), owner: this.owner });
 		if (!plan) throw new WorkspaceError('Unknown row or enrichment column.');
 		return plan;
 	}
-	private write(snapshot: Snapshot, row: Row, columnId: string, cell: Cell) {
-		return this.patch(snapshot, [{ ...row, cells: { ...row.cells, [columnId]: cell } }]);
-	}
-	/** Mark one cell running (so browser tabs show the agent's progress), run it, and store what the plan makes of the
-	    result. Finished cells are skipped unless overwritten. Cells that cannot run are failed as the browser fails them,
-	    except a saved result, which is never replaced by that reason; cells waiting on others are left alone. */
 	/** One row at a time: each row commits to the same sheet revision, and the deadline budget assumes sequential rows.
 	    A row is started only if its worst case still fits before the request deadline. */
-	private async *enrichRows(sheetId: string, rowIds: string[], columnId: string, overwrite: boolean, worstCase: number): AsyncGenerator<CellOutcome> {
+	protected async *enrichRows(sheetId: string, rowIds: string[], columnId: string, overwrite: boolean, worstCase: number, budget?: Budget): AsyncGenerator<CellOutcome> {
 		const started = this.now();
 		for (const rowId of rowIds) {
 			if (this.now() - started + worstCase > ROW_DEADLINE_MS) yield { rowId, status: 'not_started' };
-			else yield this.enrichCell(sheetId, rowId, columnId, overwrite);
+			else yield this.enrichCell(sheetId, rowId, columnId, overwrite, budget);
 		}
 	}
 
-	private async enrichCell(sheetId: string, rowId: string, columnId: string, overwrite: boolean): Promise<CellOutcome> {
-		for (let tries = 0; tries < 3; tries++) {
-			const snapshot = await this.snapshot(sheetId);
-			const plan = this.plan(snapshot, rowId, columnId);
-			if (plan.finished && !overwrite) return { rowId, status: 'skipped', outdated: plan.outdated };
-			if (plan.busy) return { rowId, status: 'blocked', error: BUSY_MESSAGE };
-			const { readiness } = plan;
-			if (readiness.kind === 'waiting' || readiness.kind !== 'ready' && plan.cell?.s === 'done') return { rowId, status: 'blocked', error: readiness.message };
-			const cell = readiness.kind === 'ready' ? startCell(plan, this.owner) : failureCell(plan, readiness.message);
-			try { await this.write(snapshot, plan.row, columnId, cell); }
-			catch (error) { if (error instanceof WorkspaceError && error.status === 409) continue; throw error; }
-			if (readiness.kind !== 'ready') return { rowId, status: cell.s, error: readiness.message, cell };
-			return this.run(sheetId, plan, cell);
-		}
-		return { rowId, status: 'conflict', error: 'The sheet kept changing. Read it again and retry.' };
+	/** Mark one cell running, run it and save its result. The running marker is written with a compare-and-set under the
+	    workspace lock (see `WorkspaceStore.changeCell`), planned against the sheet as it is at that moment, so parallel
+	    cells and browser tabs saving elsewhere never refuse it. A paid cell first reserves its per-cell cap in `budget`;
+	    one that does not fit is `not_started`. */
+	async enrichCell(sheetId: string, rowId: string, columnId: string, overwrite: boolean, budget?: Budget): Promise<CellOutcome> {
+		const snapshot = await this.snapshot(sheetId);
+		const planned = this.plan(snapshot, rowId, columnId);
+		const cap = cellCapUsd(planned.op);
+		if (budget && !budget.reserve(cap)) return { rowId, status: 'not_started', error: budget.message(cap) };
+		let charged = 0;
+		try {
+			let refused: CellOutcome | undefined;
+			let started: { plan: EnrichmentPlan; cell: Cell } | undefined;
+			await this.sheets.changeCell(this.actor, sheetId, { rowId, columnId }, (grid) => {
+				const plan = planCell(grid, { rowId, columnId }, { now: this.now(), owner: this.owner });
+				if (!plan) { refused = { rowId, status: 'error', error: 'Unknown row or enrichment column.' }; return undefined; }
+				if (plan.finished && !overwrite) { refused = { rowId, status: 'skipped', outdated: plan.outdated }; return undefined; }
+				if (plan.busy) { refused = { rowId, status: 'blocked', error: BUSY_MESSAGE }; return undefined; }
+				const { readiness } = plan;
+				if (readiness.kind === 'waiting' || readiness.kind !== 'ready' && plan.cell?.s === 'done') { refused = { rowId, status: 'blocked', error: readiness.message }; return undefined; }
+				started = { plan, cell: readiness.kind === 'ready' ? startCell(plan, this.owner) : failureCell(plan, readiness.message) };
+				return started.cell;
+			});
+			if (refused) return refused;
+			const begun = started as { plan: EnrichmentPlan; cell: Cell } | undefined;
+			if (!begun) return { rowId, status: 'conflict', error: 'The row or column was removed. Read the sheet again.' };
+			const { plan, cell } = begun;
+			if (plan.readiness.kind !== 'ready') return { rowId, status: cell.s, error: plan.readiness.message, cell };
+			const outcome = await this.run(sheetId, plan, cell);
+			charged = outcome.costUsd ?? 0;
+			return outcome;
+		} finally { budget?.release(cap, charged); }
 	}
-	private async run(sheetId: string, plan: EnrichmentPlan, marker: Cell): Promise<CellOutcome> {
+	/** Run a started cell. A paid cell is admitted against the sheet's spend cap first (the guard holds its per-cell cap
+	    and stores the idempotency seed its looot runs use) and settled after, exactly as browser runs are. */
+	protected async run(sheetId: string, plan: EnrichmentPlan, marker: Cell): Promise<CellOutcome> {
 		let settled = false;
 		try {
-			const result = await this.execute(this.access, plan.op, plan.record, undefined, cellCapUsd(plan.op) || undefined);
+			const cap = cellCapUsd(plan.op);
+			let result: EnrichResponse;
+			if (cap > 0) {
+				const attempt = `mcp${createHash('sha256').update(`${this.owner}:${sheetId}:${plan.row.id}:${plan.column.id}:${marker.t}`).digest('hex').slice(0, 40)}`;
+				const admitted = await this.admit({ sheetId, rowId: plan.row.id, columnId: plan.column.id }, attempt, cap);
+				if ('refused' in admitted) result = admitted.refused;
+				else {
+					result = await this.execute(this.access, plan.op, plan.record, admitted.seed, cap);
+					await this.guard!.settle(attempt, { chargedUsd: result.meta?.costUsd ?? 0, verdicts: [verdictOf(result)], retry: Boolean(result.failure?.retryable) });
+				}
+			} else result = await this.execute(this.access, plan.op, plan.record, undefined, undefined);
 			const next = result.error ? failureCell(plan, result.error, result.meta, undefined, marker) : resultCell(plan, result.value, result.meta);
 			const saved = await this.settle(sheetId, plan, marker, (grid) => settleCell(plan, grid, next, marker));
 			settled = saved !== null;
 			const failure = result.error && result.failure ? { failure: result.failure } : {};
-			return saved?.outcome === 'applied' ? { rowId: plan.row.id, status: saved.cell.s, cell: saved.cell, ...failure } : { rowId: plan.row.id, status: 'conflict', error: CONFLICT_MESSAGE, ...failure };
+			const costUsd = result.meta?.costUsd ? { costUsd: result.meta.costUsd } : {};
+			return saved?.outcome === 'applied' ? { rowId: plan.row.id, status: saved.cell.s, cell: saved.cell, ...failure, ...costUsd } : { rowId: plan.row.id, status: 'conflict', error: CONFLICT_MESSAGE, ...failure, ...costUsd };
 		} finally {
 			// A failed request or save must not leave the cell running until it expires.
 			if (!settled) await this.settle(sheetId, plan, marker, () => ({ outcome: 'superseded', cell: cellTransition(marker, { type: 'cancel' }) })).catch(() => null);
+		}
+	}
+	/** The guard's seed for a paid cell, or the refusal to save in its place (over the sheet cap, a halted column, or no
+	    spend guard at all). */
+	private async admit(cell: CellRef, attempt: string, cap: number): Promise<{ seed: string } | { refused: EnrichResponse }> {
+		if (!this.guard) return { refused: { value: null, error: 'This column spends looot credit, and the spend guard is not available here, so nothing was run.', failure: { reason: 'spend_capped', retryable: false, provider: 'looot' } } };
+		try { return { seed: (await this.guard.admit(cell, attempt, cap)).seed }; }
+		catch (error) {
+			if (error instanceof EnrichError) return { refused: refusal(error) };
+			throw error;
 		}
 	}
 	/** Compare-and-set on the running marker, in one transaction under the workspace's lock (see
 	    `WorkspaceStore.changeCell`), so a write elsewhere in the sheet never loses a paid result: write what `build` makes
 	    of the current grid while the cell still holds `marker`. Null when someone else changed the cell; their change is
 	    kept. */
-	private async settle(sheetId: string, plan: EnrichmentPlan, marker: Cell, build: (grid: Grid) => { outcome: CommitOutcome; cell: Cell }) {
+	protected async settle(sheetId: string, plan: EnrichmentPlan, marker: Cell, build: (grid: Grid) => { outcome: CommitOutcome; cell: Cell }) {
 		let settled = null as { outcome: CommitOutcome; cell: Cell } | null;
 		await this.sheets.changeCell(this.actor, sheetId, plan.target, (grid) => {
 			const row = grid.rows.find((r) => r.id === plan.row.id);
@@ -292,7 +332,7 @@ export class McpOperations {
 		});
 		return settled;
 	}
-	private async enrich(args: z.infer<typeof mcpTools.enrich_cells.schema>): Promise<Record<string, unknown>> {
+	protected async enrich(args: z.infer<typeof mcpTools.enrich_cells.schema>): Promise<Record<string, unknown>> {
 		if (new Set(args.rowIds).size !== args.rowIds.length) throw new WorkspaceError('Duplicate row IDs.');
 		await this.access.checkEndpoint();
 		// Validate all requested targets before executing any cell.
@@ -300,10 +340,14 @@ export class McpOperations {
 		const claim = await this.keys.claim(this.actor, args.idempotencyKey, hashMcpSecret(JSON.stringify(args)));
 		if (!claim.claimed && claim.result && typeof claim.result.error === 'string') throw new WorkspaceError(claim.result.error, Number(claim.result.status));
 		if (!claim.claimed) return claim.result ?? { status: claim.status, retryAfterSeconds: claim.status === 'uncertain' ? null : 5, message: claim.status === 'uncertain' ? 'Interrupted request: provider spending or saved cells may be uncertain. Inspect the sheet before explicitly retrying with a new idempotency key.' : 'Poll by repeating these arguments and idempotency key.' };
-		let worstCase: number;
+		let worstCase: number, budget: Budget | undefined;
 		try {
 			const snapshot = await this.snapshot(args.sheetId);
-			worstCase = Math.max(...args.rowIds.map((rowId) => this.plan(snapshot, rowId, args.columnId).worstCaseMs));
+			const plans = args.rowIds.map((rowId) => this.plan(snapshot, rowId, args.columnId));
+			worstCase = Math.max(...plans.map((plan) => plan.worstCaseMs));
+			const cap = cellCapUsd(plans[0].op);
+			if (cap > 0 && args.maxUsd === undefined) throw new WorkspaceError(`This column spends looot credit, up to $${cap} per cell. Pass maxUsd (the most this call may spend), or call quote_run and run_column so the user sees the price first.`, 402);
+			if (cap > 0) budget = new Budget(args.maxUsd!);
 		} catch (error) {
 			const result = { error: error instanceof WorkspaceError ? error.message : 'Invalid enrichment targets.', status: error instanceof WorkspaceError ? error.status : 400 };
 			await this.keys.finish(this.actor, args.idempotencyKey, result);
@@ -311,7 +355,7 @@ export class McpOperations {
 		}
 		const outcomes: CellOutcome[] = [];
 		try {
-			for await (const outcome of this.enrichRows(args.sheetId, args.rowIds, args.columnId, args.overwrite, worstCase)) outcomes.push(outcome);
+			for await (const outcome of this.enrichRows(args.sheetId, args.rowIds, args.columnId, args.overwrite, worstCase, budget)) outcomes.push(outcome);
 			const result = { status: 'finished', outcomes, revision: (await this.sheets.get(this.actor, args.sheetId)).sheet.revision };
 			await this.keys.finish(this.actor, args.idempotencyKey, result);
 			return result;
