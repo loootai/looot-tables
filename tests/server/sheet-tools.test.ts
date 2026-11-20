@@ -43,7 +43,7 @@ async function peopleSheet(tools: SheetTools) {
 test('the in-app agent gets only free tools; every paid tool needs a quote and a budget', () => {
 	assert.ok(TOOL_NAMES.length >= 30);
 	for (const name of AGENT_TOOL_NAMES) assert.ok(['read', 'write'].includes(SHEET_TOOLS[name].kind), name);
-	for (const name of ['run_column', 'find_rows', 'enrich_cells', 'delete_sheet', 'update_spend_guard'] as const) assert.ok(!AGENT_TOOL_NAMES.includes(name), name);
+	for (const name of ['run_column', 'find_rows', 'enrich_cells', 'delete_rows', 'delete_sheet', 'update_spend_guard'] as const) assert.ok(!AGENT_TOOL_NAMES.includes(name), name);
 	for (const name of ['run_column', 'find_rows'] as const) {
 		const shape = SHEET_TOOLS[name].schema.shape as Record<string, { safeParse(value: unknown): { success: boolean } }>;
 		assert.equal(shape.quoteId.safeParse(undefined).success, false);

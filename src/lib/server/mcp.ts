@@ -42,7 +42,7 @@ export function createMcpServer(tools: SheetTools, trace: RequestTrace = newTrac
 			title: spec.title,
 			description: toolDescription(spec),
 			inputSchema: spec.schema as z.ZodObject,
-			annotations: { title: spec.title, readOnlyHint: spec.kind === 'read', destructiveHint: spec.kind === 'destructive' || name === 'delete_rows', idempotentHint: spec.kind === 'read', openWorldHint: Boolean(spec.external) },
+			annotations: { title: spec.title, readOnlyHint: spec.kind === 'read', destructiveHint: spec.kind === 'destructive', idempotentHint: spec.kind === 'read', openWorldHint: Boolean(spec.external) },
 		}, async (args) => {
 			const started = performance.now();
 			try { return answer(await tools.call(name, args)); }

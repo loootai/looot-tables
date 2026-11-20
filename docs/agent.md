@@ -13,7 +13,7 @@ Both use the same tool layer (`SheetTools` in `src/lib/server/sheet-tools.ts`), 
 
 1. The panel sends the conversation to `/api/agent`. The server runs an AI SDK agent loop (`streamText` with up to 24 steps) on your model and streams text and tool calls back.
 2. The agent has every free tool: read sheets and rows, create sheets, add rows and columns, import CSV, remove duplicates, search the looot catalog, look at spend. Each call shows as one line in the panel ("Read 1 of 10 rows", "Added column Work email · people.email.find + verify").
-3. It does **not** have the tools that spend or delete (`run_column`, `find_rows`, `enrich_cells`, `delete_sheet`, `update_spend_guard`). When work costs money it calls `quote_run` or `quote_find_rows`. Quotes are free, and each one shows in the panel as a card.
+3. It does **not** have the tools that spend or delete (`run_column`, `find_rows`, `enrich_cells`, `delete_rows`, `delete_sheet`, `update_spend_guard`). When work costs money it calls `quote_run` or `quote_find_rows`. Quotes are free, and each one shows in the panel as a card.
 4. You click the card. `/api/agent/run` runs the quote through the same `run_column` / `find_rows` tools that MCP clients call, streams progress (cells done, dollars spent), and then tells the agent the result so it can report and offer the next step.
 
 <img src="media/20-agent-confirm.png" alt="A quote card: Run 10 rows · up to $0.242, with Run 10 rows, Try 5 rows and Cancel" width="100%" />

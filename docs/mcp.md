@@ -110,7 +110,7 @@ On the server each paid cell is held against its per-cell cap (sent to looot as 
 | `save_view` | write | Save filters and a sort as the sheet's starting view. |
 | `upsert_rows` | write | Insert or update up to 100 rows by id. |
 | `update_cells` | write | Edit up to 100 cells. |
-| `delete_rows` | write | Delete up to 100 rows. |
+| `delete_rows` | destructive | Delete up to 100 rows. |
 | `import_rows` | write | Append rows from CSV text or a public https CSV URL (2 MB at most). New headers become columns. |
 | `dedupe_rows` | write | Find rows with the same key columns (dry run by default) and delete all but the first or last. |
 | `configure_column` | write | Add or change any column: every operation (AI research with sources, company and person data, find and verify email, phone, scrape, search, check, classify, score, email draft, template, any looot endpoint). |

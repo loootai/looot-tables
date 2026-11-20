@@ -239,8 +239,8 @@ export class McpOperations {
 		if (!plan) throw new WorkspaceError('Unknown row or enrichment column.');
 		return plan;
 	}
-	/** One row at a time: each row commits to the same sheet revision, and the deadline budget assumes sequential rows.
-	    A row is started only if its worst case still fits before the request deadline. */
+	/** One row at a time, as the deadline budget assumes. A row is started only if its worst case still fits before the
+	    request deadline. */
 	protected async *enrichRows(sheetId: string, rowIds: string[], columnId: string, overwrite: boolean, worstCase: number, budget?: Budget): AsyncGenerator<CellOutcome> {
 		const started = this.now();
 		for (const rowId of rowIds) {
