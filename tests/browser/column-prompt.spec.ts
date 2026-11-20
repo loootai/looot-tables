@@ -3,7 +3,7 @@ import { test } from './authenticated-test';
 
 test('inserts searchable column pills, edits atomically, and preserves templates through compose and save', async ({ page }) => {
 	await page.route('**/api/keys/verify', (route) => route.fulfill({ json: { openai: true, context: true, typesafe: false, passwordRequired: false } }));
-	await page.addInitScript(() => localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
+	await page.addInitScript(() => localStorage.setItem('looot-tables.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
 	await page.goto('/app');
 	await page.getByRole('button', { name: 'Import CSV', exact: true }).click();
 	await page.getByLabel('Sheet name', { exact: true }).fill('Column references');
@@ -99,7 +99,7 @@ test('inserts searchable column pills, edits atomically, and preserves templates
 
 
 test('column composition errors stay inside the dialog with the prompt available for retry', async ({ page }) => {
- await page.addInitScript(() => localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
+ await page.addInitScript(() => localStorage.setItem('looot-tables.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
  await page.route('**/api/keys/verify*', route => route.fulfill({ json: { openai: true, context: true, typesafe: false, passwordRequired: false } }));
  await page.route('**/api/compose-column', route => route.fulfill({ status: 500, json: { error: 'Company research unavailable' } }));
  await page.goto('/app');
@@ -111,10 +111,10 @@ test('column composition errors stay inside the dialog with the prompt available
  await page.getByRole('button', { name: 'Add column', exact: true }).click();
  await page.getByRole('menuitem', { name: 'AI column', exact: true }).click();
  const prompt = page.getByRole('textbox', { name: 'Describe the column', exact: true });
- await prompt.fill('Worth talking to for my company context.dev?');
+ await prompt.fill('Worth talking to for my company looot.ai?');
  await page.getByRole('button', { name: 'Create column', exact: true }).click();
  await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Company research unavailable');
- await expect(prompt).toContainText('Worth talking to for my company context.dev?');
+ await expect(prompt).toContainText('Worth talking to for my company looot.ai?');
  await expect(page.getByText('Company research unavailable', { exact: true })).toHaveCount(1);
  await expect(page.getByRole('button', { name: 'Create column', exact: true })).toBeEnabled();
 });

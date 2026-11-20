@@ -3,7 +3,7 @@ import { memberCookie } from './authenticated-test';
 import type { Sheet, Row } from '../../src/lib/types';
 
 test('email drafts show collapsed recipients and persist field edits', async ({ page, context, baseURL }) => {
- await context.addCookies([{ name: 'enrichable.session', value: memberCookie('email-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+ await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('email-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
  const initial = { to: 'alice@example.com', cc: 'team@example.com', bcc: 'private@example.com', subject: 'Hello Alice', body: 'Hi Alice,\nLet’s talk.' };
  let sheet: Sheet = { id: 'email-test', name: 'Emails', columns: [{ id: 'draft', name: 'Email draft', type: 'source', format: 'email-draft', width: 240, createdAt: 1 }], filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
  let rows: Row[] = [{ id: 'r', sheetId: sheet.id, order: 0, createdAt: 1, cells: { draft: { v: JSON.stringify(initial), s: 'done', t: 1 } } }];

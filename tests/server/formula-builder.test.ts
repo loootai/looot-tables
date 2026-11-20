@@ -4,7 +4,7 @@ import { POST } from '../../src/app/api/formula-builder/route';
 import { testAccess } from './access-fixture';
 
 const input = { ask: 'Double the value', formula: '=', target: 'B2', columns: [{ name: 'Value', address: 'A' }] };
-const request = (body: unknown = input) => new Request('https://enrichable.test/api/formula-builder', { method: 'POST', headers: { 'content-type': 'application/json', 'x-openai-key': 'test-key', 'x-openai-model': 'configured-default' }, body: JSON.stringify(body) });
+const request = (body: unknown = input) => new Request('https://looot-tables.test/api/formula-builder', { method: 'POST', headers: { 'content-type': 'application/json', 'x-openai-key': 'test-key', 'x-openai-model': 'configured-default' }, body: JSON.stringify(body) });
 
 test('formula generator uses the configured default model and returns structured output', async (t) => {
 	t.mock.method(globalThis, 'fetch', async (url: string | URL | Request, init?: RequestInit) => {
@@ -33,7 +33,7 @@ test('formula generator failures say why in a structured failure', async (t) => 
 test('formula generator rejects bad references and missing descriptions before calling a provider', async () => {
 	assert.equal((await POST(request({ ...input, target: 'invalid' }))).status, 400);
 	assert.equal((await POST(request({ ...input, ask: ' ' }))).status, 400);
-	assert.equal((await POST(new Request('https://enrichable.test/api/formula-builder', { method: 'POST', body: '{' }))).status, 400);
+	assert.equal((await POST(new Request('https://looot-tables.test/api/formula-builder', { method: 'POST', body: '{' }))).status, 400);
 });
 
 
@@ -67,14 +67,14 @@ test('fallback composer excludes formulas and retains the original request', asy
 
 test('formula and column handlers redact provider errors containing server keys', async (t) => {
 	const { POST: compose } = await import('../../src/app/api/compose-column/route');
-	const values = { NODE_ENV: 'production', ENRICHABLE_APP_URL: 'https://self-hosted.example', ENRICHABLE_DEV_AUTH: '', ENRICHABLE_PASSWORD: 'test-password', OPENAI_API_KEY: 'not-a-real-key', OPENAI_BASE_URL: '' };
+	const values = { NODE_ENV: 'production', LOOOT_TABLES_APP_URL: 'https://self-hosted.example', LOOOT_TABLES_DEV_AUTH: '', LOOOT_TABLES_PASSWORD: 'test-password', OPENAI_API_KEY: 'not-a-real-key', OPENAI_BASE_URL: '' };
 	const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
 	Object.assign(process.env, values);
 	delete process.env.OPENAI_BASE_URL;
 	t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
 	t.mock.method(globalThis, 'fetch', async () => Response.json({ error: { message: `Invalid API key: ${values.OPENAI_API_KEY}`, type: 'invalid_request_error', code: 'invalid_api_key' } }, { status: 401 }));
 	for (const [handler, body] of [[POST, input], [compose, { ask: 'Find the CEO', columns: [{ name: 'Domain', type: 'source' }] }]] as const) {
-		const response = await handler(new Request('https://self-hosted.example/api/test', { method: 'POST', headers: { 'content-type': 'application/json', 'x-enrichable-password': values.ENRICHABLE_PASSWORD }, body: JSON.stringify(body) }));
+		const response = await handler(new Request('https://self-hosted.example/api/test', { method: 'POST', headers: { 'content-type': 'application/json', 'x-looot-tables-password': values.LOOOT_TABLES_PASSWORD }, body: JSON.stringify(body) }));
 		assert.equal(response.status, 500);
 		const result = await response.json();
 		assert.ok(!result.error.includes(values.OPENAI_API_KEY));

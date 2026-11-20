@@ -5,7 +5,7 @@ test.setTimeout(240_000);
 
 for (const connected of [false, true]) test(`company and person fields insert to the right (${connected ? 'connected' : 'without keys'})`, async ({ page }) => {
 	const requests: Array<{ op: { kind: string; field?: string; domain?: string; name?: string; prompt?: string; research?: string }; row: Record<string, string> }> = [];
-	if (connected) await page.addInitScript(() => localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
+	if (connected) await page.addInitScript(() => localStorage.setItem('looot-tables.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
 	await page.route('**/api/enrich', async (route) => {
 		const body = route.request().postDataJSON();
 		requests.push(body);
@@ -150,7 +150,7 @@ for (const connected of [false, true]) test(`company and person fields insert to
 });
 
 test('run scopes offer 10, 100 and all remaining cells and execute only the chosen count', async ({ page }) => {
-	await page.addInitScript(() => localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
+	await page.addInitScript(() => localStorage.setItem('looot-tables.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot' })));
 	await page.route('**/api/keys/verify', (route) => route.fulfill({ json: { openai: false, looot: false, typesafe: false, passwordRequired: false } }));
 	const companies: string[] = [];
 	await page.route('**/api/enrich', async (route) => {

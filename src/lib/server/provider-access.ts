@@ -22,8 +22,8 @@ import { OrganizationStore, organizationPersistenceEnabled } from './organizatio
    - request: explicit x-<provider>-key / model / endpoint headers, request-only (including verification of unsaved keys);
    - vault: the signed-in organization's encrypted provider vault and shared preferences;
    - server: OPENAI_API_KEY / LOOOT_TOKEN / ... on a self-hosted deployment. Anyone with the URL could spend
-     those, so they are used only when ENRICHABLE_PASSWORD is set and matched, or when
-     ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD=true is set deliberately.
+     those, so they are used only when LOOOT_TABLES_PASSWORD is set and matched, or when
+     LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD=true is set deliberately.
    Every run is billed to the caller's own looot token. There is no shared token and no included credit. */
 
 export const SOURCES = ['request', 'vault', 'server'] as const;
@@ -225,9 +225,9 @@ function samePassword(given: string, password: string): boolean {
 }
 
 function serverEnv(request: Request): ServerEnv {
-	const password = process.env.ENRICHABLE_PASSWORD;
+	const password = process.env.LOOOT_TABLES_PASSWORD;
 	return {
-		unlocked: password ? samePassword(request.headers.get('x-enrichable-password') ?? '', password) : process.env.ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD === 'true',
+		unlocked: password ? samePassword(request.headers.get('x-looot-tables-password') ?? '', password) : process.env.LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD === 'true',
 		keys: Object.fromEntries(PROVIDERS.flatMap((provider) => { const key = clean(process.env[PROVIDER_INFO[provider].env]); return key ? [[provider, key]] : []; })),
 		model: clean(process.env.OPENAI_MODEL),
 		baseUrl: process.env.OPENAI_BASE_URL,
@@ -262,7 +262,7 @@ export async function serverKeyAvailability(request: Request) {
 	const available = Object.fromEntries(PROVIDERS.map((provider) => [provider, Boolean(first(rows, (offer) => offer.keys?.[provider]))])) as Record<Provider, boolean>;
 	return {
 		...available,
-		passwordRequired: Boolean(process.env.ENRICHABLE_PASSWORD),
+		passwordRequired: Boolean(process.env.LOOOT_TABLES_PASSWORD),
 	};
 }
 

@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { GithubIcon, Logo } from '@/components/ui/logo';
-import { CONTEXT_DEV_URL, DOCS_URL, ENRICHABLE_URL, GITHUB_URL, SITE_DESCRIPTION, SITE_LEDE, SITE_TITLE } from '@/lib/constants';
+import { DOCS_URL, GITHUB_URL, MOLTSETS_URL, SITE_DESCRIPTION, SITE_LEDE, SITE_TITLE } from '@/lib/constants';
 import { siteUrl } from '@/lib/server/deployment';
 import { HeroSheet } from '@/components/landing/hero-sheet';
 
@@ -16,7 +15,6 @@ export const metadata: Metadata = {
 	twitter: { card: 'summary_large_image', title: SITE_TITLE, description: SITE_DESCRIPTION },
 };
 
-const CONTEXT_ORG = 'https://www.context.dev/#organization';
 const LOOOT_ORG = 'https://looot.ai/#organization';
 
 const FEATURES = [
@@ -54,13 +52,12 @@ function structuredData() {
 		'@context': 'https://schema.org',
 		'@graph': [
 			{ '@type': 'Organization', '@id': LOOOT_ORG, name: 'looot', url: 'https://looot.ai' },
-				{ '@type': 'Organization', '@id': CONTEXT_ORG, name: 'Context.dev', url: CONTEXT_DEV_URL },
 			{ '@type': 'WebSite', '@id': `${url}#website`, url, name: 'looot tables', description: SITE_DESCRIPTION, inLanguage: 'en', publisher: { '@id': LOOOT_ORG } },
 			{
 				'@type': 'SoftwareApplication', '@id': `${url}#app`, name: 'looot tables', url, description: SITE_DESCRIPTION, image: new URL('/opengraph-image.png', url).toString(),
 				applicationCategory: 'BusinessApplication', applicationSubCategory: 'Data enrichment', operatingSystem: 'Web', browserRequirements: 'Requires JavaScript',
 				isAccessibleForFree: true, license: 'https://opensource.org/licenses/MIT', offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-				featureList: FEATURES.map((feature) => feature.title), sameAs: [GITHUB_URL], publisher: { '@id': LOOOT_ORG }, creator: { '@id': CONTEXT_ORG },
+				featureList: FEATURES.map((feature) => feature.title), sameAs: [GITHUB_URL], publisher: { '@id': LOOOT_ORG },
 			},
 			{ '@type': 'SoftwareSourceCode', name: 'looot tables', codeRepository: GITHUB_URL, programmingLanguage: 'TypeScript', runtimePlatform: 'Node.js', license: 'https://opensource.org/licenses/MIT', targetProduct: { '@id': `${url}#app` } },
 			{ '@type': 'FAQPage', '@id': `${url}#faq`, mainEntity: FAQ.map(({ q, a }) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) },
@@ -102,7 +99,7 @@ export default function Landing() {
 					</h1>
 					<p className="mt-5 max-w-[640px] text-[1.0625rem] leading-relaxed text-pretty text-fg-muted md:text-[1.1875rem]">{SITE_LEDE} Every cell keeps its receipt: the providers looot tried, in order, with the price and time of each.</p>
 					<div className="mt-8 flex w-full max-w-[350px] flex-col gap-2.5 sm:w-auto sm:max-w-none sm:flex-row sm:gap-3">
-						<a href={`${GITHUB_URL}#self-host`} target="_blank" rel="noopener noreferrer" data-track="landing_cta" data-cta="self-host" className={primaryButton}>
+						<a href={`${GITHUB_URL}#self-hosting`} target="_blank" rel="noopener noreferrer" data-track="landing_cta" data-cta="self-host" className={primaryButton}>
 							Self-host it <ArrowRight aria-hidden className="size-4" strokeWidth={2} />
 						</a>
 						<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" data-track="landing_cta" data-cta="github" className={secondaryButton}>
@@ -113,7 +110,6 @@ export default function Landing() {
 						<span>Open source, MIT</span><span aria-hidden>·</span><span>Billed to your own looot balance</span><span aria-hidden>·</span><span>Spend capped on the server</span>
 					</p>
 					<div className="mt-10 w-full"><HeroSheet /></div>
-					<div className="mt-8 text-body-sm text-fg-subtle"><BuiltOnEnrichable /></div>
 				</main>
 			</div>
 
@@ -151,10 +147,10 @@ export default function Landing() {
 				</ol>
 			</Section>
 
-			<Section id="open-source" title="Open source, built on Enrichable">
+			<Section id="open-source" title="Open source, MIT">
 				<div className="space-y-4 text-[1.0625rem] leading-relaxed text-fg-muted">
 					<p>
-						looot tables is MIT licensed and built on <a href={ENRICHABLE_URL} target="_blank" rel="noopener" className={inlineLink}>Enrichable</a> by <a href={CONTEXT_DEV_URL} target="_blank" rel="noopener" className={inlineLink}>Context.dev</a>. Every search, page read, company lookup, person lookup, email and phone lookup runs as a <a href="https://looot.ai" target="_blank" rel="noopener" className={inlineLink}>looot</a> job on your own looot balance.
+						looot tables is MIT licensed. Every search, page read, company lookup, person lookup, email and phone lookup runs as a <a href="https://looot.ai" target="_blank" rel="noopener" className={inlineLink}>looot</a> job on your own looot balance. With a <a href={MOLTSETS_URL} target="_blank" rel="noopener" className={inlineLink}>MoltSets</a> key, work emails come from your flat-fee plan first and looot only answers the misses.
 						</p>
 						<p>
 							<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className={inlineLink}>Self-host it</a> with your own looot token and OpenAI key. Your sheets live in your own Postgres database.
@@ -199,7 +195,7 @@ export default function Landing() {
 						<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="hover:text-fg">GitHub</a>
 						<a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="hover:text-fg">Docs</a>
 						<a href={`${GITHUB_URL}/blob/main/docs/mcp.md`} target="_blank" rel="noopener noreferrer" className="hover:text-fg">MCP</a>
-						<BuiltOnEnrichable />
+						<a href={`${GITHUB_URL}/blob/main/THIRD_PARTY_NOTICES.md`} target="_blank" rel="noopener noreferrer" className="hover:text-fg">Third-party notices</a>
 					</div>
 				</div>
 			</footer>
@@ -215,14 +211,5 @@ function Section({ id, title, children }: { id: string; title: string; children:
 				<div className="min-w-0">{children}</div>
 			</div>
 		</section>
-	);
-}
-
-/** The credit line: looot tables is built on Enrichable, which Context.dev published under the MIT license. */
-function BuiltOnEnrichable() {
-	return (
-		<a href={ENRICHABLE_URL} target="_blank" rel="noopener" className="inline-flex items-center gap-[7px] rounded-md hover:text-fg">
-			Built on Enrichable by <Image src="/providers/context.svg" alt="" width={20} height={14} unoptimized /> <span className="font-semibold tracking-[-0.01em] text-fg">Context.dev</span>
-		</a>
 	);
 }

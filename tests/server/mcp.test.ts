@@ -38,7 +38,7 @@ test('one shared organization key: hashed storage, concurrent creation, rotation
 	assert.equal((await keys.keyInfo(actor('one', 'bob')))?.version, first.version);
 	assert.equal('secret' in (await keys.keyInfo(actor()))!, false);
 	assert.equal((await keys.revealKey(actor('one', 'bob'))).secret, first.secret);
-	const stored = (await db.query('SELECT * FROM enrichable.mcp_keys')).rows[0] as Record<string, unknown>;
+	const stored = (await db.query('SELECT * FROM looot_tables.mcp_keys')).rows[0] as Record<string, unknown>;
 	assert.equal(stored.key_hash, hashMcpSecret(first.secret));
 	assert.ok(!JSON.stringify(stored).includes(first.secret));
 	const authenticated = await keys.authenticate(`Bearer ${first.secret}`);
@@ -55,7 +55,7 @@ test('one shared organization key: hashed storage, concurrent creation, rotation
 	await assert.rejects(keys.issueKey(actor()), /changed/);
 	await assert.rejects(keys.authenticate(null), /required/);
 	await assert.rejects(keys.authenticate('Bearer invalid'), /required/);
-	assert.equal((await db.query<{ count: number }>('SELECT count(*)::int AS count FROM enrichable.mcp_keys')).rows[0].count, 2);
+	assert.equal((await db.query<{ count: number }>('SELECT count(*)::int AS count FROM looot_tables.mcp_keys')).rows[0].count, 2);
 });
 
 test('sheet tools preserve partial edits, validate revisions, reject cycles and formula writes, and support pagination', async (t) => {
@@ -192,7 +192,7 @@ test('a write landing while MCP reads a sheet of more than 100 rows neither fail
 	let interleave: (() => Promise<unknown>) | undefined, interleaved: Promise<unknown> | undefined;
 	const sheets = new WorkspaceStore({ ...database, read: async (text, values) => {
 		const result = await database.read(text, values);
-		if (interleave && /^\s*SELECT/.test(text) && text.includes('enrichable.sheet_rows')) { interleaved = interleave(); interleave = undefined; }
+		if (interleave && /^\s*SELECT/.test(text) && text.includes('looot_tables.sheet_rows')) { interleaved = interleave(); interleave = undefined; }
 		return result;
 	} });
 	const tab = actor('one', 'bob');
@@ -317,7 +317,7 @@ test('real MCP client discovers and calls tools over stateless HTTP; auth and or
 	const preset = await client.callTool({ name: 'create_sheet', arguments: { sheetId: 'preset', name: 'Preset over SDK', template: 'companies', enrichments: [{ id: 'industry', name: 'Industry', op: { kind: 'company', domain: '{{Website}}', field: 'industry' } }] } });
 	assert.ok(!preset.isError);
 	assert.equal((preset.structuredContent as { sheet: { columns: { id: string }[] } }).sheet.columns.length, ENTITY_COLUMNS.companies.length);
-	assert.match(client.getInstructions() ?? '', /Prefer Enrichable built-in operations/);
+	assert.match(client.getInstructions() ?? '', /Prefer looot tables built-in operations/);
 	await services.keys.issueKey(actor(), key.version);
 	const revoked = await handleMcpRequest(new Request(url, { method: 'POST', headers: { authorization: `Bearer ${key.secret}` } }), services);
 	assert.equal(revoked.status, 401);
@@ -327,7 +327,7 @@ test('MCP credentials never inherit browser cookies or deployment keys and rejec
 	const previous = process.env.OPENAI_API_KEY;
 	process.env.OPENAI_API_KEY = 'deployment-secret';
 	try {
-		const credentials = await mcpAccess(new Headers({ cookie: 'enrichable.session=browser-credential', 'x-enrichable-password': 'deployment-password' }), actor());
+		const credentials = await mcpAccess(new Headers({ cookie: 'looot-tables-session=browser-credential', 'x-looot-tables-password': 'deployment-password' }), actor());
 		assert.equal(credentials.key('openai'), null);
 		assert.equal(credentials.key('looot'), null);
 		assert.equal((await mcpAccess(new Headers({ 'x-openai-key': 'caller-key' }), actor())).key('openai'), 'caller-key');
@@ -342,8 +342,8 @@ test('keys sealed before the shared envelope still reveal', async (t) => {
 	// Written by the previous McpStore.encrypt for actor('legacy') under the fixture root.
 	const secret = `enr_mcp_${'L'.repeat(43)}`, version = '00000000-0000-4000-8000-000000000001';
 	const sealed = 'v1.-JCHFggS9xkWAr7Y.6FPcTsLE1wD7xzg0k2jBAA.nYrBkzrU39PYiQsOP1FkcWsM_6Z6oPDV3e19BYpnvGNWDTZDE7uSo6psO3l9R2OwTPKU';
-	await db.query("INSERT INTO enrichable.workspaces (id,issuer,organization_id,name) VALUES ($1,'https://mcp-tests.invalid','legacy','legacy')", [workspaceId(actor('legacy'))]);
-	await db.query('INSERT INTO enrichable.mcp_keys (workspace_id,key_hash,prefix,version,created_at,encrypted_secret) VALUES ($1,$2,$3,$4,1,$5)', [workspaceId(actor('legacy')), hashMcpSecret(secret), secret.slice(0, 16), version, sealed]);
+	await db.query("INSERT INTO looot_tables.workspaces (id,issuer,organization_id,name) VALUES ($1,'https://mcp-tests.invalid','legacy','legacy')", [workspaceId(actor('legacy'))]);
+	await db.query('INSERT INTO looot_tables.mcp_keys (workspace_id,key_hash,prefix,version,created_at,encrypted_secret) VALUES ($1,$2,$3,$4,1,$5)', [workspaceId(actor('legacy')), hashMcpSecret(secret), secret.slice(0, 16), version, sealed]);
 	assert.equal((await keys.revealKey(actor('legacy'))).secret, secret);
 });
 
@@ -355,7 +355,7 @@ test('recoverable keys survive server reload, isolate tenants, authenticate ciph
 	await assert.rejects(keys.revealKey(actor('two')), /No organization key/);
 	await assert.rejects(new McpStore(database, () => 'wrong-secret-that-is-at-least-32-characters').revealKey(actor()), /could not be decrypted/);
 	await assert.rejects(new McpStore(database, () => undefined).issueKey(actor('unconfigured')), /Configure the shared/);
-	await db.query('UPDATE enrichable.mcp_keys SET encrypted_secret=NULL');
+	await db.query('UPDATE looot_tables.mcp_keys SET encrypted_secret=NULL');
 	assert.equal((await keys.keyInfo(actor()))?.recoverable, false);
 	await assert.rejects(keys.revealKey(actor()), /legacy key/);
 	await assert.rejects(keys.backfillKey(actor(), 'incorrect'), /not the active/);
@@ -364,7 +364,7 @@ test('recoverable keys survive server reload, isolate tenants, authenticate ciph
 	assert.equal((await keys.keyInfo(actor()))?.version, first.version);
 	assert.equal((await keys.authenticate(`Bearer ${first.secret}`)).organization.id, 'one');
 	const other = await keys.issueKey(actor('two'));
-	await db.query('UPDATE enrichable.mcp_keys SET encrypted_secret=(SELECT encrypted_secret FROM enrichable.mcp_keys WHERE key_hash=$1) WHERE key_hash=$2', [hashMcpSecret(other.secret), hashMcpSecret(first.secret)]);
+	await db.query('UPDATE looot_tables.mcp_keys SET encrypted_secret=(SELECT encrypted_secret FROM looot_tables.mcp_keys WHERE key_hash=$1) WHERE key_hash=$2', [hashMcpSecret(other.secret), hashMcpSecret(first.secret)]);
 	await assert.rejects(keys.revealKey(actor()), /could not be decrypted/);
 });
 
@@ -431,7 +431,7 @@ test('one create_sheet tool reuses app layouts, merges built-in enrichments, val
 	assert.equal(columns.length, ENTITY_COLUMNS.companies.length + 2);
 	assert.equal(columns.filter((c) => c.name === 'Industry').length, 1);
 	assert.equal(columns.find((c) => c.id === 'industry')?.type, 'enriched');
-	assert.match(String(created.operationGuidance), /Prefer Enrichable built-in operations/);
+	assert.match(String(created.operationGuidance), /Prefer looot tables built-in operations/);
 	assert.ok((created.availableOperations as Record<string, unknown>).company);
 	assert.equal((await ops.call('create_sheet', args)).existing, true);
 	await assert.rejects(ops.call('create_sheet', { ...args, name: 'Changed' }), /different configuration/);
@@ -584,7 +584,7 @@ test('a paid result is saved however many unrelated writes land while it settles
 	const sheets = new WorkspaceStore({
 		read: async (text, values) => {
 			const result = await database.read(text, values);
-			if (settling && text.includes('enrichable.sheet_rows')) await unrelated();
+			if (settling && text.includes('looot_tables.sheet_rows')) await unrelated();
 			return result;
 		},
 		transaction: ((run: (sql: Sql, workspace: string) => Promise<unknown>, options?: { workspace: Account }) => database.transaction(async (sql, workspace) => {

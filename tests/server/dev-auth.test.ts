@@ -20,11 +20,9 @@ function env(t: TestContext, name: string, value: string) {
 }
 function configure(t: TestContext) {
 	env(t, 'NODE_ENV', 'development');
-	env(t, 'ENRICHABLE_DEV_AUTH', 'true');
-	env(t, 'ENRICHABLE_APP_URL', origin);
-	env(t, 'ENRICHABLE_SESSION_SECRET', 'dev-test-session-secret'.repeat(3));
-	env(t, 'CONTEXT_OAUTH_CLIENT_ID', '');
-	env(t, 'CONTEXT_OAUTH_CLIENT_SECRET', '');
+	env(t, 'LOOOT_TABLES_DEV_AUTH', 'true');
+	env(t, 'LOOOT_TABLES_APP_URL', origin);
+	env(t, 'LOOOT_TABLES_SESSION_SECRET', 'dev-test-session-secret'.repeat(3));
 }
 
 test('developer sign-in works without OAuth credentials, uses normal sessions and clears inherited credentials', async t => {
@@ -44,12 +42,12 @@ test('developer sign-in works without OAuth credentials, uses normal sessions an
 	const second = readSession(again.cookies.get(SESSION_COOKIE)?.value)!;
 	assert.equal(second.partition, account.partition);
 	assert.notEqual(second.sessionId, account.sessionId);
-	const headers = { cookie: `${SESSION_COOKIE}=${cookie.value}`, origin, 'x-enrichable-account': account.partition, 'x-enrichable-session': account.sessionId };
+	const headers = { cookie: `${SESSION_COOKIE}=${cookie.value}`, origin, 'x-looot-tables-account': account.partition, 'x-looot-tables-session': account.sessionId };
 	assert.equal(proxy(new NextRequest(`${origin}/api/sheets`, { method: 'POST', headers })).status, 200);
-	assert.equal(proxy(new NextRequest(`${origin}/api/sheets`, { method: 'POST', headers: { ...headers, 'x-enrichable-session': 'stale' } })).status, 409);
-	assert.match(logout(new NextRequest(`${origin}/api/auth/logout`, { method: 'POST', headers })).headers.get('set-cookie')!, /enrichable\.session=;[^,]*Max-Age=0/i);
+	assert.equal(proxy(new NextRequest(`${origin}/api/sheets`, { method: 'POST', headers: { ...headers, 'x-looot-tables-session': 'stale' } })).status, 409);
+	assert.match(logout(new NextRequest(`${origin}/api/auth/logout`, { method: 'POST', headers })).headers.get('set-cookie')!, /looot-tables-session=;[^,]*Max-Age=0/i);
 	assert.equal((await POST(request('https://attacker.test'))).headers.get('location'), `${origin}/app`);
-	env(t, 'ENRICHABLE_DEV_AUTH', 'false');
+	env(t, 'LOOOT_TABLES_DEV_AUTH', 'false');
 	assert.equal(readSession(cookie.value), null);
 });
 
@@ -58,8 +56,8 @@ test('developer sign-in rejects cross-origin and non-local requests', async t =>
 	assert.equal((await POST(request('/app', { origin: 'https://attacker.test' }))).status, 403);
 	assert.equal((await POST(request('/app', { host: 'attacker.test' }))).status, 403);
 	assert.equal((await POST(request('/app', {}, 'http://192.168.1.2:3000'))).status, 404);
-	for (const app of ['https://enrichable.test', 'http://localhost.attacker.test', 'invalid']) {
-		env(t, 'ENRICHABLE_APP_URL', app);
+	for (const app of ['https://looot-tables.test', 'http://localhost.attacker.test', 'invalid']) {
+		env(t, 'LOOOT_TABLES_APP_URL', app);
 		assert.equal(devAuthEnabled(), false);
 		assert.equal((await POST(request())).status, 404);
 	}

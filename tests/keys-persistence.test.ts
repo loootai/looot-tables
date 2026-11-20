@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS, keyHeaders, loadSettings, saveSettings } from '../src
 
 test('provider settings recover after early reads and stay synchronized with browser storage', () => {
  const storage = new Map<string, string>();
- const key = 'enrichable.settings.v1.account.persistence-test';
+ const key = 'looot-tables.settings.v1.account.persistence-test';
  const saved = { ...DEFAULT_SETTINGS, openaiKey: 'test-saved-openai', loootKey: 'test-saved-looot' };
  storage.set(key, JSON.stringify(saved));
  let failWrites = false;

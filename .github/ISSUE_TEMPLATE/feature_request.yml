@@ -29,6 +29,5 @@ body:
     attributes:
       label: Where would you use this?
       options:
-        - Official enrichable.io site
         - Self-hosted deployment
         - Both

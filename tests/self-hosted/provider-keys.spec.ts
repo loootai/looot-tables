@@ -15,7 +15,7 @@ test('self-hosted setup requires own keys, keeps optional providers in Configura
  await page.goto('/app/settings');
  const dialog = page.getByRole('dialog', { name: 'Set up enrichment' });
  await expect(dialog).toBeVisible();
- await expect(dialog.getByLabel('Context.dev API key', { exact: true })).toHaveJSProperty('required', true);
+ await expect(dialog.getByLabel('looot API key', { exact: true })).toHaveJSProperty('required', true);
  await expect(dialog.getByLabel('OpenAI API key', { exact: true })).toHaveJSProperty('required', true);
  await expect(dialog.getByRole('button', { name: 'Save and start', exact: true })).toBeDisabled();
  for (const name of ['QuickEnrich', 'Apollo', 'ContactOut', 'Hunter', 'Model']) await expect(dialog).not.toContainText(name);

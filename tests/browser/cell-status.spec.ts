@@ -3,7 +3,7 @@ import { test } from './authenticated-test';
 
 test('queued dots shimmer softly in grey, active dots shimmer blue, and completion removes the loader', async ({ page }) => {
 	const requests: Route[] = [];
-	await page.addInitScript(() => localStorage.setItem('enrichable.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot', concurrency: 1 })));
+	await page.addInitScript(() => localStorage.setItem('looot-tables.settings.v1.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396', JSON.stringify({ openaiKey: 'test-openai', loootKey: 'test-looot', concurrency: 1 })));
 	await page.route('**/api/keys/verify*', (route) => route.fulfill({ json: { openai: true, context: true, typesafe: false, passwordRequired: false } }));
 	await page.route('**/api/enrich', (route) => { requests.push(route); });
 	await page.goto('/app');
@@ -13,7 +13,7 @@ test('queued dots shimmer softly in grey, active dots shimmer blue, and completi
 	await page.getByRole('button', { name: 'Import', exact: true }).click();
 	await page.getByRole('gridcell').first().waitFor();
 	await page.evaluate(async () => {
-		const db = await new Promise<IDBDatabase>((resolve) => { const request = indexedDB.open('enrichable.cloud.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396'); request.onsuccess = () => resolve(request.result); });
+		const db = await new Promise<IDBDatabase>((resolve) => { const request = indexedDB.open('looot-tables.cloud.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396'); request.onsuccess = () => resolve(request.result); });
 		await new Promise<void>((resolve, reject) => {
 			const tx = db.transaction('sheets', 'readwrite');
 			const request = tx.objectStore('sheets').openCursor();

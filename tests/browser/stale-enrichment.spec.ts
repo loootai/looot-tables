@@ -5,7 +5,7 @@ import type { Row, Sheet } from '../../src/lib/types';
 test('outdated results show refresh without hover and return to hover-only play after refreshing', async ({ page, context, baseURL }) => {
 	const cookie = memberCookie('browser-user');
 	const account = JSON.parse(Buffer.from(cookie.split('.')[0], 'base64url').toString()).value;
-	await context.addCookies([{ name: 'enrichable.session', value: cookie, url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: cookie, url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 	let sheet: Sheet = { id: 'freshness-sheet', name: 'Freshness', revision: 1, columns: [
 		{ id: 'input', name: 'Computed', type: 'source', width: 220, createdAt: 0 },
 		{ id: 'output', name: 'Research', type: 'enriched', op: { kind: 'search', query: '{{Computed}}', pick: 'snippet', numResults: 1 }, width: 240, createdAt: 0 },

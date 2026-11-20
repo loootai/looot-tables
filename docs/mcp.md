@@ -4,10 +4,10 @@ looot tables exposes a stateless Streamable HTTP MCP endpoint at `/mcp`. An exte
 
 ## Setup
 
-1. Apply the database migrations with `npm run db:migrate`. Migration `003_mcp.sql` adds organization keys and request bookkeeping; `004_mcp_recoverable_keys.sql` adds encrypted key storage. Set `ENRICHABLE_MCP_ENCRYPTION_SECRET` to a stable random secret of at least 32 characters, identical on every server sharing the database, before creating or rotating keys. Keep a secure backup; changing it requires re-encrypting existing keys.
+1. Apply the database migrations with `npm run db:migrate`. Migration `003_mcp.sql` adds organization keys and request bookkeeping; `004_mcp_recoverable_keys.sql` adds encrypted key storage. Set `LOOOT_TABLES_MCP_ENCRYPTION_SECRET` to a stable random secret of at least 32 characters, identical on every server sharing the database, before creating or rotating keys. Keep a secure backup; changing it requires re-encrypting existing keys.
 2. Open **Configuration → Agent access → Create agent key**.
 3. Use **Copy MCP config** (the key is embedded) or **Show key** in Configuration at any time, including after reload and from another signed-in organization member’s account. The secret is encrypted at rest with AES-256-GCM, bound to the workspace and key version; authentication still uses its SHA-256 hash. Secrets are returned only by the authenticated reveal endpoint with `Cache-Control: no-store`, and are never saved to browser storage.
-4. Paste the config into your MCP client. It uses your deployment's `/mcp` URL and an `Authorization: Bearer …` header. On self-hosted deployments, provider keys live only in your browser, so the config also carries the required `x-openai-key` and `x-context-key` headers.
+4. Paste the config into your MCP client. It uses your deployment's `/mcp` URL and an `Authorization: Bearer …` header. On self-hosted deployments, provider keys live only in your browser, so the config also carries the required `x-openai-key` and `x-looot-key` headers.
 
 For clients that accept an `mcpServers` configuration:
 
@@ -19,7 +19,7 @@ For clients that accept an `mcpServers` configuration:
       "headers": {
         "Authorization": "Bearer YOUR_MCP_KEY",
         "x-openai-key": "YOUR_OPENAI_KEY",
-        "x-context-key": "YOUR_CONTEXT_KEY"
+        "x-looot-key": "YOUR_LOOOT_TOKEN"
       }
     }
   }

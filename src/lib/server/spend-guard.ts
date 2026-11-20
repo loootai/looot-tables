@@ -32,8 +32,8 @@ export class SpendGuard {
 	}
 
 	async #sheet(sql: Sql, workspace: string, sheetId: string) {
-		await sql.query('INSERT INTO enrichable.sheet_spend (workspace_id, sheet_id, cap_micros) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [workspace, sheetId, toMicros(DEFAULT_SHEET_CAP_USD)]);
-		const { rows } = await sql.query('SELECT cap_micros, spent_micros, held_micros FROM enrichable.sheet_spend WHERE workspace_id = $1 AND sheet_id = $2', [workspace, sheetId]);
+		await sql.query('INSERT INTO looot_tables.sheet_spend (workspace_id, sheet_id, cap_micros) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [workspace, sheetId, toMicros(DEFAULT_SHEET_CAP_USD)]);
+		const { rows } = await sql.query('SELECT cap_micros, spent_micros, held_micros FROM looot_tables.sheet_spend WHERE workspace_id = $1 AND sheet_id = $2', [workspace, sheetId]);
 		return { cap: Number(rows[0].cap_micros), spent: Number(rows[0].spent_micros), held: Number(rows[0].held_micros) };
 	}
 
@@ -42,16 +42,16 @@ export class SpendGuard {
 	    and its hold. */
 	async admit(cell: CellRef, attempt: string, holdUsd: number): Promise<{ seed: string; replay: boolean }> {
 		return this.#write(async (sql, workspace) => {
-			const { rows: [known] } = await sql.query('SELECT generation, status, held_micros FROM enrichable.cell_runs WHERE workspace_id = $1 AND attempt = $2', [workspace, attempt]);
+			const { rows: [known] } = await sql.query('SELECT generation, status, held_micros FROM looot_tables.cell_runs WHERE workspace_id = $1 AND attempt = $2', [workspace, attempt]);
 			if (known && known.status !== 'retry') return { seed: `${attempt}.${known.generation}`, replay: true };
-			const { rows: [streak] } = await sql.query('SELECT halted FROM enrichable.column_streaks WHERE workspace_id = $1 AND sheet_id = $2 AND column_id = $3', [workspace, cell.sheetId, cell.columnId]);
+			const { rows: [streak] } = await sql.query('SELECT halted FROM looot_tables.column_streaks WHERE workspace_id = $1 AND sheet_id = $2 AND column_id = $3', [workspace, cell.sheetId, cell.columnId]);
 			if (streak?.halted) throw new EnrichError(`This column stopped after ${HALT_AFTER_MISSES} misses or errors in a row. Check its inputs, then resume it.`, failure('column_halted', 'looot'));
 			const sheet = await this.#sheet(sql, workspace, cell.sheetId);
 			const hold = toMicros(holdUsd);
 			if (sheet.spent + sheet.held + hold > sheet.cap) throw new EnrichError(`This sheet's spend cap is $${toUsd(sheet.cap).toFixed(2)} and $${toUsd(sheet.spent + sheet.held).toFixed(2)} is spent or held. Raise the cap to run more.`, failure('spend_capped', 'looot'));
-			await sql.query('UPDATE enrichable.sheet_spend SET held_micros = held_micros + $3 WHERE workspace_id = $1 AND sheet_id = $2', [workspace, cell.sheetId, hold]);
+			await sql.query('UPDATE looot_tables.sheet_spend SET held_micros = held_micros + $3 WHERE workspace_id = $1 AND sheet_id = $2', [workspace, cell.sheetId, hold]);
 			const generation = known ? Number(known.generation) + 1 : 0;
-			await sql.query(`INSERT INTO enrichable.cell_runs (workspace_id, attempt, sheet_id, row_id, column_id, generation, status, held_micros) VALUES ($1, $2, $3, $4, $5, $6, 'dispatched', $7)
+			await sql.query(`INSERT INTO looot_tables.cell_runs (workspace_id, attempt, sheet_id, row_id, column_id, generation, status, held_micros) VALUES ($1, $2, $3, $4, $5, $6, 'dispatched', $7)
 				ON CONFLICT (workspace_id, attempt) DO UPDATE SET generation = EXCLUDED.generation, status = 'dispatched', held_micros = EXCLUDED.held_micros`, [workspace, attempt, cell.sheetId, cell.rowId, cell.columnId, generation, hold]);
 			return { seed: `${attempt}.${generation}`, replay: false };
 		});
@@ -62,25 +62,25 @@ export class SpendGuard {
 	    `final: false` keeps the hold (a batch that is not complete yet) and counts no verdicts. */
 	async settle(attempt: string, outcome: { chargedUsd: number; verdicts: RunVerdict[]; retry?: boolean; final?: boolean }): Promise<{ halted: boolean }> {
 		return this.#write(async (sql, workspace) => {
-			const { rows: [run] } = await sql.query('SELECT sheet_id, column_id, status, held_micros, charged_micros FROM enrichable.cell_runs WHERE workspace_id = $1 AND attempt = $2', [workspace, attempt]);
+			const { rows: [run] } = await sql.query('SELECT sheet_id, column_id, status, held_micros, charged_micros FROM looot_tables.cell_runs WHERE workspace_id = $1 AND attempt = $2', [workspace, attempt]);
 			if (!run) return { halted: false };
 			const charged = toMicros(outcome.chargedUsd);
 			const delta = charged - Number(run.charged_micros);
 			const final = outcome.final !== false;
 			const release = final ? Number(run.held_micros) : 0;
-			await sql.query('UPDATE enrichable.sheet_spend SET spent_micros = GREATEST(0, spent_micros + $3), held_micros = GREATEST(0, held_micros - $4) WHERE workspace_id = $1 AND sheet_id = $2', [workspace, run.sheet_id, delta, release]);
+			await sql.query('UPDATE looot_tables.sheet_spend SET spent_micros = GREATEST(0, spent_micros + $3), held_micros = GREATEST(0, held_micros - $4) WHERE workspace_id = $1 AND sheet_id = $2', [workspace, run.sheet_id, delta, release]);
 			const status = !final ? 'dispatched' : outcome.retry && charged === 0 ? 'retry' : 'settled';
-			await sql.query('UPDATE enrichable.cell_runs SET charged_micros = GREATEST(charged_micros, $3), held_micros = held_micros - $4, status = $5 WHERE workspace_id = $1 AND attempt = $2', [workspace, attempt, charged, release, status]);
+			await sql.query('UPDATE looot_tables.cell_runs SET charged_micros = GREATEST(charged_micros, $3), held_micros = held_micros - $4, status = $5 WHERE workspace_id = $1 AND attempt = $2', [workspace, attempt, charged, release, status]);
 			// A replayed run was counted when it first settled.
 			if (!final || run.status === 'settled' || !outcome.verdicts.length) return { halted: false };
-			await sql.query('INSERT INTO enrichable.column_streaks (workspace_id, sheet_id, column_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [workspace, run.sheet_id, run.column_id]);
-			const { rows: [streak] } = await sql.query('SELECT misses, halted FROM enrichable.column_streaks WHERE workspace_id = $1 AND sheet_id = $2 AND column_id = $3 FOR UPDATE', [workspace, run.sheet_id, run.column_id]);
+			await sql.query('INSERT INTO looot_tables.column_streaks (workspace_id, sheet_id, column_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [workspace, run.sheet_id, run.column_id]);
+			const { rows: [streak] } = await sql.query('SELECT misses, halted FROM looot_tables.column_streaks WHERE workspace_id = $1 AND sheet_id = $2 AND column_id = $3 FOR UPDATE', [workspace, run.sheet_id, run.column_id]);
 			let misses = Number(streak.misses), halted = Boolean(streak.halted);
 			for (const verdict of outcome.verdicts) {
 				misses = verdict === 'hit' ? 0 : misses + 1;
 				if (misses >= HALT_AFTER_MISSES) halted = true;
 			}
-			await sql.query('UPDATE enrichable.column_streaks SET misses = $4, halted = $5 WHERE workspace_id = $1 AND sheet_id = $2 AND column_id = $3', [workspace, run.sheet_id, run.column_id, misses, halted]);
+			await sql.query('UPDATE looot_tables.column_streaks SET misses = $4, halted = $5 WHERE workspace_id = $1 AND sheet_id = $2 AND column_id = $3', [workspace, run.sheet_id, run.column_id, misses, halted]);
 			return { halted };
 		});
 	}
@@ -89,7 +89,7 @@ export class SpendGuard {
 	async state(sheetId: string): Promise<SheetSpend> {
 		return this.#write(async (sql, workspace) => {
 			const sheet = await this.#sheet(sql, workspace, sheetId);
-			const { rows } = await sql.query('SELECT column_id FROM enrichable.column_streaks WHERE workspace_id = $1 AND sheet_id = $2 AND halted', [workspace, sheetId]);
+			const { rows } = await sql.query('SELECT column_id FROM looot_tables.column_streaks WHERE workspace_id = $1 AND sheet_id = $2 AND halted', [workspace, sheetId]);
 			return { capUsd: toUsd(sheet.cap), spentUsd: toUsd(sheet.spent), heldUsd: toUsd(sheet.held), haltedColumns: rows.map((row) => String(row.column_id)) };
 		});
 	}
@@ -97,13 +97,13 @@ export class SpendGuard {
 	async setCap(sheetId: string, capUsd: number): Promise<SheetSpend> {
 		await this.#write(async (sql, workspace) => {
 			await this.#sheet(sql, workspace, sheetId);
-			await sql.query('UPDATE enrichable.sheet_spend SET cap_micros = $3 WHERE workspace_id = $1 AND sheet_id = $2', [workspace, sheetId, toMicros(capUsd)]);
+			await sql.query('UPDATE looot_tables.sheet_spend SET cap_micros = $3 WHERE workspace_id = $1 AND sheet_id = $2', [workspace, sheetId, toMicros(capUsd)]);
 		});
 		return this.state(sheetId);
 	}
 
 	/** Clear a column's streak so its next cells run again. */
 	async resumeColumn(sheetId: string, columnId: string): Promise<void> {
-		await this.#write((sql, workspace) => sql.query('UPDATE enrichable.column_streaks SET misses = 0, halted = false WHERE workspace_id = $1 AND sheet_id = $2 AND column_id = $3', [workspace, sheetId, columnId]));
+		await this.#write((sql, workspace) => sql.query('UPDATE looot_tables.column_streaks SET misses = 0, halted = false WHERE workspace_id = $1 AND sheet_id = $2 AND column_id = $3', [workspace, sheetId, columnId]));
 	}
 }

@@ -9,7 +9,7 @@ looot tables uses the official `@neon/realtime` SDK for live updates from both b
 3. Configure server-only `NEON_REALTIME_URL` and `NEON_REALTIME_SECRET` from the branch's Realtime page. HTTPS endpoint URLs are normalized to WSS. Keep the secret out of public environment variables and source control.
 4. Restart the local server or deploy the configured application, then reload open tabs. Cloud environment changes take effect on subsequent deployments.
 
-No auth migration is needed. The private workspace cookie determines access. Self-hosters configure their own branch; cloning this repository grants no access to hosted data. If configuration is absent or disabled, each tab asks once and then refreshes visible tabs every 30 seconds, with a steady "Checking for edits periodically" dot and no presence requests; tabs opened before Realtime was enabled keep polling until reloaded. Set `ENRICHABLE_REALTIME_ENABLED=false` to force that fallback. If the service is configured but unavailable, tabs poll the same way and try to connect again every 30 seconds.
+No auth migration is needed. The private workspace cookie determines access. Self-hosters configure their own branch; cloning this repository grants no access to hosted data. If configuration is absent or disabled, each tab asks once and then refreshes visible tabs every 30 seconds, with a steady "Checking for edits periodically" dot and no presence requests; tabs opened before Realtime was enabled keep polling until reloaded. Set `LOOOT_TABLES_REALTIME_ENABLED=false` to force that fallback. If the service is configured but unavailable, tabs poll the same way and try to connect again every 30 seconds.
 
 ## Behavior
 

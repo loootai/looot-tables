@@ -30,10 +30,10 @@ test('organization settings and encrypted credentials share across members/devic
  assert.equal((await store.get(actor('two'))).providers.openai,undefined);
  assert.deepEqual((await store.credentials(actor('two'))).keys,{});
  assert.equal((await new OrganizationStore(database,()=>root).credentials(actor())).keys.looot,'org-looot-secret');
- assert.ok(!JSON.stringify((await db.query('SELECT * FROM enrichable.organization_providers')).rows).includes('org-openai-secret'));
+ assert.ok(!JSON.stringify((await db.query('SELECT * FROM looot_tables.organization_providers')).rows).includes('org-openai-secret'));
  assert.ok(!JSON.stringify(saved).includes('org-openai-secret'));
  await assert.rejects(new OrganizationStore(database,()=> 'wrong-root-with-at-least-32-characters').credentials(actor()),/could not be decrypted/);
- const audit=await db.query('SELECT * FROM enrichable.organization_settings_audit');
+ const audit=await db.query('SELECT * FROM looot_tables.organization_settings_audit');
  assert.ok(!JSON.stringify(audit.rows).includes('org-openai-secret'));
  await assert.rejects(store.patch(actor(),{revision:0,preferences:{concurrency:9},importOnly:false}),/changed/);
  const changes=await Promise.allSettled([store.patch(actor(),{revision:1,preferences:{concurrency:3},importOnly:false}),store.patch(actor('one','bob'),{revision:1,preferences:{concurrency:4},importOnly:false})]);
@@ -47,7 +47,7 @@ test('expired connections are unavailable to MCP and import cannot overwrite exi
  const saved=await store.get(actor());
  await assert.rejects(store.patch(actor(),{revision:saved.revision,preferences:{model:'overwrite'},importOnly:true}),/already exist/);
  assert.equal((await store.credentials(actor())).keys.looot,'looot-token');
- await db.query('UPDATE enrichable.organization_providers SET expires_at=1 WHERE provider=$1',['looot']);
+ await db.query('UPDATE looot_tables.organization_providers SET expires_at=1 WHERE provider=$1',['looot']);
  assert.equal((await store.get(actor())).providers.looot?.reconnectRequired,true);
  assert.equal((await store.credentials(actor())).keys.looot,undefined);
  const latest=await store.get(actor());
@@ -58,7 +58,7 @@ test('expired connections are unavailable to MCP and import cannot overwrite exi
 test('credential encryption authenticates the provider and workspace; disconnect does not affect other providers',async t=>{
  const {store,db}=await fixture(t);
  await store.patch(actor(),{revision:0,providers:{openai:'openai-secret',looot:'looot-secret'},importOnly:false});
- await db.query("UPDATE enrichable.organization_providers SET encrypted_secret=(SELECT encrypted_secret FROM enrichable.organization_providers WHERE provider='looot') WHERE provider='openai'");
+ await db.query("UPDATE looot_tables.organization_providers SET encrypted_secret=(SELECT encrypted_secret FROM looot_tables.organization_providers WHERE provider='looot') WHERE provider='openai'");
  await assert.rejects(store.credentials(actor()),/could not be decrypted/);
  await store.patch(actor(),{revision:1,providers:{openai:null},importOnly:false});
  assert.equal((await store.credentials(actor())).keys.looot,'looot-secret');
@@ -66,10 +66,11 @@ test('credential encryption authenticates the provider and workspace; disconnect
 
 test('credentials sealed before the shared envelope still decrypt',async t=>{
  const {db,store}=await fixture(t);
- // Written by the previous OrganizationStore.encrypt for actor('legacy') under the fixture root.
- const sealed='v1.i6YC_IUkCp5qaWQR.a4o0GQDLp81EgCw9oY5HLA.b-C0aUkXVd9_U9mzTsPUMaF4dN0';
- await db.query("INSERT INTO enrichable.workspaces (id,issuer,organization_id,name) VALUES ($1,'https://organizations.test','legacy','legacy')",[workspaceId(actor('legacy'))]);
- await db.query("INSERT INTO enrichable.organization_providers (workspace_id,provider,encrypted_secret,prefix,source,subject_id,subject_email,updated_at) VALUES ($1,'openai',$2,'legacy-','manual','alice','alice@example.com',1)",[workspaceId(actor('legacy')),sealed]);
+ // The previous OrganizationStore.encrypt format for actor('legacy') under the fixture root, re-sealed with the
+ // looot-tables key-derivation label when the project was renamed (no deployment held the old label).
+ const sealed='v1.i6YC_IUkCp5qaWQR.Y-3hwA31H28a8i5n4d0aXw.FW46dxuuXH7DL1IXqBdY0SfZT7k';
+ await db.query("INSERT INTO looot_tables.workspaces (id,issuer,organization_id,name) VALUES ($1,'https://organizations.test','legacy','legacy')",[workspaceId(actor('legacy'))]);
+ await db.query("INSERT INTO looot_tables.organization_providers (workspace_id,provider,encrypted_secret,prefix,source,subject_id,subject_email,updated_at) VALUES ($1,'openai',$2,'legacy-','manual','alice','alice@example.com',1)",[workspaceId(actor('legacy')),sealed]);
  assert.equal((await store.credentials(actor('legacy'))).keys.openai,'legacy-openai-secret');
 });
 

@@ -10,7 +10,7 @@ async function main() {
 	const file = process.argv[2];
 	if (!file) throw new Error();
 	const config = JSON.parse(await readFile(file, 'utf8'));
-	const header = config.mcpServers?.enrichable?.headers?.Authorization;
+	const header = config.mcpServers?.['looot-tables']?.headers?.Authorization;
 	if (typeof header !== 'string' || !header.startsWith('Bearer ')) throw new Error();
 	await withDatabase(async (database) => {
 		const keys = new McpStore(database);

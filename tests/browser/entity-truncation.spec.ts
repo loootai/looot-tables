@@ -12,7 +12,7 @@ test('entity names expand when they fit, and compact together when a column narr
 	await page.getByRole('button', { name: 'Import', exact: true }).click();
 	await page.getByRole('gridcell').first().waitFor();
 	await page.evaluate(async () => {
-		const db = await new Promise<IDBDatabase>((resolve) => { const request = indexedDB.open('enrichable.cloud.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396'); request.onsuccess = () => resolve(request.result); });
+		const db = await new Promise<IDBDatabase>((resolve) => { const request = indexedDB.open('looot-tables.cloud.account.d499e221f254a1ef943b3a3a600eef1fb9d03d0d55263b586a97d83e1e56f396'); request.onsuccess = () => resolve(request.result); });
 		await new Promise<void>((resolve, reject) => {
 			const tx = db.transaction(['sheets', 'rows'], 'readwrite');
 			const sheetRequest = tx.objectStore('sheets').openCursor();

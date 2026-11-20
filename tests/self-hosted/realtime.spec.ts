@@ -12,7 +12,7 @@ test('independent clients receive MCP edits, collaborator selections, conflict p
 	await page.getByRole('dialog', { name: 'Set up enrichment' }).waitFor();
 	await page.getByRole('button', { name: 'Close', exact: true }).click();
 	const account = await page.request.get('/api/auth/session').then((r) => r.json());
-	const headers = { 'x-enrichable-account': account.partition, 'x-enrichable-session': account.sessionId, origin: baseURL! };
+	const headers = { 'x-looot-tables-account': account.partition, 'x-looot-tables-session': account.sessionId, origin: baseURL! };
 	const sheetId = `rt-${randomUUID()}`;
 	const now = Date.now();
 	const sheet = { id: sheetId, name: 'Realtime verification', columns: [{ id: 'name', name: 'Value', type: 'source', width: 220, createdAt: now }], filters: [], sort: null, createdAt: now, updatedAt: now };
@@ -141,7 +141,7 @@ test('independent clients receive MCP edits, collaborator selections, conflict p
 		expect(enriched.isError).not.toBeTruthy();
 		for (const p of [page, second]) await expect(p.getByRole('gridcell').nth(1)).toContainText('Hello Formula bar draft', { timeout: 10_000 });
 		expect(pageErrors).toEqual([]);
-		await page.screenshot({ path: '/private/tmp/enrichable-realtime.png' });
+		await page.screenshot({ path: '/private/tmp/looot-tables-realtime.png' });
 	} finally {
 		await client.close(); await other.close();
 		const current = await page.request.get(`/api/sheets/${sheetId}`, { headers }).then((r) => r.json());

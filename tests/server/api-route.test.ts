@@ -28,7 +28,7 @@ test('routes keep the status of our own errors, answer 400 only for unparseable 
 	t.after(provideRouteContext((run) => run({ account: actor, database })));
 	const entries = logs(t);
 	const call = async (handler: () => Promise<unknown>) => {
-		const response = await apiRoute('test.route', handler)(new Request('https://enrichable.test/api/test'));
+		const response = await apiRoute('test.route', handler)(new Request('https://looot-tables.test/api/test'));
 		return { status: response.status, body: await response.json(), id: response.headers.get('x-request-id'), cache: response.headers.get('cache-control') };
 	};
 	assert.deepEqual((await call(async () => ({ value: 1 }))).body, { value: 1 });
@@ -40,7 +40,7 @@ test('routes keep the status of our own errors, answer 400 only for unparseable 
 	assert.equal(entries.length, 0, 'answers the caller can act on are not logged');
 	const stored = await call(async () => z.object({ concurrency: z.number() }).parse({ concurrency: 'lots' }));
 	assert.equal(stored.status, 503, 'a schema failure on stored data is the server’s, not the caller’s');
-	const crashed = await call(async () => { throw new Error('relation "enrichable.secret" does not exist'); });
+	const crashed = await call(async () => { throw new Error('relation "looot_tables.secret" does not exist'); });
 	assert.deepEqual([crashed.status, crashed.body.error, crashed.cache], [503, UNAVAILABLE, 'no-store']);
 	assert.deepEqual(entries.map((entry) => [entry.operation, entry.requestId]), [['test.route', stored.id], ['test.route', crashed.id]]);
 	assert.match(JSON.stringify(entries[1].error), /does not exist/);
@@ -61,7 +61,7 @@ test('MCP answers corrupt stored settings as unavailable, never as a caller erro
 	assert.equal(listed.isError, true);
 	assert.deepEqual(listed.structuredContent, { status: 503, error: UNAVAILABLE });
 	assert.deepEqual(entries.map((entry) => entry.operation), ['mcp.list_sheets']);
-	await db.query('INSERT INTO enrichable.organization_settings (workspace_id, preferences) VALUES ($1, $2::jsonb)', [workspaceId(actor), JSON.stringify({ concurrency: 'lots' })]);
+	await db.query('INSERT INTO looot_tables.organization_settings (workspace_id, preferences) VALUES ($1, $2::jsonb)', [workspaceId(actor), JSON.stringify({ concurrency: 'lots' })]);
 	const response = await handleMcpRequest(new Request('http://localhost/mcp', { method: 'POST', headers: { authorization: `Bearer ${key.secret}` } }), services);
 	assert.equal(response.status, 503);
 	assert.deepEqual(await response.json(), { error: UNAVAILABLE });

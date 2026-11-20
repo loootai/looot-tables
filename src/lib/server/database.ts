@@ -59,8 +59,8 @@ export function createDatabase(driver: Driver): Database {
 			await connection.query(options.readOnly ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
 			const actor = options.workspace, workspace = actor ? workspaceId(actor) : '';
 			if (actor && !options.readOnly) {
-				await connection.query('INSERT INTO enrichable.workspaces (id, issuer, organization_id, name) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING', [workspace, actor.issuer, actor.organization.id, actor.organization.name]);
-				await connection.query('SELECT id FROM enrichable.workspaces WHERE id = $1 FOR UPDATE', [workspace]);
+				await connection.query('INSERT INTO looot_tables.workspaces (id, issuer, organization_id, name) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING', [workspace, actor.issuer, actor.organization.id, actor.organization.name]);
+				await connection.query('SELECT id FROM looot_tables.workspaces WHERE id = $1 FOR UPDATE', [workspace]);
 			}
 			const result = await run(connection, workspace);
 			await connection.query('COMMIT');

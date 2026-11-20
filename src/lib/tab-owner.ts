@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 
-const KEY = 'enrichable.tab';
+const KEY = 'looot-tables.tab';
 /** How long a reloaded tab waits for its previous document to let go of its owner. */
 const RELOAD_GRACE_MS = 1_000;
 type Locks = Pick<LockManager, 'request'>;

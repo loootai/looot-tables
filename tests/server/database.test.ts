@@ -23,7 +23,7 @@ function recording(failRollback = false) {
 test('a write transaction for a workspace creates and locks it first; read-only transactions take one snapshot and lock nothing', async () => {
 	const { statements, releases, database } = recording();
 	assert.equal(await database.transaction(async (_sql, workspace) => workspace, { workspace: actor }), workspaceId(actor));
-	assert.deepEqual(statements, ['BEGIN', 'INSERT INTO enrichable.workspaces', 'SELECT id FROM', 'COMMIT']);
+	assert.deepEqual(statements, ['BEGIN', 'INSERT INTO looot_tables.workspaces', 'SELECT id FROM', 'COMMIT']);
 	statements.length = 0;
 	await database.transaction(async () => {}, { workspace: actor, readOnly: true });
 	assert.deepEqual(statements, ['BEGIN ISOLATION LEVEL', 'COMMIT']);

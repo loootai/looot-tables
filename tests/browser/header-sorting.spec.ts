@@ -4,7 +4,7 @@ import type { Sheet, Row } from '../../src/lib/types';
 
 // Exercise the actual UI and persistence requests without depending on a live Neon database.
 test('header clicks cycle sorting before and immediately after dragging', async ({ page, context, baseURL }) => {
-	await context.addCookies([{ name: 'enrichable.session', value: memberCookie('format-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+	await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('format-test'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
 	const columns: Sheet['columns'] = ['Cost', 'Selected', 'Weight'].map((name, i) => ({ id: `c${i}`, name, type: 'source', width: 180, createdAt: 1 }));
 	let sheet: Sheet = { id: 'format-test', name: 'Formats', columns, filters: [], sort: null, createdAt: 1, updatedAt: 1, revision: 1 };
 	let rows: Row[] = [0, 1].map((i) => ({ id: `r${i}`, sheetId: sheet.id, order: i, createdAt: 1, cells: Object.fromEntries(columns.map((column, c) => [column.id, { v: c === 0 ? 1234.5 + i : c === 1 ? 'false' : 12.5 + i, s: 'done', t: 1 }])) }));

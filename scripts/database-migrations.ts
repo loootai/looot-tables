@@ -7,7 +7,7 @@ type MigrationTransaction = (statements: string[]) => Promise<unknown>;
 export async function migrateDatabase(transaction: MigrationTransaction, directory: string) {
 	const files = (await readdir(directory)).filter((name) => name.endsWith('.sql')).sort();
 	if (!files.length) throw new Error('No database migrations found.');
-	const statements = ["SELECT pg_advisory_xact_lock(hashtext('enrichable:migrations'))"];
+	const statements = ["SELECT pg_advisory_xact_lock(hashtext('looot-tables:migrations'))"];
 	for (const file of files) {
 		const migration = await readFile(join(directory, file), 'utf8');
 		statements.push(...migration.split(';').map((statement) => statement.trim()).filter(Boolean));

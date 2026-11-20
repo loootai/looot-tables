@@ -13,7 +13,7 @@ npm run db:migrate
 npm run dev
 ```
 
-Use Node.js 22.23.4 as recorded in `.nvmrc`. If you manage Node without nvm, install that version and skip `nvm use`. Visit `/app` and enter your provider keys. Deployments use API keys. Do not configure OAuth or a session secret. Basic browser operation does not require an encryption root. MCP key creation/retrieval requires `ENRICHABLE_MCP_ENCRYPTION_SECRET`; see [MCP setup](mcp.md). Use the [README](../README.md) for deployment behavior and optional password-protected server keys.
+Use Node.js 22.23.4 as recorded in `.nvmrc`. If you manage Node without nvm, install that version and skip `nvm use`. Visit `/app` and enter your provider keys. Deployments use API keys. Do not configure OAuth or a session secret. Basic browser operation does not require an encryption root. MCP key creation/retrieval requires `LOOOT_TABLES_MCP_ENCRYPTION_SECRET`; see [MCP setup](mcp.md). Use the [README](../README.md) for deployment behavior and optional password-protected server keys.
 
 ## Architecture and common changes
 
@@ -74,9 +74,9 @@ Use a dedicated migrated development database for browser tests. The self-hosted
 
 ## Database changes
 
-Add the next numbered `.sql` file under `migrations/`. `npm run db:migrate` applies all files in name order in one transaction, protected by a transaction-level advisory lock so overlapping deployments serialize. It reruns them on later invocations, so migrations must be safe to repeat. The runner splits statements on semicolons: avoid function bodies or SQL strings containing semicolons unless you first update the runner. Keep schema changes confined to `enrichable` and prefer additive changes that work while old and new servers overlap.
+Add the next numbered `.sql` file under `migrations/`. `npm run db:migrate` applies all files in name order in one transaction, protected by a transaction-level advisory lock so overlapping deployments serialize. It reruns them on later invocations, so migrations must be safe to repeat. The runner splits statements on semicolons: avoid function bodies or SQL strings containing semicolons unless you first update the runner. Keep schema changes confined to `looot_tables` and prefer additive changes that work while old and new servers overlap.
 
-Verify new SQL with PGlite tests and a separate Neon development branch before deployment. Do not run tests against production data. The explicit `ENRICHABLE_LIVE_DB_TEST=true` workspace-store check writes temporary workspaces to the configured database; use it only against a dedicated test branch. Apply migrations before code that depends on the new schema. A code rollback does not undo a migration or safely remove budget ledgers.
+Verify new SQL with PGlite tests and a separate Neon development branch before deployment. Do not run tests against production data. The explicit `LOOOT_TABLES_LIVE_DB_TEST=true` workspace-store check writes temporary workspaces to the configured database; use it only against a dedicated test branch. Apply migrations before code that depends on the new schema. A code rollback does not undo a migration or safely remove budget ledgers.
 
 Vercel uses `vercel.json` to run migrations before the production build. A migration error stops deployment. Ordinary `npm run build` does not connect to or migrate a database. See [deployment setup](deploy.md) for the guided Neon flow and existing projects.
 

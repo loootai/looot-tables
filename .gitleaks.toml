@@ -1,23 +1,23 @@
-title = "Enrichable secret scanning"
+title = "looot tables secret scanning"
 
 [extend]
 useDefault = true
 
 [[rules]]
-id = "enrichable-mcp-key"
-description = "Enrichable full-workspace MCP bearer key"
+id = "looot-tables-mcp-key"
+description = "looot tables full-workspace MCP bearer key"
 regex = '''\b(enr_mcp_[A-Za-z0-9_-]{43})(?:[^A-Za-z0-9_-]|$)'''
 secretGroup = 1
 entropy = 3.5
 keywords = ["enr_mcp_"]
 
 [[rules]]
-id = "context-dev-api-key"
-description = "Context.dev API key"
-regex = '''\b(ctxt_[A-Za-z0-9_-]{24,})(?:[^A-Za-z0-9_-]|$)'''
+id = "moltsets-api-key"
+description = "MoltSets API key"
+regex = '''\b(ms_[A-Za-z0-9_-]{24,})(?:[^A-Za-z0-9_-]|$)'''
 secretGroup = 1
 entropy = 3.5
-keywords = ["ctxt_"]
+keywords = ["ms_"]
 
 [[rules]]
 id = "neon-realtime-secret"
@@ -31,6 +31,5 @@ keywords = ["nrt_live_1"]
 description = "Placeholder keys in test fixtures"
 regexTarget = "secret"
 regexes = [
-  '''^ctxt_1234567890$''',
   '''^apollo-key-12345$''',
 ]

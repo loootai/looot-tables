@@ -4,7 +4,7 @@ import { setStorageAccount } from '../src/lib/account-storage';
 import { DEFAULT_SETTINGS, initializeOrganizationSettings, keyHeaders, loadSettings, organizationSettingsEnabled, organizationSettingsSnapshot, refreshOrganizationSettings, saveSettings, subscribeSettings } from '../src/lib/keys';
 
 test('a failed first organization load is retryable, never exposes browser secrets, and recovers on a later refresh', async t => {
-	const storage = new Map<string, string>([['enrichable.settings.v1.account.retry-test', JSON.stringify({ ...DEFAULT_SETTINGS, openaiKey: 'sk-browser-secret' })]]);
+	const storage = new Map<string, string>([['looot-tables.settings.v1.account.retry-test', JSON.stringify({ ...DEFAULT_SETTINGS, openaiKey: 'sk-browser-secret' })]]);
 	const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
 	Object.defineProperty(globalThis, 'window', { configurable: true, value: { localStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) } } });
 	setStorageAccount({ partition: 'retry-test', sessionId: 'session' });

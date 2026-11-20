@@ -1,6 +1,10 @@
 # Third-party notices
 
-Enrichable's original code uses the [MIT license](LICENSE). Third-party materials retain their own licenses and notices.
+looot tables uses the [MIT license](LICENSE). Third-party materials retain their own licenses and notices.
+
+## Upstream project
+
+looot tables started as a fork of Enrichable, an MIT-licensed project by Context.dev, imported at its commit 640e58e. The original copyright notice, "Copyright (c) 2026 Enrichable contributors", is kept in [LICENSE](LICENSE) as the MIT license requires.
 
 ## Bundled code and fonts
 
@@ -22,6 +26,6 @@ The production dependency audit also identified libvips binaries brought in by S
 
 ## Company and provider assets
 
-`public/companies/` and `public/providers/` contain company/provider names and logos used in previews and integrations. These are third-party brand assets, not Enrichable original artwork. The project's MIT license does not grant rights to third-party trademarks or imply endorsement.
+`public/companies/` and `public/providers/` contain company/provider names and logos used in previews and integrations. These are third-party brand assets, not original artwork of this project. The project's MIT license does not grant rights to third-party trademarks or imply endorsement.
 
 Forks that redistribute these assets are responsible for confirming they have permission to do so. Attribution alone does not establish permission.

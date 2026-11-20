@@ -7,20 +7,20 @@ import { requestGrant } from './access-fixture';
 import { openaiModel } from '../../src/lib/server/openai';
 
 function configure(t: TestContext) {
-	const values = { NODE_ENV: 'production', ENRICHABLE_APP_URL: 'https://self-hosted.example', ENRICHABLE_DEV_AUTH: '', ENRICHABLE_PASSWORD: 'app-password', ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'false', OPENAI_API_KEY: 'server-test-key', OPENAI_BASE_URL: '' };
+	const values = { NODE_ENV: 'production', LOOOT_TABLES_APP_URL: 'https://self-hosted.example', LOOOT_TABLES_DEV_AUTH: '', LOOOT_TABLES_PASSWORD: 'app-password', LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD: 'false', OPENAI_API_KEY: 'server-test-key', OPENAI_BASE_URL: '' };
 	const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
 	Object.assign(process.env, values);
 	t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
 }
 
-const request = (headers: Record<string, string> = {}) => new Request('https://self-hosted.example/api/enrich', { headers: { 'x-enrichable-password': 'app-password', ...headers } });
+const request = (headers: Record<string, string> = {}) => new Request('https://self-hosted.example/api/enrich', { headers: { 'x-looot-tables-password': 'app-password', ...headers } });
 
 test('server OpenAI keys cannot be forwarded to caller-selected endpoints', async (t) => {
 	configure(t);
 	const override = { 'x-openai-base-url': 'https://attacker.example/v1' };
 	await assert.rejects(requestGrant(request(override)), (error: unknown) => error instanceof CredentialError && error.status === 400);
-	process.env.ENRICHABLE_PASSWORD = '';
-	process.env.ENRICHABLE_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD = 'true';
+	process.env.LOOOT_TABLES_PASSWORD = '';
+	process.env.LOOOT_TABLES_ALLOW_SERVER_KEYS_WITHOUT_PASSWORD = 'true';
 	await assert.rejects(requestGrant(request(override)), /explicit OpenAI key/);
 	const ownKey = await requestGrant(request({ ...override, 'x-openai-key': 'caller-test-key' }));
 	assert.equal(ownKey.keys.openai, 'caller-test-key');

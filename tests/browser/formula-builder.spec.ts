@@ -13,7 +13,7 @@ const initialSheet: Sheet = {
 };
 
 test.beforeEach(async ({ context, baseURL }) => {
- await context.addCookies([{ name: 'enrichable.session', value: memberCookie('browser-user'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
+ await context.addCookies([{ name: 'looot-tables-session', value: memberCookie('browser-user'), url: baseURL!, httpOnly: true, sameSite: 'Lax' }]);
  let sheet = structuredClone(initialSheet);
  let rows: Row[] = Array.from({ length: 12 }, (_, index) => index === 0 ? 'Sunrun' : index === 1 ? 'Enphase Energy' : `Company ${index + 1}`).map((name, index) => ({
   id: `row-${index}`, sheetId: sheet.id, order: index, createdAt: timestamp,

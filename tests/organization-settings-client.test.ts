@@ -5,8 +5,8 @@ import { DEFAULT_SETTINGS, initializeOrganizationSettings, loadSettings, keyHead
 
 test('cloud bootstrap never sends legacy keys automatically; explicit import preserves originals on failure and removes them only after confirmation', async t=>{
  const storage=new Map<string,string>();
- const key='enrichable.settings.v1.account.org-client-test';
- const runKey='enrichable.run-scope.v2.account.org-client-test';
+ const key='looot-tables.settings.v1.account.org-client-test';
+ const runKey='looot-tables.run-scope.v2.account.org-client-test';
  storage.set(key,JSON.stringify({...DEFAULT_SETTINGS,openaiKey:'sk-legacy-private',contextKey:'ctxt-legacy-private',model:'legacy-model'}));
  storage.set(runKey,'100');
  const previous=Object.getOwnPropertyDescriptor(globalThis,'window');
@@ -23,7 +23,7 @@ test('cloud bootstrap never sends legacy keys automatically; explicit import pre
    if(body.revision!==revision)return Response.json({error:'Organization settings changed.'},{status:409});
    revision++;preferences={...preferences,...body.preferences};
   }
-  return Response.json({revision,preferences,providers:{context:{configured:true,source:'signin',prefix:'ctxt_or'},...(revision>1?{openai:{configured:true,prefix:'sk-lega',source:'manual'}}:{})}});
+  return Response.json({revision,preferences,providers:{looot:{configured:true,source:'manual',prefix:'lt_or'},...(revision>1?{openai:{configured:true,prefix:'sk-lega',source:'manual'}}:{})}});
  });
  try{
   assert.equal(await initializeOrganizationSettings(),true);
