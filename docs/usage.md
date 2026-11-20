@@ -33,7 +33,22 @@ While typing in an editor, the shortcuts undo text edits. Background enrichment 
 | Any looot endpoint | Search the looot catalog, map the endpoint's inputs from your columns with `{{Column}}`, and see the cost for the rows you pick before it runs. | looot |
 | Formula | **Formula** calculates locally with a 10-row preview. **Text template** combines columns. No API calls. | None |
 
-Runs of more than 50 cells, or more than about $0.50, ask for confirmation with a cost estimate first. A column on any looot endpoint always asks.
+### Money guards
+
+- **Quote first.** The Run button carries the server's quote: "Run 25 cells · up to $0.11". For email, verify, phone and company columns the quote is looot's own batch quote (`quoteOnly`, free). Runs above $0.50 or 50 cells ask first, and a column on any looot endpoint always asks.
+- **Caps on the server.** Every looot job is sent with `fallback.maxCostUsd` set to the cell's cap (about three times the job's usual price). Every sheet has a spend cap ($5 to start, change it from the bar under the grid); the server refuses a cell that would take the sheet past it, before anything is sent.
+- **Try 5 rows.** A new column offers "Try 5 rows" first.
+- **Halt on misses.** After 20 misses or errors in a row, the server stops the column until you resume it from the banner.
+- **One key per cell run.** The idempotency key of each cell run is stored before it is sent; a retry of the same cell resends it, so looot answers with the run it already has instead of charging again.
+
+### Batches, receipts and routing
+
+- Email, verify, phone and company columns of 10 or more rows run through looot's rows batch: 25 rows first, then up to 500 per call. Cells fill as rows settle. An incomplete batch is continued with the same key, so settled rows are never charged twice.
+- New work email columns find and verify in one cell: Valid, Catch-all or Not found, with the combined cost.
+- Click a cell for its receipt: every provider the fallback route tried, its outcome, price and time, and **Report bad result**, which sends the run id to looot.
+- The pill in a job column's header opens its routing: Cheapest, Reliable, Fastest or Balanced (`fallback.prefer`), and a switch per provider to skip it (`fallback.exclude`). The header shows the measured cost per hit and p50 from the looot catalog.
+- After a hit, looot can suggest next steps. They appear as faint priced columns at the right edge; a click adds the column, and it runs only when you run it.
+- **Unpack** (column menu) adds Industry, Headcount, HQ, Funding and more as columns, filled from answers the sheet already holds. It costs $0 and runs nothing.
 
 ## Spreadsheet formulas
 

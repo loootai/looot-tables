@@ -123,13 +123,13 @@ export async function quoteRun(input: { op: ColumnOp; cells: number; records?: A
 export interface SheetSpend { capUsd: number; spentUsd: number; heldUsd: number; haltedColumns: string[] }
 
 export async function sheetSpend(sheetId: string): Promise<SheetSpend> {
-	const response = await fetch(`/api/sheets/${encodeURIComponent(sheetId)}/spend`, { cache: 'no-store' });
+	const response = await fetch(`/api/sheets/${encodeURIComponent(sheetId)}/spend`, { cache: 'no-store', headers: keyHeaders() });
 	if (!response.ok) throw await readError(response);
 	return (await response.json()) as SheetSpend;
 }
 
 export async function updateSheetSpend(sheetId: string, update: { capUsd: number } | { resumeColumn: string }): Promise<SheetSpend> {
-	const response = await fetch(`/api/sheets/${encodeURIComponent(sheetId)}/spend`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(update) });
+	const response = await fetch(`/api/sheets/${encodeURIComponent(sheetId)}/spend`, { method: 'PUT', headers: keyHeaders(), body: JSON.stringify(update) });
 	if (!response.ok) throw await readError(response);
 	return (await response.json()) as SheetSpend;
 }

@@ -52,7 +52,7 @@ export function RoutingEditor({ column, anchor, onClose, onSave }: { column: Col
 							<span className="num text-right text-[11px] text-fg-muted">{provider.p50Ms !== null ? `${(provider.p50Ms / 1000).toFixed(1)}s` : '—'}</span>
 							<span className="num text-right text-[11px] text-fg">{provider.priceUsd !== null ? formatUsd(provider.priceUsd) : '—'}</span>
 							<button type="button" role="switch" aria-checked={enabled} aria-label={`${enabled ? 'Skip' : 'Use'} ${provider.provider}`} onClick={() => toggle(provider.endpointId)} disabled={enabled && on.length === 1} className={clsx('relative h-4 w-7 rounded-full transition-colors disabled:opacity-50', enabled ? 'bg-brand' : 'bg-neutral-20')}>
-								<span className={clsx('absolute top-0.5 size-3 rounded-full bg-surface transition-transform', enabled ? 'translate-x-3.5' : 'translate-x-0.5')} />
+								<span aria-hidden className={clsx('absolute top-0.5 left-0.5 block size-3 rounded-full bg-surface shadow-sm transition-transform', enabled && 'translate-x-3')} />
 							</button>
 						</li>;
 					})}

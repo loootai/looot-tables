@@ -352,7 +352,7 @@ function ColumnFooter({ ref, columns, stats, totalWidth }: { ref: React.Ref<HTML
 			<div className="shrink-0" style={{ width: INDEX_WIDTH }} />
 			{columns.map((column) => {
 				const entry = stats.get(column.id);
-				return <div key={column.id} className="flex h-full shrink-0 items-center border-r border-line-subtle px-3 text-fg-subtle" style={{ width: column.width }}>
+				return <div key={column.id} className="flex h-full shrink-0 items-center px-3 text-fg-subtle" style={{ width: column.width }}>
 					{entry && entry.settled > 0 && <span data-column-total className="num truncate text-[11px]">{formatUsd(entry.costUsd)} · {fillPercent(entry)} fill</span>}
 				</div>;
 			})}
