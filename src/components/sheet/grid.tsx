@@ -99,10 +99,12 @@ function useStableHandler<A extends unknown[], R>(handler: (...args: A) => R) {
 }
 
 /** Visible columns, showing a dragged width until the sheet reports it. */
+/** Extra scroll room while the details drawer is open, so the last columns can still slide out from under it. */
+const DRAWER_ROOM = 520;
 const PHONE_QUERY = '(width < 768px)';
 const subscribePhone = (onChange: () => void) => { const query = window.matchMedia(PHONE_QUERY); query.addEventListener('change', onChange); return () => query.removeEventListener('change', onChange); };
-/** On a phone, columns are drawn narrower (first 132px, others 168px) so an enriched column shows next to the name. */
-const PHONE_WIDTHS = { first: 132, other: 168 };
+/** On a phone, columns are drawn narrower (first 156px, others 140px) so an enriched column shows next to the name. */
+const PHONE_WIDTHS = { first: 156, other: 140 };
 
 function useColumnPreview(sheetColumns: Column[]) {
 	const [preview, setPreview] = useState<{ columnId: string; width: number } | null>(null);
@@ -156,6 +158,17 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 	const fillHandle = canFill ? fill.bounds : null;
 	const layoutKey = JSON.stringify([rowIds, columnIds]);
 	useEffect(() => () => dragCleanup.current?.(true), [layoutKey]);
+	// A soft fade on the right edge while more columns sit off screen, so a value is never cut mid-glyph without a cue.
+	const [moreRight, setMoreRight] = useState(false);
+	const updateMoreRight = useCallback((node: HTMLDivElement) => { const next = node.scrollLeft + node.clientWidth < node.scrollWidth - 4; setMoreRight((current) => current === next ? current : next); }, []);
+	useLayoutEffect(() => {
+		const node = scrollRef.current;
+		if (!node) return;
+		updateMoreRight(node);
+		const observer = new ResizeObserver(() => updateMoreRight(node));
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, [updateMoreRight, columns]);
 	const editingIndex = editing ? rowIndex.get(editing.rowId) : undefined;
 	const rowCount = rows.length + (loadingRows ? 3 : 0);
 	const virtualizer = useVirtualizer({ count: rowCount, getScrollElement: () => scrollRef.current, estimateSize: () => ROW_HEIGHT, overscan: 12,
@@ -192,9 +205,11 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 		}
 	}, [loadingRows, rows.length]);
 
-	const revealColumn = useCallback((columnId: string) => {
+	const revealColumn = useCallback((columnId: string, coveredRight = 0) => {
 		const columnIndex = columns.findIndex((column) => column.id === columnId);
 		const scroller = scrollRef.current;
+		// A drawer that covers most of the grid (a phone) is a full-screen sheet: nothing to slide out from under.
+		const visibleWidth = scroller ? scroller.clientWidth - (coveredRight < scroller.clientWidth * 0.6 ? coveredRight : 0) : 0;
 		// The frozen first column is always in view. Others scroll so a column starts right at the frozen edge: a column
 		// never sits half-hidden under it.
 		if (columnIndex > 0 && scroller) {
@@ -202,8 +217,8 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 			const left = offsets[columnIndex];
 			const right = left + columns[columnIndex].width;
 			if (left - frozenEdge < scroller.scrollLeft) scroller.scrollLeft = left - frozenEdge;
-			else if (right > scroller.scrollLeft + scroller.clientWidth) {
-				const need = right - scroller.clientWidth;
+			else if (right > scroller.scrollLeft + visibleWidth) {
+				const need = right - visibleWidth;
 				const start = offsets.slice(1, columnIndex + 1).find((offset) => offset - frozenEdge >= need) ?? left;
 				scroller.scrollLeft = start - frozenEdge;
 			}
@@ -214,7 +229,8 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 	useLayoutEffect(() => {
 		const scroller = scrollRef.current;
 		if (!cellDetailsOpen || !active || !scroller) return;
-		const reveal = () => revealColumn(active.columnId);
+		// The details drawer floats over the grid's right side, so the column must end left of it.
+		const reveal = () => revealColumn(active.columnId, document.querySelector('[aria-label="Cell details"]')?.getBoundingClientRect().width ?? 0);
 		reveal();
 		const observer = new ResizeObserver(reveal);
 		observer.observe(scroller);
@@ -301,9 +317,9 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 	// A new pointer gesture must not inherit click suppression from the previous drag.
 	return (
 		<SheetColumnsContext.Provider value={sheet.columns}>
-		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-		<div ref={scrollRef} tabIndex={0} onPointerDownCapture={() => { suppressClickUntil.current = 0; }} onScroll={(event) => { if (footerRef.current) footerRef.current.style.transform = `translateX(${-event.currentTarget.scrollLeft}px)`; if (loadingRows) { const node = event.currentTarget; followArrivals.current = node.scrollHeight - node.scrollTop - node.clientHeight < ROW_HEIGHT * 2; } }} onKeyDown={onKeyDown} onContextMenu={openContextMenu} onDragStart={(event) => event.preventDefault()} onClickCapture={(event) => { if (performance.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); suppressClickUntil.current = 0; } }} aria-multiselectable="true" aria-label="Sheet grid" role="grid" aria-activedescendant={activeDescendant(active, columns, (rowId) => virtualItems.some((item) => rows[item.index]?.id === rowId))} aria-busy={loadingRows} aria-rowcount={rowCount} aria-colcount={columns.length} style={{ scrollSnapType: 'x proximity', scrollPaddingLeft: INDEX_WIDTH + (columns[0]?.width ?? 0) }} className="scrollbar-thin relative min-h-0 min-w-0 flex-1 touch-auto select-none overflow-auto overscroll-contain bg-surface outline-none">
-			<div style={{ width: totalWidth, height: HEADER_HEIGHT + virtualizer.getTotalSize() + ROW_HEIGHT + 24, minHeight: '100%', position: 'relative' }}>
+		<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+		<div ref={scrollRef} tabIndex={0} onPointerDownCapture={() => { suppressClickUntil.current = 0; }} onScroll={(event) => { if (footerRef.current) footerRef.current.style.transform = `translateX(${-event.currentTarget.scrollLeft}px)`; updateMoreRight(event.currentTarget); if (loadingRows) { const node = event.currentTarget; followArrivals.current = node.scrollHeight - node.scrollTop - node.clientHeight < ROW_HEIGHT * 2; } }} onKeyDown={onKeyDown} onContextMenu={openContextMenu} onDragStart={(event) => event.preventDefault()} onClickCapture={(event) => { if (performance.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); suppressClickUntil.current = 0; } }} aria-multiselectable="true" aria-label="Sheet grid" role="grid" aria-activedescendant={activeDescendant(active, columns, (rowId) => virtualItems.some((item) => rows[item.index]?.id === rowId))} aria-busy={loadingRows} aria-rowcount={rowCount} aria-colcount={columns.length} style={{ scrollSnapType: 'x proximity', scrollPaddingLeft: INDEX_WIDTH + (columns[0]?.width ?? 0) }} className="scrollbar-thin relative min-h-0 min-w-0 flex-1 touch-auto select-none overflow-auto overscroll-contain bg-surface outline-none">
+			<div style={{ width: totalWidth + (cellDetailsOpen ? DRAWER_ROOM : 0), height: HEADER_HEIGHT + virtualizer.getTotalSize() + ROW_HEIGHT + 24, minHeight: '100%', position: 'relative' }}>
 				<GridHeader stats={stats} ghosts={ghosts} onAddNextStep={onAddNextStep} onRoutingMenu={onRoutingMenu} sheet={sheet} sort={sort} columns={columns} offsets={offsets} totalWidth={totalWidth} rows={rows} selected={selected} columnDrag={columnDrag} renamingColumnId={renamingColumnId} onToggleAll={onToggleAll} onAddColumn={onAddColumn} onStartDrag={beginColumnDrag} onColumnMenu={onColumnMenu} onResizeColumn={onResizeColumn} onPreviewResize={previewResize} onSortColumn={onSortColumn} onRenameColumn={onRenameColumn} onCancelRenameColumn={onCancelRenameColumn} />
 
 				{/* Rows */}
@@ -358,6 +374,7 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 				<AddRowFooter top={HEADER_HEIGHT + virtualizer.getTotalSize()} totalWidth={totalWidth} firstColumnWidth={columns[0]?.width} onAddRow={onAddRow} />
 				</div>
 			</div>
+			{moreRight && <span aria-hidden data-grid-more-right className="pointer-events-none absolute top-0 right-0 bottom-0 z-[26] w-8 bg-gradient-to-l from-surface via-surface/70 to-transparent" />}
 			<ColumnFooter ref={footerRef} columns={columns} stats={stats} totalWidth={totalWidth} />
 		</div>
 		</SheetColumnsContext.Provider>

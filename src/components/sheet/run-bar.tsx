@@ -81,16 +81,16 @@ export function RunBar({ sheet, allRows, columns, runs }: { sheet: Sheet; allRow
 
 	const batches = snapshot.batches[sheet.id];
 	const sinceStart = useMemo(() => started ? tally(allRows, columns, started.at) : null, [allRows, columns, started]);
-	const total = useMemo(() => tally(allRows, columns), [allRows, columns]);
 	const shownQuote = runs.unfinished > 0 && quote ? quote : null;
 	// Every cell settled: a quiet outline button that says so, instead of a green button that looks broken while disabled.
 	const settled = !runs.status.halt && runs.unfinished === 0 && !shownQuote;
-	const runLabel = shownQuote ? quoteLabel(shownQuote, 'cell') : runs.unfinished ? `Run ${plural(runs.unfinished, 'cell')}` : 'Nothing to run';
+	const total = useMemo(() => tally(allRows, columns), [allRows, columns]);
+	const runLabel = shownQuote ? quoteLabel(shownQuote, 'cell') : runs.unfinished ? `Run ${plural(runs.unfinished, 'cell')}` : total.settled ? 'All cells done' : 'Nothing to run';
 
 	let meter: React.ReactNode;
 	if (pending > 0 && started && sinceStart) {
 		const done = Math.min(started.total, sinceStart.settled);
-		meter = <><span className="font-medium text-fg">Enriching</span> <span className="num">{done.toLocaleString()}/{started.total.toLocaleString()}</span> · <span className="num">{formatUsd(sinceStart.costUsd)}</span>{started.quotedUsd !== null ? <> of <span className="num">{formatUsd(started.quotedUsd)}</span> quoted</> : ' so far'} · <span className="num">{percent(sinceStart.filled, sinceStart.settled)}</span> found</>;
+		meter = <><span className="font-medium text-fg">Enriching</span> · <span className="num">{done.toLocaleString()}</span> of <span className="num">{started.total.toLocaleString()}</span> done · <span className="num">{formatUsd(sinceStart.costUsd)}</span>{started.quotedUsd !== null ? <> of <span className="num">{formatUsd(started.quotedUsd)}</span> quoted</> : ' so far'}</>;
 	} else if (total.settled) {
 		// One spend figure: the server's ledger (what the cap counts, re-runs included) once it has loaded, else the cells' own cost.
 		const spentUsd = spend ? spend.spentUsd : total.costUsd;
@@ -101,7 +101,7 @@ export function RunBar({ sheet, allRows, columns, runs }: { sheet: Sheet; allRow
 	const capShare = spend && spend.capUsd > 0 ? Math.min(1, spend.spentUsd / spend.capUsd) : 0;
 	const progress = pending > 0 && started && sinceStart ? Math.min(1, sinceStart.settled / Math.max(1, started.total)) : 0;
 	const items: MenuItem[] = [
-		{ label: runs.unfinished ? `Run ${plural(runs.unfinished, 'unfinished cell')}` : 'Run unfinished cells', icon: <Play />, disabled: runs.unfinished === 0, onSelect: () => start(runs.onRunUnfinished) },
+		{ label: runs.unfinished ? `Run ${plural(runs.unfinished, 'unfinished cell')}` : 'Run unfinished cells', hint: shownQuote ? `up to ${formatUsd(shownQuote.maxUsd)}` : undefined, icon: <Play />, disabled: runs.unfinished === 0, onSelect: () => start(runs.onRunUnfinished) },
 		...(runs.outdated > 0 ? [{ label: `Re-run ${plural(runs.outdated, 'outdated cell')}`, icon: <RefreshCw />, onSelect: () => start(runs.onRerunOutdated) }] : []),
 		{ label: `Re-run ${plural(runs.shownRows, 'visible row')}`, icon: <RefreshCw />, disabled: runs.shownRows === 0, onSelect: () => start(runs.onRerunVisible) },
 		...(runs.failed > 0 ? [{ label: `Retry ${plural(runs.failed, 'failed cell')}`, icon: <RotateCcw />, onSelect: () => start(runs.onRetryFailed) }] : []),
@@ -132,7 +132,7 @@ export function RunBar({ sheet, allRows, columns, runs }: { sheet: Sheet; allRow
 					<Button size="sm" variant={settled ? 'outline' : 'brand'} aria-label="More ways to run" aria-haspopup="menu" aria-expanded={menu !== null} disabled={Boolean(runs.status.halt)} onClick={(event) => setMenu(menu ? null : event.currentTarget.getBoundingClientRect())} className={clsx('w-8 rounded-l-none px-0', settled ? '-ml-px' : 'border-l border-brand-fg/20')}><ChevronDown className="size-3.5" /></Button>
 				</>}
 			</span>
-			{menu && <FloatingMenu anchor={menu} align="right" width="w-64" items={items} onClose={() => setMenu(null)} />}
+			{menu && <FloatingMenu anchor={menu} align="right" width="w-80" items={items} onClose={() => setMenu(null)} />}
 			{capEditor && spend && <FloatingMenu anchor={capEditor} role="dialog" label="Sheet spend cap" align="right" width="w-72" onClose={() => setCapEditor(null)}>
 				<form className="flex flex-col gap-2 p-3" onSubmit={(event) => {
 					event.preventDefault();

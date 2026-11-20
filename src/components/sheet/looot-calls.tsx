@@ -68,7 +68,7 @@ export function LoootCalls({ calls, moltsets }: { calls?: LoootCallMeta[]; molts
 	const total = all.length + (moltsets ? 1 : 0);
 	return (
 		<section aria-label="looot runs" data-looot-calls className="flex flex-col gap-2">
-			<h4 className="text-caption text-fg-subtle">{total === 1 ? 'Receipt' : moltsets ? `Receipt · ${total} attempts` : `Receipt · ${total} looot runs`}</h4>
+			<h4 className="text-caption text-fg-subtle">{total === 1 ? 'Receipt' : `Receipt · ${total} lookups`}</h4>
 			<ul className="flex flex-col gap-2">
 				{moltsets && <MoltSetsAttempt attempt={moltsets} />}
 				{shown.map((call) => (

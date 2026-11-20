@@ -52,7 +52,7 @@ export function CellPanel({ sheet, row, column, onClose, onRerun, onEditColumn, 
 	return (
 		<aside aria-label="Cell details" className={`content-in absolute inset-y-0 right-0 z-30 flex h-full ${panelWidth(document, structured || isEmailColumn(column))} max-w-full flex-col border-l border-line bg-surface shadow-[var(--shadow-floating)] max-md:w-full`}>
 			<CellPanelHeader sheet={sheet} row={row} column={column} cell={cell} emailDraft={emailDraft} onClose={onClose} />
-			<div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-4 pt-4 pb-8">
+			<div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-4 pt-4 pb-8 [mask-image:linear-gradient(to_bottom,black_calc(100%-28px),transparent)]">
 				<CellPanelMain sheet={sheet} row={row} column={column} cell={cell} value={value} structured={structured} editing={editing} setEditing={setEditing} emailDraft={emailDraft} setEmailDraft={setEmailDraft} onSave={onSave} errorAction={errorAction} />
 				{!editing && organizationKind(column) === 'company' && <CompanyPreview row={row} column={column} columns={sheet.columns} />}
 				{cell?.f && <section className="flex flex-col gap-2"><h4 className="text-caption text-fg-subtle">Formula</h4><code className="break-all text-body-sm text-fg">{cell.f}</code></section>}
