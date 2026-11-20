@@ -32,4 +32,6 @@ description = "Placeholder keys in test fixtures"
 regexTarget = "secret"
 regexes = [
   '''^apollo-key-12345$''',
+  '''^ms_test_key_0123456789$''',
+  '''^ctxt_1234567890$''',
 ]
