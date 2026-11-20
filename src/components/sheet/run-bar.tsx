@@ -90,10 +90,15 @@ export function RunBar({ sheet, allRows, columns, runs }: { sheet: Sheet; allRow
 	let meter: React.ReactNode;
 	if (pending > 0 && started && sinceStart) {
 		const done = Math.min(started.total, sinceStart.settled);
-		meter = <><span className="font-medium text-fg">Enriching</span> <span className="num">{done.toLocaleString()}/{started.total.toLocaleString()}</span> · <span className="num">{formatUsd(sinceStart.costUsd)}</span>{started.quotedUsd !== null && <> of <span className="num">{formatUsd(started.quotedUsd)}</span> quoted</>} · <span className="num">{percent(sinceStart.filled, sinceStart.settled)}</span> found</>;
+		meter = <><span className="font-medium text-fg">Enriching</span> <span className="num">{done.toLocaleString()}/{started.total.toLocaleString()}</span> · <span className="num">{formatUsd(sinceStart.costUsd)}</span>{started.quotedUsd !== null ? <> of <span className="num">{formatUsd(started.quotedUsd)}</span> quoted</> : ' so far'} · <span className="num">{percent(sinceStart.filled, sinceStart.settled)}</span> found</>;
+	} else if (total.settled) {
+		// One spend figure: the server's ledger (what the cap counts, re-runs included) once it has loaded, else the cells' own cost.
+		const spentUsd = spend ? spend.spentUsd : total.costUsd;
+		meter = <><span className="font-medium text-fg">Spent <span className="num">{formatUsd(spentUsd)}</span></span> on this sheet · <span className="num">{percent(total.filled, total.settled)}</span> found</>;
 	} else {
-		meter = total.settled ? <>Spent <span className="num">{formatUsd(total.costUsd)}</span> on this sheet · <span className="num">{percent(total.filled, total.settled)}</span> found</> : <>No looot runs yet. Every run bills your own looot balance.</>;
+		meter = <>No looot runs yet. Every run bills your own looot balance.</>;
 	}
+	const capShare = spend && spend.capUsd > 0 ? Math.min(1, spend.spentUsd / spend.capUsd) : 0;
 	const progress = pending > 0 && started && sinceStart ? Math.min(1, sinceStart.settled / Math.max(1, started.total)) : 0;
 	const items: MenuItem[] = [
 		{ label: runs.unfinished ? `Run ${plural(runs.unfinished, 'unfinished cell')}` : 'Run unfinished cells', icon: <Play />, disabled: runs.unfinished === 0, onSelect: () => start(runs.onRunUnfinished) },
@@ -113,8 +118,9 @@ export function RunBar({ sheet, allRows, columns, runs }: { sheet: Sheet; allRow
 			<p role="status" data-run-meter className="min-w-0 flex-1 truncate text-caption text-fg-muted max-md:basis-full">
 				{meter}{batchNote > 0 && <span className="text-fg-subtle"> · <span className="num">{batchNote}</span> in a looot batch</span>}
 			</p>
-			{spend && <button type="button" data-spend-cap onClick={(event) => setCapEditor(capEditor ? null : event.currentTarget.getBoundingClientRect())} className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-line px-2 text-caption text-fg-muted hover:border-line-strong hover:text-fg" title="The server refuses any cell that would take this sheet past its cap">
-				Cap <span className="num text-fg">{formatUsd(spend.capUsd)}</span><span className="text-fg-subtle">· <span className="num">{formatUsd(spend.spentUsd)}</span> used</span>
+			{spend && <button type="button" data-spend-cap onClick={(event) => setCapEditor(capEditor ? null : event.currentTarget.getBoundingClientRect())} className="inline-flex h-7 shrink-0 items-center gap-2 rounded-md border border-line px-2 text-caption text-fg-muted transition-colors hover:border-line-strong hover:bg-canvas hover:text-fg" title={`${formatUsd(spend.spentUsd)} of ${formatUsd(spend.capUsd)} used. The server refuses any cell that would take this sheet past its cap.`} aria-label={`Spend cap ${formatUsd(spend.capUsd)}, ${formatUsd(spend.spentUsd)} used. Edit cap`}>
+				Cap <span className="num text-fg">{formatUsd(spend.capUsd)}</span>
+				<span aria-hidden className="relative h-1 w-10 overflow-hidden rounded-full bg-line"><span className={clsx('absolute inset-y-0 left-0 rounded-full', capShare > 0.8 ? 'bg-warning' : 'bg-brand')} style={{ width: `${Math.max(capShare > 0 ? 6 : 0, Math.round(capShare * 100))}%` }} /></span>
 			</button>}
 			<span className="ml-auto flex shrink-0 items-center gap-0.5">
 				{pending > 0 ? (
