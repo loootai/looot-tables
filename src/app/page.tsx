@@ -192,8 +192,8 @@ export default function Landing() {
 					</div>
 					<figure className="overflow-hidden rounded-[14px] border border-neutral-80 bg-neutral-90 shadow-[var(--shadow-card)]">
 						<figcaption className="flex items-center gap-1.5 border-b border-white/10 px-4 py-2.5 text-caption text-neutral-40"><span aria-hidden className="size-2 rounded-full bg-white/15" /><span aria-hidden className="size-2 rounded-full bg-white/15" /><span aria-hidden className="size-2 rounded-full bg-white/15" /><span className="ml-2">Run your own copy</span></figcaption>
-						<pre className="overflow-x-auto px-4 py-4 text-[13px] leading-[1.75] text-neutral-10"><code>{SELF_HOST.map((line) => <span key={line.cmd} className="block"><span aria-hidden className="text-blue-60 select-none">$ </span>{line.cmd}{line.note && <span className="text-neutral-50">{`   # ${line.note}`}</span>}</span>)}</code></pre>
-						<p className="border-t border-white/10 px-4 py-2.5 text-caption text-neutral-40">Then open <span className="num text-neutral-10">localhost:3000/app</span> and paste your looot token. <a href={`${GITHUB_URL}#self-hosting`} target="_blank" rel="noopener noreferrer" className="text-neutral-10 underline decoration-white/30 underline-offset-4 hover:decoration-white">Full guide</a></p>
+						<pre className="overflow-x-auto px-4 py-4 text-[13px] leading-[1.75] text-neutral-10"><code>{SELF_HOST.map((line) => <span key={line.cmd} className="block"><span aria-hidden className="text-blue-60 select-none">$ </span>{line.cmd}{line.note && <span className="text-neutral-30">{`   # ${line.note}`}</span>}</span>)}</code></pre>
+						<p className="border-t border-white/10 px-4 py-2.5 text-caption text-neutral-40">Then open <span className="num text-neutral-10">localhost:3000/app</span> and paste your looot token. <a href={`${GITHUB_URL}#self-hosting`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-6 items-center text-neutral-10 underline decoration-white/30 underline-offset-4 hover:decoration-white">Full guide</a></p>
 					</figure>
 				</div>
 			</section>
