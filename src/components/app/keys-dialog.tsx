@@ -93,6 +93,7 @@ export function KeysDialog({ onClose }: { onClose: () => void }) {
 	const [loootKey, setLoootKey] = useState('');
 	const [openaiKey, setOpenaiKey] = useState('');
 	const [moltsetsKey, setMoltsetsKey] = useState('');
+	const [anthropicKey, setAnthropicKey] = useState('');
 	const [password, setPassword] = useState(settings.accessPassword);
 	const [saving, setSaving] = useState(false);
 	const [saveError, setSaveError] = useState('');
@@ -104,6 +105,7 @@ export function KeysDialog({ onClose }: { onClose: () => void }) {
 		if (loootKey.trim()) patch.loootKey = loootKey.trim();
 		if (openaiKey.trim()) patch.openaiKey = openaiKey.trim();
 		if (moltsetsKey.trim()) patch.moltsetsKey = moltsetsKey.trim();
+		if (anthropicKey.trim()) patch.anthropicKey = anthropicKey.trim();
 		if (needs.showPassword && password.trim() !== settings.accessPassword) patch.accessPassword = password.trim();
 		try {
 			await update(patch);
@@ -119,7 +121,7 @@ export function KeysDialog({ onClose }: { onClose: () => void }) {
 			description={selfHosted ? 'looot runs every lookup on your own balance; OpenAI writes the answers. Keys stay in this browser.' : `Connections are shared with everyone in ${workspaceName || 'your workspace'}.`}
 			onClose={onClose}
 			size="lg"
-			footer={needs.typeable ? <Button variant="brand" size="sm" loading={saving} disabled={needs.missing} onClick={() => void save()}>Save and start</Button> : <Button size="sm" onClick={onClose}>Not now</Button>}
+			footer={needs.typeable || anthropicKey.trim() || moltsetsKey.trim() ? <Button variant="brand" size="sm" loading={saving} disabled={needs.missing} onClick={() => void save()}>Save and start</Button> : <Button size="sm" onClick={onClose}>Not now</Button>}
 		>
 			<div className="flex flex-col gap-3">
 				{trialLimitMessage && <p role="alert" className="rounded-lg bg-warning-soft px-3 py-2 text-body-sm text-fg">{trialLimitMessage}</p>}
@@ -131,6 +133,9 @@ export function KeysDialog({ onClose }: { onClose: () => void }) {
 				</ProviderCard>
 				<ProviderCard provider="moltsets" status={isReady(connections.moltsets) ? <ConnectedBadge /> : undefined}>
 					{!isReady(connections.moltsets) && <VerifiedKeyField provider="moltsets" value={moltsetsKey} onChange={setMoltsetsKey} help="Optional. Emails, mobiles and profiles are tried on your MoltSets plan first, then on looot." />}
+				</ProviderCard>
+				<ProviderCard provider="anthropic" status={isReady(connections.anthropic) ? <ConnectedBadge /> : undefined}>
+					{!isReady(connections.anthropic) && <VerifiedKeyField provider="anthropic" value={anthropicKey} onChange={setAnthropicKey} help="Optional. The agent runs on Claude (claude-sonnet-5-5) with this key, and on your OpenAI model without it." />}
 				</ProviderCard>
 				{needs.showPassword && <Field label="Deployment password" help="Use the keys this deployment provides instead of your own.">{(id) => <Input id={id} type="password" autoComplete="off" value={password} onChange={(event) => setPassword(event.target.value)} />}</Field>}
 				<p className="text-caption text-fg-subtle">One looot token covers search, pages, company and people data, emails and phones. TypeSafe is optional and lives in Configuration → Connections.</p>

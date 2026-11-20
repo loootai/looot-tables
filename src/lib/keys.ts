@@ -17,6 +17,8 @@ export interface Settings {
 	typesafeKey: string;
 	/** Optional MoltSets key (`ms_…`) for flat-fee contact data. Sent only to this app's own routes, which pass it to MoltSets and nowhere else. */
 	moltsetsKey: string;
+	/** Optional Anthropic key (`sk-ant-…`) for the in-app agent. Sent only to this app's own routes. */
+	anthropicKey: string;
 	/** Optional: the deployment's LOOOT_TABLES_PASSWORD, when the host set server-side keys. */
 	accessPassword: string;
 	model: string;
@@ -33,7 +35,7 @@ const STORAGE_KEY = 'looot-tables.settings.v1';
 const listeners = new Set<() => void>();
 const publish = () => { for (const listener of listeners) listener(); };
 
-export const DEFAULT_SETTINGS: Settings = { openaiKey: '', loootKey: '', typesafeKey: '', moltsetsKey: '', accessPassword: '', model: DEFAULT_MODEL, classifierModel: 'decisions', openaiBaseUrl: '', concurrency: 4, preferJev: true };
+export const DEFAULT_SETTINGS: Settings = { openaiKey: '', loootKey: '', typesafeKey: '', moltsetsKey: '', anthropicKey: '', accessPassword: '', model: DEFAULT_MODEL, classifierModel: 'decisions', openaiBaseUrl: '', concurrency: 4, preferJev: true };
 const publicFields = ['model', 'classifierModel', 'openaiBaseUrl', 'concurrency', 'preferJev', 'companyDomain'] as const;
 
 // Browser-local adapter.
@@ -104,6 +106,7 @@ export function keyHeaders(settings: Settings = loadSettings()): Record<string, 
 	if (settings.loootKey) headers['x-looot-key'] = settings.loootKey;
 	if (settings.typesafeKey) headers['x-typesafe-key'] = settings.typesafeKey;
 	if (settings.moltsetsKey) headers['x-moltsets-key'] = settings.moltsetsKey;
+	if (settings.anthropicKey) headers['x-anthropic-key'] = settings.anthropicKey;
 	if (settings.accessPassword) headers['x-looot-tables-password'] = settings.accessPassword;
 	if (settings.model) headers['x-openai-model'] = settings.model;
 	if (settings.classifierModel) headers['x-classifier-model'] = settings.classifierModel;

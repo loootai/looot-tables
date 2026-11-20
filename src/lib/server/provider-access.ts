@@ -13,7 +13,7 @@ import { failureOf, newTrace } from './api-route';
 import { clean, CredentialError, ensureSafeEndpoint, jsonError, redactError, safeBaseUrl } from './credentials';
 import { classifyFailure, failure, Spend, spendMiddleware } from './enrich-failure';
 import { typesafeClient, type Jev } from './jev';
-import { openaiModel } from './openai';
+import { anthropicModel, openaiModel } from './openai';
 import { withDatabase } from './database';
 import { OrganizationStore, organizationPersistenceEnabled } from './organization-store';
 
@@ -42,6 +42,7 @@ const PROVIDER_INFO: Record<Provider, { env: string; label: string; failure: Fai
 	looot: { env: 'LOOOT_TOKEN', label: 'looot', failure: 'looot' },
 	typesafe: { env: 'TYPESAFE_API_KEY', label: 'TypeSafe', failure: 'typesafe' },
 	moltsets: { env: 'MOLTSETS_API_KEY', label: 'MoltSets', failure: 'moltsets' },
+	anthropic: { env: 'ANTHROPIC_API_KEY', label: 'Anthropic', failure: 'anthropic' },
 };
 const OPENAI_API = 'https://api.openai.com/v1';
 
@@ -151,6 +152,8 @@ export interface ProviderAccess {
 	/** The looot client of this access: every outside lookup is one looot run on the caller's own token. Memoized, so
 	    its calls accumulate for the cell panel. */
 	looot(): LoootClient;
+	/** A Claude model on the caller's own Anthropic key, for the in-app agent. */
+	anthropic(model: string): LanguageModelV4;
 	/** The MoltSets client of this access, on the caller's own MoltSets plan. A MoltSets call costs no dollars. */
 	moltsets(): MoltSetsClient;
 	/** Every looot run this access made so far, in order. */
@@ -175,6 +178,8 @@ export interface AccessAdapters {
 	looot?: typeof fetch;
 	/** The fetch MoltSets requests go through; the global one by default. */
 	moltsets?: typeof fetch;
+	/** Builds the Anthropic model; tests pass a mock. */
+	anthropic?: (apiKey: string, model: string) => LanguageModelV4;
 	lookup?: (host: string) => Promise<Array<{ address: string }>>;
 }
 
@@ -201,6 +206,7 @@ export function providerAccess(grant: AccessGrant, adapters: AccessAdapters = {}
 				const built = (adapters.openai ?? openaiModel)(requireKey('openai'), requested ?? model, grant.openaiBaseUrl ?? null);
 				return wrapLanguageModel({ model: built, middleware: grant.openaiBaseUrl ? [spendMiddleware(spend), guard] : spendMiddleware(spend) });
 			},
+			anthropic: (requested) => (adapters.anthropic ?? anthropicModel)(requireKey('anthropic'), requested),
 			looot: () => looot ??= new LoootClient({ token: requireKey('looot'), spend, attempt, capUsd, fetch: adapters.looot }),
 			moltsets: () => new MoltSetsClient({ key: requireKey('moltsets'), fetch: adapters.moltsets }),
 			get calls() { return looot?.calls ?? []; },
