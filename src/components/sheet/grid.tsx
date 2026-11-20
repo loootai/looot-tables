@@ -15,7 +15,8 @@ import type { EntityField } from '@/lib/entity-fields';
 import type { Column, Row, Sheet, Sort } from '@/lib/types';
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
-import { ArrowDown, ArrowUp, Check, ChevronDown, MoreHorizontal, Play, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, MoreHorizontal, Play, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { plural } from './sheet-page-utils';
 import { type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, memo, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Select } from '@/components/ui/select';
 import { CellView, SheetColumnsContext } from './cell-view';
@@ -158,17 +159,6 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 	const fillHandle = canFill ? fill.bounds : null;
 	const layoutKey = JSON.stringify([rowIds, columnIds]);
 	useEffect(() => () => dragCleanup.current?.(true), [layoutKey]);
-	// A soft fade on the right edge while more columns sit off screen, so a value is never cut mid-glyph without a cue.
-	const [moreRight, setMoreRight] = useState(false);
-	const updateMoreRight = useCallback((node: HTMLDivElement) => { const next = node.scrollLeft + node.clientWidth < node.scrollWidth - 4; setMoreRight((current) => current === next ? current : next); }, []);
-	useLayoutEffect(() => {
-		const node = scrollRef.current;
-		if (!node) return;
-		updateMoreRight(node);
-		const observer = new ResizeObserver(() => updateMoreRight(node));
-		observer.observe(node);
-		return () => observer.disconnect();
-	}, [updateMoreRight, columns]);
 	const editingIndex = editing ? rowIndex.get(editing.rowId) : undefined;
 	const rowCount = rows.length + (loadingRows ? 3 : 0);
 	const virtualizer = useVirtualizer({ count: rowCount, getScrollElement: () => scrollRef.current, estimateSize: () => ROW_HEIGHT, overscan: 12,
@@ -190,6 +180,22 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 	}, [columns]);
 	const stats = useMemo(() => new Map(columns.filter((column) => column.type === 'enriched').map((column) => [column.id, columnStats(column, referenceRows)])), [columns, referenceRows]);
 	const ghosts = useMemo(() => onAddNextStep ? ghostColumns(columns, referenceRows) : NO_GHOSTS, [onAddNextStep, columns, referenceRows]);
+	// A soft fade on the right edge while more columns sit off screen, so a value is never cut mid-glyph without a cue.
+	const [moreRight, setMoreRight] = useState(0);
+	// How many columns end past the right edge; 0 hides the fade and the chip.
+	const updateMoreRight = useCallback((node: HTMLDivElement) => {
+		const edge = node.scrollLeft + node.clientWidth;
+		const next = node.scrollLeft + node.clientWidth < node.scrollWidth - 4 ? columns.filter((_, index) => offsets[index + 1] > edge + 8).length : 0;
+		setMoreRight((current) => current === next ? current : next);
+	}, [columns, offsets]);
+	useLayoutEffect(() => {
+		const node = scrollRef.current;
+		if (!node) return;
+		updateMoreRight(node);
+		const observer = new ResizeObserver(() => updateMoreRight(node));
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, [updateMoreRight]);
 	const totalWidth = offsets[offsets.length - 1] + ghosts.length * GHOST_WIDTH + 160;	const footerRef = useRef<HTMLDivElement>(null);
 	const [openedAt] = useState(() => Date.now());
 	const lastRowNumber = useMemo(() => rows.reduce((max, row) => Math.max(max, rowNumbers.get(row.id) ?? 0), 0), [rows, rowNumbers]);
@@ -374,7 +380,8 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 				<AddRowFooter top={HEADER_HEIGHT + virtualizer.getTotalSize()} totalWidth={totalWidth} firstColumnWidth={columns[0]?.width} onAddRow={onAddRow} />
 				</div>
 			</div>
-			{moreRight && <span aria-hidden data-grid-more-right className="pointer-events-none absolute top-0 right-0 bottom-0 z-[26] w-8 bg-gradient-to-l from-surface via-surface/70 to-transparent" />}
+			{moreRight > 0 && <span aria-hidden data-grid-more-right className="pointer-events-none absolute top-0 right-0 bottom-0 z-[26] w-12 bg-gradient-to-l from-surface via-surface/80 to-transparent" />}
+			{moreRight > 0 && !cellDetailsOpen && <button type="button" data-grid-more-chip onClick={() => scrollRef.current?.scrollBy({ left: Math.round((scrollRef.current?.clientWidth ?? 0) * 0.7), behavior: 'smooth' })} className="absolute right-2 z-[27] inline-flex h-6 items-center gap-1 rounded-full border border-line bg-surface px-2 text-caption text-fg-muted shadow-[var(--shadow-card)] transition-colors hover:border-line-strong hover:text-fg" style={{ top: (HEADER_HEIGHT - 24) / 2 }} aria-label={`Scroll to ${plural(moreRight, 'more column')}`}>{moreRight} more<ChevronRight aria-hidden className="size-3" strokeWidth={2} /></button>}
 			<ColumnFooter ref={footerRef} columns={columns} stats={stats} totalWidth={totalWidth} />
 		</div>
 		</SheetColumnsContext.Provider>

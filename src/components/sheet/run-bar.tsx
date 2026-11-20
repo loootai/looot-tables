@@ -90,7 +90,7 @@ export function RunBar({ sheet, allRows, columns, runs }: { sheet: Sheet; allRow
 	let meter: React.ReactNode;
 	if (pending > 0 && started && sinceStart) {
 		const done = Math.min(started.total, sinceStart.settled);
-		meter = <><span className="font-medium text-fg">Enriching</span> · <span className="num">{done.toLocaleString()}</span> of <span className="num">{started.total.toLocaleString()}</span> done · <span className="num">{formatUsd(sinceStart.costUsd)}</span>{started.quotedUsd !== null ? <> of <span className="num">{formatUsd(started.quotedUsd)}</span> quoted</> : ' so far'}</>;
+		meter = <><span className="font-medium text-fg">Enriching</span> · <span className="num">{done.toLocaleString()}</span> of <span className="num">{started.total.toLocaleString()}</span> done · <span className="num">{formatUsd(sinceStart.costUsd)}</span> settled{started.quotedUsd !== null ? <> of up to <span className="num">{formatUsd(started.quotedUsd)}</span></> : ' so far'}</>;
 	} else if (total.settled) {
 		// One spend figure: the server's ledger (what the cap counts, re-runs included) once it has loaded, else the cells' own cost.
 		const spentUsd = spend ? spend.spentUsd : total.costUsd;
