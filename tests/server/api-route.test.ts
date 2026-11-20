@@ -51,7 +51,7 @@ test('MCP answers corrupt stored settings as unavailable, never as a caller erro
 	const keys = new McpStore(database, () => root), organization = new OrganizationStore(database, () => root);
 	const failing = new WorkspaceStore(database);
 	t.mock.method(failing, 'list', async () => { throw new Error('connection terminated unexpectedly'); });
-	const services = { keys, sheets: failing, organization };
+	const services = { keys, sheets: failing, organization, database };
 	const key = await keys.issueKey(actor);
 	const entries = logs(t);
 	const client = new Client({ name: 'route-tests', version: '1' });

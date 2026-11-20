@@ -257,7 +257,7 @@ export class McpOperations {
 		const snapshot = await this.snapshot(sheetId);
 		const planned = this.plan(snapshot, rowId, columnId);
 		const cap = cellCapUsd(planned.op);
-		if (budget && !budget.reserve(cap)) return { rowId, status: 'not_started', error: budget.message(cap) };
+		if (budget && !(await budget.acquire(cap))) return { rowId, status: 'not_started', error: budget.message(cap) };
 		let charged = 0;
 		try {
 			let refused: CellOutcome | undefined;
@@ -301,7 +301,7 @@ export class McpOperations {
 			const next = result.error ? failureCell(plan, result.error, result.meta, undefined, marker) : resultCell(plan, result.value, result.meta);
 			const saved = await this.settle(sheetId, plan, marker, (grid) => settleCell(plan, grid, next, marker));
 			settled = saved !== null;
-			const failure = result.error && result.failure ? { failure: result.failure } : {};
+			const failure = result.error ? { error: result.error, ...(result.failure ? { failure: result.failure } : {}) } : {};
 			const costUsd = result.meta?.costUsd ? { costUsd: result.meta.costUsd } : {};
 			return saved?.outcome === 'applied' ? { rowId: plan.row.id, status: saved.cell.s, cell: saved.cell, ...failure, ...costUsd } : { rowId: plan.row.id, status: 'conflict', error: CONFLICT_MESSAGE, ...failure, ...costUsd };
 		} finally {
