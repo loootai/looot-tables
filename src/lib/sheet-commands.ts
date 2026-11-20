@@ -12,6 +12,8 @@ import type { Provider } from './organization-settings';
 import { findColumn, opDependencies, uniqueName } from './references';
 import { BATCH_MIN_CELLS, batchJob, estimateCells, type RunEstimate } from './run-cost';
 import { serverNow } from './server-clock';
+import { unpackableFields, unpackColumns } from './unpack';
+import { ghostColumnOp, type GhostColumn } from './next-steps';
 import { runner, type CancelFilter, type PendingStatus, type RunHalt, type RunnerSnapshot } from './runner';
 import type { Cell, CellValue, Column, ColumnOp, Row, Sheet } from './types';
 
@@ -288,8 +290,32 @@ export function createSheetCommands(sheetId: string, ports: { runner?: RunnerPor
 			work.resume(sheetId);
 		},
 
-		/** Insert columns at `position` (default: last). */
-		addColumns: (columns: Column[], { kind, ...options }: AddColumnsOptions) => insert(columns, () => kind, options),
+		/** Insert columns at `position` (default: last). */		addColumns: (columns: Column[], { kind, ...options }: AddColumnsOptions) => insert(columns, () => kind, options),
+		/** "Unpack": sibling columns filled from the answers `column` already holds. Costs $0 and runs nothing. */
+		async unpackColumn(column: Column, rows: Row[]): Promise<number> {
+			const grid = await store.grid(sheetId);
+			if (!grid) return 0;
+			const fields = unpackableFields(column, rows);
+			if (!fields.length) return 0;
+			const names = grid.sheet.columns.map((entry) => entry.name);
+			const { columns, cells } = unpackColumns(column, rows, fields, (field) => {
+				const name = uniqueName(field.name, names);
+				names.push(name);
+				return newColumn({ name, type: 'source', width: 140, ...(field.format ? { format: field.format } : {}) });
+			});
+			await insert(columns, () => 'unpack', { position: grid.sheet.columns.findIndex((entry) => entry.id === column.id) + 1 });
+			if (cells.length) await store.setCells(cells);
+			return columns.length;
+		},
+		/** A next-step ghost becomes a real column. It is only added: running it is the user's next click. */
+		async addNextStep(ghost: GhostColumn): Promise<Column | undefined> {
+			const grid = await store.grid(sheetId);
+			if (!grid) return undefined;
+			const { name, op } = ghostColumnOp(ghost, grid.sheet.columns);
+			const column = newColumn({ name: uniqueName(name, grid.sheet.columns.map((entry) => entry.name)), type: 'enriched', op });
+			await insert([column], () => 'next-step', {});
+			return column;
+		},
 		/** Change a column's name, format or operation. A new operation first stops the column's queued and running cells,
 		    which keep their previous values rather than finish with the old one; plan the column's run afterwards to
 		    include them. */

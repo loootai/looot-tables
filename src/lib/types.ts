@@ -48,11 +48,15 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
   prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
   /** Check the found address with job:people.email.verify in the same cell. New columns turn it on. */
   verify: z.boolean().optional(),
+  /** Providers (catalog endpoint ids) this column's route skips: looot's fallback.exclude. */
+  exclude: z.array(z.string().min(1).max(200)).max(20).optional(),
  }),
  z.object({
   kind: z.literal('email-verify'),
   email: z.string().trim().min(1).max(300),
   prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
+  /** Providers (catalog endpoint ids) this column's route skips: looot's fallback.exclude. */
+  exclude: z.array(z.string().min(1).max(200)).max(20).optional(),
  }),
  z.object({
   kind: z.literal('phone-find'),
@@ -61,6 +65,8 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
   domain: z.string().max(500).default(''),
   profileUrl: z.string().max(500).default(''),
   prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
+  /** Providers (catalog endpoint ids) this column's route skips: looot's fallback.exclude. */
+  exclude: z.array(z.string().min(1).max(200)).max(20).optional(),
  }).refine((op) => Boolean(op.profileUrl.trim() || op.name.trim()), { message: 'Provide a LinkedIn URL, or a name and company.' }),
  /** Any looot endpoint: a catalog endpoint with its inputs mapped from `{{Column}}` templates. */
  z.object({
@@ -76,6 +82,8 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
   path: z.string().max(200).default(''),
   /** The job's provider order. Only used when the endpoint is a job (job:<id>). */
   prefer: z.enum(EMAIL_PREFERENCES).default('balanced'),
+  /** Providers (catalog endpoint ids) this column's route skips: looot's fallback.exclude. */
+  exclude: z.array(z.string().min(1).max(200)).max(20).optional(),
  }),
  z.object({
   kind: z.literal('email-draft'),
@@ -143,6 +151,9 @@ export const ColumnOpSchema = z.discriminatedUnion('kind', [
 	z.object({
 		kind: z.literal('company'),
 		domain: z.string().min(1).max(500),
+		/** company.enrich's provider order and skipped providers. */
+		prefer: z.enum(EMAIL_PREFERENCES).optional(),
+		exclude: z.array(z.string().min(1).max(200)).max(20).optional(),
 		field: z.enum(['description', 'title', 'slogan', 'industry', 'employees', 'city', 'country', 'address', 'email', 'phone', 'ticker', 'linkedin', 'twitter', 'pricing_url', 'careers_url', 'blog_url', 'contact_url', 'logo_url', 'primary_color', 'language', 'funding_total', 'funding_stage', 'funding_latest_round', 'funding_latest_date', 'funding_latest_amount', 'funding_round_count']),
 	}),
 	/** Person facts from looot's people.enrich and linkedin.person.profile jobs. */

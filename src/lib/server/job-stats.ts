@@ -7,7 +7,7 @@ import type { JobStats } from '../job-stats';
 export function jobStats(endpoints: CatalogEndpoint[], job: string, prefer: Prefer): JobStats {
 	const providers = endpoints
 		.filter((hit) => (hit.access === undefined || hit.access === 'runs_now') && (hit.job?.id ?? hit.capability) === job)
-		.map((hit) => ({ provider: hit.provider ?? hit.endpointId, priceUsd: parsePriceUsd(hit.estimatedPrice), costPerHitUsd: typeof hit.costPerSuccessUsd === 'number' ? hit.costPerSuccessUsd : null, rate: typeof hit.works?.rate === 'number' ? hit.works.rate : null, p50Ms: typeof hit.works?.p50Ms === 'number' ? hit.works.p50Ms : null }));
+		.map((hit) => ({ endpointId: hit.endpointId, provider: hit.provider ?? hit.endpointId, priceUsd: parsePriceUsd(hit.estimatedPrice), costPerHitUsd: typeof hit.costPerSuccessUsd === 'number' ? hit.costPerSuccessUsd : null, rate: typeof hit.works?.rate === 'number' ? hit.works.rate : null, p50Ms: typeof hit.works?.p50Ms === 'number' ? hit.works.p50Ms : null }));
 	const value = (number: number | null, missing: number) => number ?? missing;
 	if (prefer === 'cheapest') providers.sort((a, b) => value(a.costPerHitUsd, Infinity) - value(b.costPerHitUsd, Infinity));
 	if (prefer === 'reliable') providers.sort((a, b) => value(b.rate, -1) - value(a.rate, -1));

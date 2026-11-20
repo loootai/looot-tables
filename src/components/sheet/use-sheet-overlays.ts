@@ -21,13 +21,13 @@ export function useSheetOverlays() {
 	const [importOpen, setImportOpen] = useState(false);
 	const [importAfterRowId, setImportAfterRowId] = useState<string>();
 	const [renamingColumnId, setRenamingColumnId] = useState<string | null>(null);
-	const [renamingSheet, setRenamingSheet] = useState(false);
-	const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+	const [renamingSheet, setRenamingSheet] = useState(false);	const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+	const [routing, setRouting] = useState<{ column: Column; anchor: DOMRect } | null>(null);
 	return {
 		columnMenu, setColumnMenu, addColumnMenu, setAddColumnMenu, rowMenu, setRowMenu, cellMenu, setCellMenu,
 		formulaBuilder, setFormulaBuilder, editor, setEditor, formatColumn, setFormatColumn,
 		importOpen, setImportOpen, importAfterRowId, setImportAfterRowId,
-		renamingColumnId, setRenamingColumnId, renamingSheet, setRenamingSheet, confirm, setConfirm,
+		renamingColumnId, setRenamingColumnId, renamingSheet, setRenamingSheet, confirm, setConfirm, routing, setRouting,
 		...usePopulateLaunch(),
 	};
 }

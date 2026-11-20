@@ -87,12 +87,13 @@ export async function runColumnBatch(client: LoootClient, op: ColumnOp, rows: Ba
 	const prepared = rows.map((row) => prepare(op, row));
 	const sent = prepared.filter((row): row is Extract<Prepared, { input: unknown }> => 'input' in row);
 	const prefer = 'prefer' in op ? op.prefer : undefined;
+	const exclude = 'exclude' in op && op.exclude?.length ? op.exclude : undefined;
 	const findOp = op.kind === 'email-enrichment' ? { ...op, verify: false } : op;
 	const out = new Map<string, BatchRowOut>();
 	for (const row of prepared) if (!('input' in row)) out.set(row.rowId, 'single' in row ? { rowId: row.rowId, single: true } : { rowId: row.rowId, response: row.response });
 
 	const send = (endpointId: BatchParams['endpointId'], inputs: Array<Record<string, unknown>>, idempotencyKey: string, cap: number) =>
-		client.batch({ endpointId, rows: inputs, idempotencyKey, fallback: { enabled: true, ...(prefer ? { prefer } : {}), ...(cap ? { maxCostUsd: cap } : {}) } }, signal);
+		client.batch({ endpointId, rows: inputs, idempotencyKey, fallback: { enabled: true, ...(prefer ? { prefer } : {}), ...(exclude ? { exclude } : {}), ...(cap ? { maxCostUsd: cap } : {}) } }, signal);
 
 	const found = new Map<string, { response: EnrichResponse; result: LoootResult }>();
 	if (sent.length) {

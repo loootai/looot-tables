@@ -110,7 +110,7 @@ export function useSheetActions({ sheet, commands, content, selection, overlays,
 			overlays.setFormulaBuilder({ column, cell: { rowId: cell.rowId, columnId: column.id }, draft });
 		}
 	};
-	return { providerReady, columnNames, report, requireKeys, request, runCells, confirmDeleteRows, editCell, exportSheet, addBlankColumn, openCellFormulaBuilder };
+	return { toast, providerReady, columnNames, report, requireKeys, request, runCells, confirmDeleteRows, editCell, exportSheet, addBlankColumn, openCellFormulaBuilder };
 }
 
 export type SheetActions = ReturnType<typeof useSheetActions>;

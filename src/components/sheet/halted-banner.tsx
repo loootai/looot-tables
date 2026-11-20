@@ -22,8 +22,9 @@ function headline(halt: RunHalt) {
 	switch (halt.reason) {
 		case 'credits_exhausted': return halt.provider === 'looot' ? 'Your looot balance is too low' : `${halt.provider ? name : 'Your provider'} credits are used up`;
 		case 'credential_missing': return `Add ${halt.provider ? `a ${name}` : 'an'} ${halt.provider === 'looot' ? 'token' : 'API key'} to keep enriching`;
-		case 'credential_invalid': return `${name} rejected the ${halt.provider === 'looot' ? 'token' : 'API key'}`;
-		case 'save_failed': return 'Results couldn’t be saved';
+		case 'credential_invalid': return `${name} rejected the ${halt.provider === 'looot' ? 'token' : 'API key'}`;		case 'save_failed': return 'Results couldn’t be saved';
+		case 'spend_capped': return 'This sheet reached its spend cap';
+		case 'column_halted': return 'A column stopped after 20 misses in a row';
 	}
 }
 
@@ -55,11 +56,11 @@ export function HaltedBanner({ halt, waiting, onRetry, onDismiss, onLeave }: { h
 			<CirclePause aria-hidden className="size-4 shrink-0" strokeWidth={1.75} />
 			<p className="min-w-0 flex-1 max-md:basis-[calc(100%-1.75rem)]" title={halt.message}>
 				<span className="font-medium text-fg">{title}.</span>{' '}
-				<span>{halt.reason === 'save_failed' ? halt.message : detail}</span>
+				<span>{halt.reason === 'save_failed' || halt.reason === 'column_halted' || halt.reason === 'spend_capped' ? halt.message : detail}</span>
 			</p>
 			<div className="ml-auto flex shrink-0 items-center gap-1.5 max-md:ml-7 max-md:w-[calc(100%-1.75rem)]">
 				<FailureFix issue={halt} onLeave={onLeave} />
-				<Button size="xs" variant="brand" onClick={onRetry}>{halt.reason === 'credits_exhausted' ? 'Retry failed' : 'Resume'}</Button>
+				<Button size="xs" variant="brand" onClick={onRetry}>{halt.reason === 'credits_exhausted' ? 'Retry failed' : halt.reason === 'column_halted' ? 'Resume column' : 'Resume'}</Button>
 				<IconButton size="sm" label={waiting > 0 ? 'Dismiss and stop waiting cells' : 'Dismiss'} onClick={onDismiss} className="text-warning-strong hover:text-fg max-md:ml-auto"><X /></IconButton>
 			</div>
 		</div>

@@ -9,7 +9,7 @@ import { createSheetCommands, type RunnerPort } from '../src/lib/sheet-commands'
 import { quoteAsksFirst, quoteLabel, TRY_ROWS } from '../src/lib/run-cost';
 import { runScopeChoice } from '../src/lib/run-scope';
 import type { BatchResponse } from '../src/lib/batch-types';
-import type { Cell, CellValue, Column, ColumnOp, EnrichResponse, Row, Sheet } from '../src/lib/types';
+import type { Cell, Column, ColumnOp, EnrichResponse, Row, Sheet } from '../src/lib/types';
 
 const source = (id: string, name: string): Column => ({ id, name, type: 'source', width: 180, createdAt: 0 });
 const enriched = (id: string, name: string, op: ColumnOp): Column => ({ id, name, type: 'enriched', op, width: 180, createdAt: 0 });

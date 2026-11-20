@@ -402,8 +402,8 @@ export function companyFieldValue(answer: unknown, field: string): string | numb
 }
 
 /** Enrich one company from its domain, through job:company.enrich. */
-export function companyEnrich(client: LoootClient, domain: string, options: { prefer?: Prefer; signal?: AbortSignal } = {}) {
-	return client.job(JOBS.companyEnrich, { domain }, { prefer: options.prefer ?? 'balanced', signal: options.signal });
+export function companyEnrich(client: LoootClient, domain: string, options: { prefer?: Prefer; signal?: AbortSignal; exclude?: string[] } = {}) {
+	return client.job(JOBS.companyEnrich, { domain }, { prefer: options.prefer ?? 'balanced', signal: options.signal, ...(options.exclude?.length ? { fallback: { exclude: options.exclude } } : {}) });
 }
 
 /* ───────────── People ───────────── */
@@ -487,13 +487,13 @@ export async function peopleSearch(client: LoootClient, body: { jobTitle?: strin
 }
 
 /** A person from a name and company, or from a LinkedIn URL, through the matching looot job. */
-export async function personLookup(client: LoootClient, params: { name?: string; company?: string; companyDomain?: string; email?: string; profileUrl?: string }, options: { prefer?: Prefer; signal?: AbortSignal } = {}): Promise<{ person: PersonHit | null; result: LoootResult }> {
+export async function personLookup(client: LoootClient, params: { name?: string; company?: string; companyDomain?: string; email?: string; profileUrl?: string }, options: { prefer?: Prefer; signal?: AbortSignal; exclude?: string[] } = {}): Promise<{ person: PersonHit | null; result: LoootResult }> {
 	const linkedin = params.profileUrl && /linkedin\.com/i.test(params.profileUrl) ? params.profileUrl : null;
 	const parts = (params.name ?? '').trim().split(/\s+/);
 	const input = linkedin
 		? { linkedin_url: linkedin, url: linkedin }
 		: { ...(params.name ? { name: params.name, first_name: parts[0], last_name: parts.slice(1).join(' ') } : {}), ...(params.company ? { company: params.company } : {}), ...(params.companyDomain ? { domain: params.companyDomain } : {}), ...(params.email ? { email: params.email } : {}) };
-	const result = await client.job(linkedin ? JOBS.linkedinProfile : JOBS.peopleEnrich, input, { prefer: options.prefer ?? 'balanced', signal: options.signal });
+	const result = await client.job(linkedin ? JOBS.linkedinProfile : JOBS.peopleEnrich, input, { prefer: options.prefer ?? 'balanced', signal: options.signal, ...(options.exclude?.length ? { fallback: { exclude: options.exclude } } : {}) });
 	const answer = answerOf(result);
 	const rows = rowsOf(answer);
 	const row = isObject(answer) && !rows.length ? answer : rows[0];
@@ -538,8 +538,8 @@ export function emailFromResult(result: LoootResult): EmailFound {
 	return { email, status: status && status !== 'ok' && status !== 'found' ? status : null, result };
 }
 
-export async function findEmail(client: LoootClient, identity: { name: string; domain: string; company?: string; profileUrl?: string }, options: { prefer?: Prefer; signal?: AbortSignal } = {}): Promise<EmailFound> {
-	const result = await client.job(JOBS.emailFind, emailFindInput(identity), { prefer: options.prefer ?? 'balanced', signal: options.signal });
+export async function findEmail(client: LoootClient, identity: { name: string; domain: string; company?: string; profileUrl?: string }, options: { prefer?: Prefer; signal?: AbortSignal; exclude?: string[] } = {}): Promise<EmailFound> {
+	const result = await client.job(JOBS.emailFind, emailFindInput(identity), { prefer: options.prefer ?? 'balanced', signal: options.signal, ...(options.exclude?.length ? { fallback: { exclude: options.exclude } } : {}) });
 	return emailFromResult(result);
 }
 
@@ -550,8 +550,8 @@ function findEmailText(value: unknown): string | null {
 }
 
 /** Verify one email through job:people.email.verify. */
-export async function verifyEmail(client: LoootClient, email: string, options: { prefer?: Prefer; signal?: AbortSignal } = {}): Promise<{ status: string; result: LoootResult }> {
-	const result = await client.job(JOBS.emailVerify, { email }, { prefer: options.prefer ?? 'balanced', signal: options.signal });
+export async function verifyEmail(client: LoootClient, email: string, options: { prefer?: Prefer; signal?: AbortSignal; exclude?: string[] } = {}): Promise<{ status: string; result: LoootResult }> {
+	const result = await client.job(JOBS.emailVerify, { email }, { prefer: options.prefer ?? 'balanced', signal: options.signal, ...(options.exclude?.length ? { fallback: { exclude: options.exclude } } : {}) });
 	return { status: verifyStatusFromResult(result), result };
 }
 
@@ -585,7 +585,7 @@ export function phoneFindInput(identity: { name: string; company?: string; domai
 
 export const phoneFromResult = (result: LoootResult): string | null => text(result.fields.phone) ?? text(result.fields.mobile) ?? text(pickValue(result.result, ['mobile', 'mobile_phone', 'phone', 'phone_number', 'direct_phone', 'phones']));
 
-export async function findPhone(client: LoootClient, identity: { name: string; company?: string; domain?: string; profileUrl?: string }, options: { prefer?: Prefer; signal?: AbortSignal } = {}): Promise<{ phone: string | null; result: LoootResult }> {
-	const result = await client.job(JOBS.phoneFind, phoneFindInput(identity), { prefer: options.prefer ?? 'balanced', signal: options.signal });
+export async function findPhone(client: LoootClient, identity: { name: string; company?: string; domain?: string; profileUrl?: string }, options: { prefer?: Prefer; signal?: AbortSignal; exclude?: string[] } = {}): Promise<{ phone: string | null; result: LoootResult }> {
+	const result = await client.job(JOBS.phoneFind, phoneFindInput(identity), { prefer: options.prefer ?? 'balanced', signal: options.signal, ...(options.exclude?.length ? { fallback: { exclude: options.exclude } } : {}) });
 	return { phone: phoneFromResult(result), result };
 }

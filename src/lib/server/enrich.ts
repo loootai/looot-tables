@@ -357,7 +357,7 @@ async function runCompany({ access, sources }: Run, op: Extract<ColumnOp, { kind
 	if (!input) throw inputError('No company or domain for this row', 'looot');
 	const domain = logoDomain(input) ?? (await searchCompanySuggestions(client, input))[0]?.domain;
 	if (!domain) throw inputError('No matching company domain found for this row', 'looot');
-	const result = await companyEnrich(client, domain);
+	const result = await companyEnrich(client, domain, { prefer: op.prefer, exclude: op.exclude });
 	sources.add(`https://${domain}`);
 	return companyAnswer(op, result, domain, input);
 }
@@ -422,7 +422,7 @@ export function emailIdentity(op: Extract<ColumnOp, { kind: 'email-enrichment' }
 
 async function runEmailFind({ access }: Run, op: Extract<ColumnOp, { kind: 'email-enrichment' }>, row: Row): Promise<OpResult> {
 	const client = access.looot();
-	const found = await findEmail(client, emailIdentity(op, row), { prefer: op.prefer });
+	const found = await findEmail(client, emailIdentity(op, row), { prefer: op.prefer, exclude: op.exclude });
 	// Find + verify: a found address is checked in the same cell; a miss is never verified.
 	const verified = op.verify && found.email ? await verifyEmail(client, found.email, { prefer: op.prefer }) : undefined;
 	return emailFindAnswer(found, verified?.status);
@@ -446,7 +446,7 @@ export function verifyAddress(op: Extract<ColumnOp, { kind: 'email-verify' }>, r
 }
 
 async function runEmailVerify({ access }: Run, op: Extract<ColumnOp, { kind: 'email-verify' }>, row: Row): Promise<OpResult> {
-	const { status, result } = await verifyEmail(access.looot(), verifyAddress(op, row), { prefer: op.prefer });
+	const { status, result } = await verifyEmail(access.looot(), verifyAddress(op, row), { prefer: op.prefer, exclude: op.exclude });
 	return emailVerifyAnswer(status, result);
 }
 
@@ -463,7 +463,7 @@ export function phoneIdentity(op: Extract<ColumnOp, { kind: 'phone-find' }>, row
 }
 
 async function runPhoneFind({ access }: Run, op: Extract<ColumnOp, { kind: 'phone-find' }>, row: Row): Promise<OpResult> {
-	const { phone, result } = await findPhone(access.looot(), phoneIdentity(op, row), { prefer: op.prefer });
+	const { phone, result } = await findPhone(access.looot(), phoneIdentity(op, row), { prefer: op.prefer, exclude: op.exclude });
 	return phoneAnswer(phone, result);
 }
 
@@ -474,7 +474,7 @@ async function runLooot({ access }: Run, op: Extract<ColumnOp, { kind: 'looot' }
 	const { input, empty } = applyInputMap(op.inputs, row, op.inputTypes);
 	if (!Object.keys(input).length && Object.keys(op.inputs).length) throw inputError(`Every mapped input is empty for this row (${empty.join(', ')}).`, 'looot');
 	const client = access.looot();
-	const result = op.endpointId.startsWith('job:') ? await client.job(op.endpointId.slice(4), input, { prefer: op.prefer }) : await client.endpoint(op.endpointId, input);
+	const result = op.endpointId.startsWith('job:') ? await client.job(op.endpointId.slice(4), input, { prefer: op.prefer, ...(op.exclude?.length ? { fallback: { exclude: op.exclude } } : {}) }) : await client.endpoint(op.endpointId, input);
 	if (isMiss(result)) return { value: null, meta: { reasoning: result.run.outcomeReason ? String(result.run.outcomeReason).slice(0, 200) : 'No result' } };
 	const answer = Object.keys(result.fields).length ? result.fields : result.result;
 	let picked = op.path.trim() ? getPath(answer, op.path) : answer;

@@ -20,6 +20,8 @@ import clsx from 'clsx';
 import { AlertCircle, Check, ExternalLink, FileText, X } from 'lucide-react';
 import { useContext } from 'react';
 import { RunPausedContext } from './run-paused';
+import { Waterfall } from './waterfall';
+import { formatUsd } from '@/lib/endpoint-map';
 
 function Pill({ tone, children, title, numeric = false }: { numeric?: boolean; tone: 'true' | 'false' | 'brand' | 'muted' | 'danger'; children: React.ReactNode; title?: string }) {
 	return (
@@ -52,14 +54,14 @@ export function CellView(props: CellViewProps) {
 	if (!cell && column.format !== 'checkbox') return null;
 	if (cell?.s === 'running' || cell?.s === 'queued') return <CellProgress status={cell.s} column={column} rowId={row?.id} />;
 	if (cell?.s === 'error') return <CellError message={cell.e} />;
-	if (isCheckboxColumn(column)) return <CheckboxCell column={column} cell={cell} onToggle={onToggleCheckbox} />;
-	const value = cell?.v;
-	if (!cell || isBlank(value)) return cell?.s === 'done' ? <span className="text-caption text-fg-subtle">—</span> : null;
+	if (isCheckboxColumn(column)) return <CheckboxCell column={column} cell={cell} onToggle={onToggleCheckbox} />;	const value = cell?.v;
+	if (!cell || isBlank(value)) return cell?.s === 'done' ? column.type === 'enriched' ? <span data-miss className="num text-[11.5px] text-fg-subtle">Not found · {formatUsd(cell.m?.costUsd ?? 0)}</span> : <span className="text-caption text-fg-subtle">—</span> : null;
+	if (column.op?.kind === 'email-enrichment' && typeof value === 'string') return <EmailValue email={value} status={cell.m?.verification} />;
 	return <FormattedValue {...props} cell={cell} value={value} />;
 }
 
 function CellProgress({ status, column, rowId = '' }: { status: 'running' | 'queued'; column: Column; rowId?: string }) {
-	const paused = useContext(RunPausedContext) && status === 'queued';
+	const paused = useContext(RunPausedContext) && status === 'queued';	if (status === 'running' && !paused && column.type === 'enriched') return <Waterfall column={column} seed={`${rowId}:${column.id}`} />;
 	return (
 		<span className="inline-flex min-w-0 items-center text-body-sm text-fg-subtle" style={{ gap: 9 }}>
 			<CellStatusLoader status={paused ? 'paused' : status} seed={`${rowId}:${column.id}`} />
@@ -70,11 +72,29 @@ function CellProgress({ status, column, rowId = '' }: { status: 'running' | 'que
 
 function CellError({ message }: { message?: string }) {
 	return (
-		<span className="inline-flex max-w-full items-center gap-1.5 text-caption text-danger" title={message}>
-			<AlertCircle className="size-3.5 shrink-0" strokeWidth={1.75} />
+		<span className="inline-flex max-w-full items-center gap-1.5 text-caption text-fg-muted" title={message}>
+			<AlertCircle className="size-3.5 shrink-0 text-danger" strokeWidth={1.75} />
 			<span className="truncate">{message ?? 'Failed'}</span>
+			<span className="shrink-0 rounded-full border border-danger-line px-1.5 text-[10.5px] text-danger-strong">retry</span>
 		</span>
 	);
+}
+
+const VERIFY: Record<string, { label: string; tone: string }> = {
+	valid: { label: 'Valid', tone: 'bg-success-soft text-success' },
+	catch_all: { label: 'Catch-all', tone: 'bg-warning-soft text-warning-strong' },
+	risky: { label: 'Risky', tone: 'bg-warning-soft text-warning-strong' },
+	unknown: { label: 'Unknown', tone: 'bg-neutral-5 text-fg-muted' },
+	invalid: { label: 'Invalid', tone: 'bg-danger-soft text-danger-strong' },
+};
+
+/** A found work email in mono, with its checked status when the column verifies. Emerald only for Valid. */
+function EmailValue({ email, status }: { email: string; status?: string }) {
+	const verdict = status ? VERIFY[status] : undefined;
+	return <span className="flex min-w-0 items-center gap-1.5">
+		{verdict && <span data-verification={status} className={clsx('shrink-0 rounded-full px-1.5 text-[10.5px] font-medium leading-[18px]', verdict.tone)}>{verdict.label}</span>}
+		<span className="num truncate text-fg">{email}</span>
+	</span>;
 }
 
 function CheckboxCell({ column, cell, onToggle }: { column: Column; cell: Cell | undefined; onToggle?: (value: boolean) => void }) {
@@ -96,8 +116,7 @@ function FormattedValue(props: ValueProps) {
 	return <EntityValue {...props} />;
 }
 
-function NumberValue({ value, column }: { value: number; column: Column }) {
-	return <span className="ml-auto min-w-0 truncate text-right tabular">{formatColumnNumber(value, column)}</span>;
+function NumberValue({ value, column }: { value: number; column: Column }) {	return <span className="num ml-auto min-w-0 truncate text-right">{formatColumnNumber(value, column)}</span>;
 }
 
 function DocumentChip({ value, column }: { value: NonNullable<CellValue>; column: Column }) {
@@ -176,7 +195,7 @@ function EntityMenu({ kind, column, row, remainingRows, totalRows, onAddEntityCo
 function WebsiteValue({ kind, text, ...menu }: EntityMenuProps & { kind: 'website' | 'webpage'; text: string }) {
 	const url = webColumnUrl(text);
 	return <AdaptiveEntityGroup><span className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-full bg-neutral-5 px-2 py-0.5 text-caption text-fg-muted">
-		{url ? <a href={url.href} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} title={url.href} className="min-w-0 truncate hover:text-brand">{webColumnKind(menu.column) === 'website' ? url.hostname.replace(/^www\./, '') : text}</a> : <span className="truncate">{text}</span>}
+		{url ? <a href={url.href} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} title={url.href} className="num min-w-0 truncate hover:underline">{webColumnKind(menu.column) === 'website' ? url.hostname.replace(/^www\./, '') : text}</a> : <span className="truncate">{text}</span>}
 		<EntityMenu {...menu} kind={kind} />
 	</span></AdaptiveEntityGroup>;
 }
@@ -193,8 +212,7 @@ function personPhoto(cell: Cell, column: Column, row: Row | undefined, columns: 
 	return column.type === 'source' && typeof photo === 'string' ? photo : null;
 }
 
-function TextValue({ column, text }: { column: Column; text: string }) {
-	if (columnRole(column) === 'email' && EMAIL_ADDRESS.test(text)) return <a href={`mailto:${text}`} onClick={event => event.stopPropagation()} className="truncate text-fg-muted hover:text-brand">{text}</a>;
+function TextValue({ column, text }: { column: Column; text: string }) {	if (columnRole(column) === 'email' && EMAIL_ADDRESS.test(text)) return <a href={`mailto:${text}`} onClick={event => event.stopPropagation()} className="num truncate text-fg hover:underline">{text}</a>;
 	const url = isLinkColumn(column) || /^https?:\/\//i.test(text) ? toUrl(text) : null;
 	if (!url) return <span className="truncate">{text}</span>;
 	return (

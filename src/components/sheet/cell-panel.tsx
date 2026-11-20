@@ -30,7 +30,7 @@ type SaveCell = (rowId: string, columnId: string, cell: Cell) => Promise<void>;
 
 const subscribeNothing = () => () => {};
 const isBusy = (cell: Cell | undefined) => cell?.s === 'running' || cell?.s === 'queued';
-const panelWidth = (document: boolean, wide: boolean) => document ? 'w-[540px]' : wide ? 'w-[440px]' : 'w-[340px]';
+const panelWidth = (document: boolean, wide: boolean) => document ? 'w-[540px]' : wide ? 'w-[440px]' : 'w-[360px]';
 const isCategoryEdit = (column: Column, cell: Cell | undefined) => column.format === 'category' && !cell?.f;
 
 /** Details for the selected cell: value, probability, sources, reasoning, and actions. `errorAction` fixes a failed cell's cause (a lost connection). */
@@ -50,17 +50,16 @@ export function CellPanel({ sheet, row, column, onClose, onRerun, onEditColumn, 
 	const structured = value !== null && typeof value === 'object';
 
 	return (
-		<aside aria-label="Cell details" className={`flex h-full ${panelWidth(document, structured || isEmailColumn(column))} max-w-full shrink-0 flex-col border-l border-line bg-surface max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-30 max-md:w-full max-md:shadow-[var(--shadow-floating)]`}>
+		<aside aria-label="Cell details" className={`content-in absolute inset-y-0 right-0 z-30 flex h-full ${panelWidth(document, structured || isEmailColumn(column))} max-w-full flex-col border-l border-line bg-surface shadow-[var(--shadow-floating)] max-md:w-full`}>
 			<CellPanelHeader sheet={sheet} row={row} column={column} cell={cell} emailDraft={emailDraft} onClose={onClose} />
 			<div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-4 py-4">
 				<CellPanelMain sheet={sheet} row={row} column={column} cell={cell} value={value} structured={structured} editing={editing} setEditing={setEditing} emailDraft={emailDraft} setEmailDraft={setEmailDraft} onSave={onSave} errorAction={errorAction} />
 				{!editing && organizationKind(column) === 'company' && <CompanyPreview row={row} column={column} columns={sheet.columns} />}
 				{cell?.f && <section className="flex flex-col gap-2"><h4 className="text-caption text-fg-subtle">Formula</h4><code className="break-all text-body-sm text-fg">{cell.f}</code></section>}
 				<ProbabilitySection meta={cell?.m} column={column} />
-				<WhySection meta={cell?.m} />
+				<WhySection meta={cell?.m} />				<UsageSection cell={cell} />
 				<LoootCalls calls={cell?.m?.looot} />
 				<SourcesSection meta={cell?.m} />
-				<UsageSection cell={cell} />
 			</div>
 			{column.op && (
 				<div className="flex items-center gap-2 border-t border-line-subtle px-4 py-3">
@@ -252,11 +251,10 @@ function SourceLink({ source }: { source: string }) {
 function UsageSection({ cell }: { cell: Cell | undefined }) {
 	const meta = cell?.m;
 	if (meta?.costUsd === undefined && meta?.durationMs === undefined) return null;
-	return (
-		<section className="flex flex-col gap-1 text-caption text-fg-subtle tabular">
-			{meta.costUsd !== undefined && <span>Cost {formatUsd(meta.costUsd)}</span>}
-			{meta.durationMs !== undefined && <span>{(meta.durationMs / 1000).toFixed(1)} s</span>}
-			{cell?.t && <LocalTime time={cell.t} />}
+	return (		<section aria-label="Run totals" className="grid grid-cols-3 gap-2 rounded-lg bg-neutral-5 px-3 py-2">
+			<span className="flex flex-col"><span className="text-[10.5px] text-fg-subtle">Cost</span><span className="num text-fg">{formatUsd(meta.costUsd ?? 0)}</span></span>
+			<span className="flex flex-col"><span className="text-[10.5px] text-fg-subtle">Time</span><span className="num text-fg">{meta.durationMs !== undefined ? `${(meta.durationMs / 1000).toFixed(1)} s` : '—'}</span></span>
+			<span className="flex min-w-0 flex-col"><span className="text-[10.5px] text-fg-subtle">Settled</span><span className="num truncate text-fg">{cell?.t ? <LocalTime time={cell.t} /> : '—'}</span></span>
 		</section>
 	);
 }
