@@ -419,7 +419,7 @@ export const EnrichRequestSchema = z.object({
 /** Why an enrichment failed. Set where the failure is understood; code branches on this, never on `error` text. */
 export const FAILURE_REASONS = ['rate_limited', 'credits_exhausted', 'credential_missing', 'credential_invalid', 'timeout', 'provider_error', 'input_invalid', 'spend_capped', 'column_halted'] as const;
 export type FailureReason = (typeof FAILURE_REASONS)[number];
-export type FailureProvider = 'openai' | 'looot' | 'typesafe' | 'moltsets';
+export type FailureProvider = 'openai' | 'looot' | 'typesafe' | 'moltsets' | 'anthropic';
 export interface EnrichFailure {
 	reason: FailureReason;
 	/** The same request may succeed if repeated later without user action. */

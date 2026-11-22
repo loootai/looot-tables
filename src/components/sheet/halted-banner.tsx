@@ -10,7 +10,7 @@ import { CirclePause, ExternalLink, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect } from 'react';
 
-const PROVIDER_NAMES: Record<FailureProvider, string> = { looot: 'looot', openai: 'OpenAI', typesafe: 'TypeSafe', moltsets: 'MoltSets' };
+const PROVIDER_NAMES: Record<FailureProvider, string> = { looot: 'looot', openai: 'OpenAI', typesafe: 'TypeSafe', moltsets: 'MoltSets', anthropic: 'Anthropic' };
 
 /** What a fix needs to know: a halted run, a failed Find rows, or a failed key check. */
 export type ConnectionIssue = { reason: string; provider?: FailureProvider };
