@@ -138,7 +138,7 @@ export function KeysDialog({ onClose }: { onClose: () => void }) {
 					{!isReady(connections.anthropic) && <VerifiedKeyField provider="anthropic" value={anthropicKey} onChange={setAnthropicKey} help="Optional. The agent runs on Claude (claude-sonnet-5-5) with this key, and on your OpenAI model without it." />}
 				</ProviderCard>
 				{needs.showPassword && <Field label="Deployment password" help="Use the keys this deployment provides instead of your own.">{(id) => <Input id={id} type="password" autoComplete="off" value={password} onChange={(event) => setPassword(event.target.value)} />}</Field>}
-				<p className="text-caption text-fg-subtle">One looot token covers search, pages, company and people data, emails and phones. TypeSafe is optional and lives in Configuration → Connections.</p>
+				<p className="rounded-lg bg-canvas px-3 py-2 text-caption text-fg-muted">The sheet’s Run button shows the most a run can cost before you click. Each sheet also has a spend cap the server enforces.</p>
 				{saveError && <p role="alert" className="text-body-sm text-danger">{saveError}</p>}
 			</div>
 		</Dialog>

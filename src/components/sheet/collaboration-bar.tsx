@@ -28,13 +28,13 @@ function CollaboratorAvatar({ name, color }: { name: string; color: string }) {
 }
 
 // Polling is also the steady state when a deployment has no realtime, so only being offline reads as a problem.
-const CONNECTION: Record<CollaborationStatus, { label: string; tone: string }> = {
-	connecting: { label: 'Connecting to live updates…', tone: 'bg-neutral-30' },
-	live: { label: 'Live: edits sync instantly', tone: 'bg-success' },
-	reconnecting: { label: 'Reconnecting to live updates…', tone: 'bg-neutral-30' },
-	polling: { label: 'Checking for edits periodically', tone: 'bg-neutral-30' },
-	offline: { label: 'Offline: edits sync when you reconnect', tone: 'bg-warning' },
-	paused: { label: 'Live updates paused while this tab is hidden', tone: 'bg-neutral-30' },
+const CONNECTION: Record<CollaborationStatus, { short: string; label: string; tone: string }> = {
+	connecting: { short: 'Connecting', label: 'Connecting to live updates…', tone: 'bg-neutral-30' },
+	live: { short: 'Live', label: 'Live: edits sync instantly', tone: 'bg-success' },
+	reconnecting: { short: 'Reconnecting', label: 'Reconnecting to live updates…', tone: 'bg-neutral-30' },
+	polling: { short: 'Auto-sync', label: 'Checking for edits periodically', tone: 'bg-neutral-30' },
+	offline: { short: 'Offline', label: 'Offline: edits sync when you reconnect', tone: 'bg-warning' },
+	paused: { short: 'Paused', label: 'Live updates paused while this tab is hidden', tone: 'bg-neutral-30' },
 };
 
 /** Teammates viewing this sheet. */
@@ -42,7 +42,7 @@ export function CollaborationBar() {
 	const { peers: people, status } = useSyncExternalStore(collaborationStore.subscribe, collaborationStore.getSnapshot, collaborationStore.getServerSnapshot);
 	const connection = CONNECTION[status];
 	return <div className="flex items-center gap-2" aria-label="Sheet collaboration" data-collaboration-status={status}>
-		<span role="img" aria-label={connection.label} title={connection.label} className={`grid size-5 place-items-center ${status === 'offline' ? '' : 'max-md:hidden'}`}><span className={`size-1.5 rounded-full transition-colors ${connection.tone}`} /></span>
+		<span role="status" title={connection.label} className={`inline-flex h-6 items-center gap-1.5 text-caption text-fg-subtle ${status === 'offline' ? '' : 'max-md:hidden'}`}><span aria-hidden className={`size-1.5 rounded-full transition-colors ${connection.tone}`} /><span aria-label={connection.label}>{connection.short}</span></span>
 		{people.length > 0 && <div className="flex -space-x-1" aria-label={`${people.length} other collaborator${people.length === 1 ? '' : 's'}`}>
 			{people.slice(0, 4).map((peer) => <CollaboratorAvatar key={peer.client_id} name={peer.name} color={peer.color} />)}
 			{people.length > 4 && <span className="grid size-6 place-items-center rounded-full bg-neutral-10 text-caption text-fg">+{people.length - 4}</span>}

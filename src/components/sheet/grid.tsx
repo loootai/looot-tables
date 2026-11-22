@@ -15,8 +15,9 @@ import type { EntityField } from '@/lib/entity-fields';
 import type { Column, Row, Sheet, Sort } from '@/lib/types';
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
-import { ArrowDown, ArrowUp, Check, ChevronDown, MoreHorizontal, Play, Plus, RefreshCw, Sparkles } from 'lucide-react';
-import { type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, memo, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, MoreHorizontal, Play, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { plural } from './sheet-page-utils';
+import { type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, memo, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Select } from '@/components/ui/select';
 import { CellView, SheetColumnsContext } from './cell-view';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -99,10 +100,22 @@ function useStableHandler<A extends unknown[], R>(handler: (...args: A) => R) {
 }
 
 /** Visible columns, showing a dragged width until the sheet reports it. */
+/** Extra scroll room while the details drawer is open, so the last columns can still slide out from under it. */
+const DRAWER_ROOM = 520;
+const PHONE_QUERY = '(width < 768px)';
+const subscribePhone = (onChange: () => void) => { const query = window.matchMedia(PHONE_QUERY); query.addEventListener('change', onChange); return () => query.removeEventListener('change', onChange); };
+/** On a phone, columns are drawn narrower (first 156px, others 140px) so an enriched column shows next to the name. */
+const PHONE_WIDTHS = { first: 156, other: 140 };
+
 function useColumnPreview(sheetColumns: Column[]) {
 	const [preview, setPreview] = useState<{ columnId: string; width: number } | null>(null);
+	const phone = useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
 	if (preview && sheetColumns.find((column) => column.id === preview.columnId)?.width === preview.width) setPreview(null);
-	const columns = useMemo(() => sheetColumns.filter((column) => !column.hidden).map((column) => column.id === preview?.columnId ? { ...column, width: preview.width } : column), [sheetColumns, preview]);
+	const columns = useMemo(() => sheetColumns.filter((column) => !column.hidden).map((column, index) => {
+		if (column.id === preview?.columnId) return { ...column, width: preview.width };
+		const cap = index === 0 ? PHONE_WIDTHS.first : PHONE_WIDTHS.other;
+		return phone && column.width > cap ? { ...column, width: cap } : column;
+	}), [sheetColumns, preview, phone]);
 	const previewResize = useCallback((columnId: string, width: number) => setPreview({ columnId, width }), []);
 	return { columns, previewResize };
 }
@@ -167,6 +180,22 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 	}, [columns]);
 	const stats = useMemo(() => new Map(columns.filter((column) => column.type === 'enriched').map((column) => [column.id, columnStats(column, referenceRows)])), [columns, referenceRows]);
 	const ghosts = useMemo(() => onAddNextStep ? ghostColumns(columns, referenceRows) : NO_GHOSTS, [onAddNextStep, columns, referenceRows]);
+	// A soft fade on the right edge while more columns sit off screen, so a value is never cut mid-glyph without a cue.
+	const [moreRight, setMoreRight] = useState(0);
+	// How many columns end past the right edge; 0 hides the fade and the chip.
+	const updateMoreRight = useCallback((node: HTMLDivElement) => {
+		const edge = node.scrollLeft + node.clientWidth;
+		const next = node.scrollLeft + node.clientWidth < node.scrollWidth - 4 ? columns.filter((_, index) => offsets[index + 1] > edge + 8).length : 0;
+		setMoreRight((current) => current === next ? current : next);
+	}, [columns, offsets]);
+	useLayoutEffect(() => {
+		const node = scrollRef.current;
+		if (!node) return;
+		updateMoreRight(node);
+		const observer = new ResizeObserver(() => updateMoreRight(node));
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, [updateMoreRight]);
 	const totalWidth = offsets[offsets.length - 1] + ghosts.length * GHOST_WIDTH + 160;	const footerRef = useRef<HTMLDivElement>(null);
 	const [openedAt] = useState(() => Date.now());
 	const lastRowNumber = useMemo(() => rows.reduce((max, row) => Math.max(max, rowNumbers.get(row.id) ?? 0), 0), [rows, rowNumbers]);
@@ -182,9 +211,11 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 		}
 	}, [loadingRows, rows.length]);
 
-	const revealColumn = useCallback((columnId: string) => {
+	const revealColumn = useCallback((columnId: string, coveredRight = 0) => {
 		const columnIndex = columns.findIndex((column) => column.id === columnId);
 		const scroller = scrollRef.current;
+		// A drawer that covers most of the grid (a phone) is a full-screen sheet: nothing to slide out from under.
+		const visibleWidth = scroller ? scroller.clientWidth - (coveredRight < scroller.clientWidth * 0.6 ? coveredRight : 0) : 0;
 		// The frozen first column is always in view. Others scroll so a column starts right at the frozen edge: a column
 		// never sits half-hidden under it.
 		if (columnIndex > 0 && scroller) {
@@ -192,8 +223,8 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 			const left = offsets[columnIndex];
 			const right = left + columns[columnIndex].width;
 			if (left - frozenEdge < scroller.scrollLeft) scroller.scrollLeft = left - frozenEdge;
-			else if (right > scroller.scrollLeft + scroller.clientWidth) {
-				const need = right - scroller.clientWidth;
+			else if (right > scroller.scrollLeft + visibleWidth) {
+				const need = right - visibleWidth;
 				const start = offsets.slice(1, columnIndex + 1).find((offset) => offset - frozenEdge >= need) ?? left;
 				scroller.scrollLeft = start - frozenEdge;
 			}
@@ -204,7 +235,8 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 	useLayoutEffect(() => {
 		const scroller = scrollRef.current;
 		if (!cellDetailsOpen || !active || !scroller) return;
-		const reveal = () => revealColumn(active.columnId);
+		// The details drawer floats over the grid's right side, so the column must end left of it.
+		const reveal = () => revealColumn(active.columnId, document.querySelector('[aria-label="Cell details"]')?.getBoundingClientRect().width ?? 0);
 		reveal();
 		const observer = new ResizeObserver(reveal);
 		observer.observe(scroller);
@@ -291,9 +323,9 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 	// A new pointer gesture must not inherit click suppression from the previous drag.
 	return (
 		<SheetColumnsContext.Provider value={sheet.columns}>
-		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-		<div ref={scrollRef} tabIndex={0} onPointerDownCapture={() => { suppressClickUntil.current = 0; }} onScroll={(event) => { if (footerRef.current) footerRef.current.style.transform = `translateX(${-event.currentTarget.scrollLeft}px)`; if (loadingRows) { const node = event.currentTarget; followArrivals.current = node.scrollHeight - node.scrollTop - node.clientHeight < ROW_HEIGHT * 2; } }} onKeyDown={onKeyDown} onContextMenu={openContextMenu} onDragStart={(event) => event.preventDefault()} onClickCapture={(event) => { if (performance.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); suppressClickUntil.current = 0; } }} aria-multiselectable="true" aria-label="Sheet grid" role="grid" aria-activedescendant={activeDescendant(active, columns, (rowId) => virtualItems.some((item) => rows[item.index]?.id === rowId))} aria-busy={loadingRows} aria-rowcount={rowCount} aria-colcount={columns.length} style={{ scrollSnapType: 'x proximity', scrollPaddingLeft: INDEX_WIDTH + (columns[0]?.width ?? 0) }} className="scrollbar-thin relative min-h-0 min-w-0 flex-1 touch-auto select-none overflow-auto overscroll-contain bg-surface outline-none">
-			<div style={{ width: totalWidth, height: HEADER_HEIGHT + virtualizer.getTotalSize() + ROW_HEIGHT + 24, position: 'relative' }}>
+		<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+		<div ref={scrollRef} tabIndex={0} onPointerDownCapture={() => { suppressClickUntil.current = 0; }} onScroll={(event) => { if (footerRef.current) footerRef.current.style.transform = `translateX(${-event.currentTarget.scrollLeft}px)`; updateMoreRight(event.currentTarget); if (loadingRows) { const node = event.currentTarget; followArrivals.current = node.scrollHeight - node.scrollTop - node.clientHeight < ROW_HEIGHT * 2; } }} onKeyDown={onKeyDown} onContextMenu={openContextMenu} onDragStart={(event) => event.preventDefault()} onClickCapture={(event) => { if (performance.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); suppressClickUntil.current = 0; } }} aria-multiselectable="true" aria-label="Sheet grid" role="grid" aria-activedescendant={activeDescendant(active, columns, (rowId) => virtualItems.some((item) => rows[item.index]?.id === rowId))} aria-busy={loadingRows} aria-rowcount={rowCount} aria-colcount={columns.length} style={{ scrollSnapType: 'x proximity', scrollPaddingLeft: INDEX_WIDTH + (columns[0]?.width ?? 0) }} className="scrollbar-thin relative min-h-0 min-w-0 flex-1 touch-auto select-none overflow-auto overscroll-contain bg-surface outline-none">
+			<div style={{ width: totalWidth + (cellDetailsOpen ? DRAWER_ROOM : 0), height: HEADER_HEIGHT + virtualizer.getTotalSize() + ROW_HEIGHT + 24, minHeight: '100%', position: 'relative' }}>
 				<GridHeader stats={stats} ghosts={ghosts} onAddNextStep={onAddNextStep} onRoutingMenu={onRoutingMenu} sheet={sheet} sort={sort} columns={columns} offsets={offsets} totalWidth={totalWidth} rows={rows} selected={selected} columnDrag={columnDrag} renamingColumnId={renamingColumnId} onToggleAll={onToggleAll} onAddColumn={onAddColumn} onStartDrag={beginColumnDrag} onColumnMenu={onColumnMenu} onResizeColumn={onResizeColumn} onPreviewResize={previewResize} onSortColumn={onSortColumn} onRenameColumn={onRenameColumn} onCancelRenameColumn={onCancelRenameColumn} />
 
 				{/* Rows */}
@@ -344,9 +376,12 @@ export function Grid({ allRows, collaborators = NO_COLLABORATORS, cellDetailsOpe
 
 				{fillHandle && <FillHandle formula={fill.formulaFill} left={offsets[fillHandle.right + 1] - 5} top={HEADER_HEIGHT + (fillHandle.bottom + 1) * ROW_HEIGHT - 5} onPointerDown={(event) => { event.stopPropagation(); beginCellDrag({ rowId: rows[fillHandle.bottom].id, columnId: columns[fillHandle.right].id }, event, true); }} />}
 				{editConflict && <EditConflictDialog conflict={editConflict} onClose={() => setEditConflict(null)} onKeep={() => { onEditCell(editConflict.rowId, editConflict.columnId, editConflict.draft, editConflict.company); setEditConflict(null); }} />}
+				<SheetRunout top={HEADER_HEIGHT + virtualizer.getTotalSize()} offsets={offsets} />
 				<AddRowFooter top={HEADER_HEIGHT + virtualizer.getTotalSize()} totalWidth={totalWidth} firstColumnWidth={columns[0]?.width} onAddRow={onAddRow} />
 				</div>
 			</div>
+			{moreRight > 0 && <span aria-hidden data-grid-more-right className="pointer-events-none absolute top-0 right-0 bottom-0 z-[26] w-12 bg-gradient-to-l from-surface via-surface/80 to-transparent" />}
+			{moreRight > 0 && !cellDetailsOpen && <button type="button" data-grid-more-chip onClick={() => scrollRef.current?.scrollBy({ left: Math.round((scrollRef.current?.clientWidth ?? 0) * 0.7), behavior: 'smooth' })} className="absolute right-3 z-[27] inline-flex h-7 items-center gap-1 rounded-full border border-line bg-surface px-2.5 text-caption text-fg-muted shadow-[var(--shadow-floating)] transition-colors hover:border-line-strong hover:text-fg" style={{ bottom: (stats.size ? 28 : 0) + 12 }} aria-label={`Scroll to ${plural(moreRight, 'more column')}`}>{moreRight} more<ChevronRight aria-hidden className="size-3" strokeWidth={2} /></button>}
 			<ColumnFooter ref={footerRef} columns={columns} stats={stats} totalWidth={totalWidth} />
 		</div>
 		</SheetColumnsContext.Provider>
@@ -384,6 +419,14 @@ function FillHandle({ formula, left, top, onPointerDown }: { formula: boolean; l
 
 function EditConflictDialog({ conflict, onClose, onKeep }: { conflict: EditConflict; onClose: () => void; onKeep: () => void }) {
 	return <ConfirmDialog title="This cell changed while you were editing" description={<span className="flex flex-col gap-2"><span>Another edit was saved. Cancel keeps the current value; your draft is shown below so you can copy it.</span><span>Current: <span className="select-all">{conflict.current || '(empty)'}</span></span><span>Your edit: <span className="select-all whitespace-pre-wrap">{conflict.draft || '(empty)'}</span></span></span>} confirmLabel="Keep my edit" onClose={onClose} onConfirm={onKeep} />;
+}
+
+/** Below the last row the column guides and row lines carry on and fade out, so a short sheet still reads as a sheet. */
+function SheetRunout({ top, offsets }: { top: number; offsets: readonly number[] }) {
+	return <div aria-hidden data-sheet-runout className="pointer-events-none absolute bottom-0 left-0 [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" style={{ top, width: offsets[offsets.length - 1] ?? 0, backgroundImage: `repeating-linear-gradient(to bottom, transparent 0 ${ROW_HEIGHT - 1}px, var(--color-line-subtle) ${ROW_HEIGHT - 1}px ${ROW_HEIGHT}px)` }}>
+		<div className="absolute inset-y-0 left-0 border-r border-line-subtle bg-neutral-5/60" style={{ width: INDEX_WIDTH }} />
+		{offsets.slice(1).map((left) => <div key={left} className="absolute inset-y-0 w-px bg-line-subtle" style={{ left: left - 1 }} />)}
+	</div>;
 }
 
 function AddRowFooter({ top, totalWidth, firstColumnWidth = 120, onAddRow }: { top: number; totalWidth: number; firstColumnWidth?: number; onAddRow: () => void }) {
@@ -500,11 +543,10 @@ const HeaderCell = memo(function HeaderCell({ frozen, stats, onRoutingMenu, colu
 						{subline && <span data-column-subline title={sublineTitle} className="num w-full truncate text-[10.5px] text-fg-subtle">{subline}</span>}
 					</span>
 				</button>}
-				{routing && !renaming && <button type="button" data-routing-pill aria-label={`Routing for ${column.name}: ${PREFER_LABEL[routing.prefer]}${routing.exclude.length ? `, ${routing.exclude.length} skipped` : ''}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => onRoutingMenu?.(column, event.currentTarget.getBoundingClientRect())} className="mr-0.5 inline-flex h-5 shrink-0 items-center rounded-full border border-line bg-surface px-1.5 text-[10.5px] font-medium text-fg-muted hover:border-brand hover:text-brand">{PREFER_LABEL[routing.prefer]}{routing.exclude.length ? ` −${routing.exclude.length}` : ''}</button>}
+				{routing && !renaming && <button type="button" data-routing-pill aria-label={`Routing for ${column.name}: ${PREFER_LABEL[routing.prefer]}${routing.exclude.length ? `, ${routing.exclude.length} skipped` : ''}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => onRoutingMenu?.(column, event.currentTarget.getBoundingClientRect())} title="Routing: the order looot tries providers in. Click to change." className="mr-0.5 inline-flex h-5 shrink-0 items-center rounded-md px-1 text-[10.5px] font-medium text-fg-subtle underline decoration-dotted decoration-line-strong underline-offset-[3px] transition-colors hover:bg-tint/[0.05] hover:text-brand hover:decoration-brand">{PREFER_LABEL[routing.prefer]}{routing.exclude.length ? ` −${routing.exclude.length}` : ''}</button>}
 				{enriched && <span aria-hidden className="meter-tick pointer-events-none absolute bottom-0 left-0 h-[2px] bg-brand" style={{ width: `${Math.round(fill * 100)}%` }} />}
-			<button type="button" aria-label={`Column menu for ${column.name}`} onClick={(event) => onMenu(column, event.currentTarget.getBoundingClientRect())} className={clsx('relative mr-0.5 grid size-6 shrink-0 place-items-center rounded-md text-fg-subtle transition-opacity group-hover/header:opacity-100 group-focus-within/header:opacity-100 hover:bg-tint/[0.06] hover:text-fg focus-visible:opacity-100', renaming || column.type === 'enriched' ? 'opacity-100' : 'opacity-100 md:opacity-0 [@media(hover:none)]:opacity-100')}>
-				{column.type === 'enriched' && !renaming && <Sparkles aria-hidden="true" className="absolute size-3.5 text-brand group-hover/header:opacity-0 group-focus-within/header:opacity-0 [@media(hover:none)]:opacity-0" strokeWidth={1.75} />}
-				<MoreHorizontal aria-hidden="true" className={clsx('size-3.5', column.type === 'enriched' && !renaming && 'opacity-0 group-hover/header:opacity-100 group-focus-within/header:opacity-100 [@media(hover:none)]:opacity-100')} strokeWidth={1.75} />
+			<button type="button" aria-label={`Column menu for ${column.name}`} onClick={(event) => onMenu(column, event.currentTarget.getBoundingClientRect())} className={clsx('relative mr-0.5 grid size-6 shrink-0 place-items-center rounded-md text-fg-subtle transition-opacity group-hover/header:opacity-100 group-focus-within/header:opacity-100 hover:bg-tint/[0.06] hover:text-fg focus-visible:opacity-100', renaming ? 'opacity-100' : 'opacity-100 md:opacity-0 [@media(hover:none)]:opacity-100')}>
+				<MoreHorizontal aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
 			</button>
 			<div role="separator" tabIndex={-1} aria-label={`Resize ${column.name}`} aria-orientation="vertical" aria-valuenow={width} aria-valuemin={MIN_COLUMN_WIDTH} aria-valuemax={MAX_COLUMN_WIDTH} onPointerDown={startResize} onDoubleClick={() => onResize(column.id, column.type === 'enriched' ? 250 : 220)} className="absolute top-0 -right-[3px] z-10 h-full w-[7px] touch-none cursor-col-resize select-none hover:bg-brand/40 active:bg-brand/60" />
 		</div>

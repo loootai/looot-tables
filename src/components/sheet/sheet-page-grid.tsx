@@ -137,13 +137,28 @@ function SheetCellPanel({ sheet, content, selection, overlays, actions, halt, on
 
 /** Below the first row of a blank sheet: type into it, or fill the sheet another way. Clicks elsewhere reach the grid. */
 function BlankSheetHint({ top, onFind, onImport }: { top: number; onFind: () => void; onImport: () => void }) {
+	const option = 'flex flex-col items-start gap-2 rounded-xl border border-line-subtle bg-canvas p-4 text-left';
+	const tile = 'grid size-8 place-items-center rounded-lg bg-success-soft text-brand [&_svg]:size-4';
 	return (
-		<div className="pointer-events-none absolute inset-x-0 flex justify-center px-4" style={{ top }}>
-			<div className="pointer-events-auto flex max-w-sm flex-col items-center gap-3 text-center">
-				<p className="text-body-sm text-fg-muted">Type your own rows, or fill the sheet from the web.</p>
-				<div className="flex flex-wrap justify-center gap-2">
-					<Button size="sm" variant="brand" onClick={onFind}><Sparkles strokeWidth={1.75} /> Find rows</Button>
-					<Button size="sm" onClick={onImport}><Upload strokeWidth={1.5} /> Import CSV</Button>
+		<div className="pointer-events-none absolute inset-x-0 flex justify-center px-4" style={{ top: top + 8 }}>
+			<div className="content-in pointer-events-auto flex w-full max-w-[540px] flex-col gap-4 rounded-2xl border border-line bg-surface p-5 shadow-[var(--shadow-card)]">
+				<div>
+					<h2 className="text-body-lg font-medium text-fg">Start this sheet</h2>
+					<p className="mt-1 text-body-sm text-fg-muted">Type your own rows, or fill the sheet from the web.</p>
+				</div>
+				<div className="grid gap-3 sm:grid-cols-2">
+					<div className={option}>
+						<span aria-hidden className={tile}><Sparkles strokeWidth={1.75} /></span>
+						<p className="text-body-sm font-medium text-fg">From a prompt</p>
+						<p className="text-caption text-fg-muted">“Series A fintechs in Europe”. Matching companies or people stream in.</p>
+						<Button size="sm" variant="brand" className="mt-1" onClick={onFind}><Sparkles strokeWidth={1.75} /> Find rows</Button>
+					</div>
+					<div className={option}>
+						<span aria-hidden className={tile}><Upload strokeWidth={1.75} /></span>
+						<p className="text-body-sm font-medium text-fg">From a list you have</p>
+						<p className="text-caption text-fg-muted">Paste or upload a CSV, then add columns to enrich it.</p>
+						<Button size="sm" className="mt-1" onClick={onImport}><Upload strokeWidth={1.5} /> Import CSV</Button>
+					</div>
 				</div>
 			</div>
 		</div>

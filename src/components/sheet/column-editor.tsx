@@ -3,7 +3,7 @@
 import { ArrowRight, ChevronDown, LoaderCircle, Sparkles, Wand2, X } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { buildFormula, composeColumn } from '@/lib/api';
-import { newColumn } from '@/lib/db';
+import { EMAIL_COLUMN_WIDTH, newColumn } from '@/lib/db';
 import { columnAddress } from '@/lib/formula-input';
 import type { RunEstimate } from '@/lib/run-cost';
 import { formatValue } from '@/lib/template';
@@ -25,6 +25,7 @@ import { RunScopeButton, type RunScope } from './run-scope-button';
 import { plural } from './sheet-page-utils';
 import './populate-dialog.css';
 import './column-editor.css';
+import { editColumnLabel } from '@/lib/job-of';
 
 /**
  * Where the editor is. `ask`: only the prompt is shown. `composing`: AI is choosing an operation, from the
@@ -126,7 +127,7 @@ function isComposerOnly(column: Column | undefined, dedicatedEmail: boolean, ste
 }
 
 function editorTitle(column: Column | undefined, dedicatedEmail: boolean) {
-	if (column) return 'Edit AI column';
+	if (column) return editColumnLabel(column.op);
 	return dedicatedEmail ? 'Find email' : 'Add AI column';
 }
 
@@ -141,7 +142,7 @@ type ColumnWrites = Pick<SheetCommands, 'addColumns' | 'editColumn'>;
 /** The column as it is saved: the edited column with its new name and operation, or a new AI column. */
 function savedColumn(column: Column | undefined, name: string, op: ColumnOp): Column {
 	if (column) return { ...column, name, op };
-	return newColumn({ name, type: 'enriched', op, ...(op.kind === 'email-enrichment' ? { format: 'email' as const } : {}), width: op.kind === 'scrape' && op.mode === 'markdown' ? 320 : 220 });
+	return newColumn({ name, type: 'enriched', op, ...(op.kind === 'email-enrichment' ? { format: 'email' as const } : {}), width: op.kind === 'scrape' && op.mode === 'markdown' ? 320 : op.kind === 'email-enrichment' ? EMAIL_COLUMN_WIDTH : 220 });
 }
 
 /** Add or edit an AI column: describe it in plain English (AI picks the operation) or set it up by hand. */

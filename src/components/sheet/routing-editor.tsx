@@ -11,6 +11,13 @@ import { useJobStats } from './use-job-stats';
 import { ProviderMark } from './provider-mark';
 
 const CHOICES: Prefer[] = ['cheapest', 'reliable', 'fastest', 'balanced'];
+/** What each choice asks looot for; looot sets the exact order from its measured numbers. */
+const CHOICE_HINT: Record<Prefer, string> = {
+	cheapest: 'Lowest price per call first.',
+	reliable: 'Highest measured hit rate first.',
+	fastest: 'Quickest typical answer first.',
+	balanced: 'A mix of price, hit rate and speed.',
+};
 
 /** A job column's route: the providers looot will try, in the order this routing tries them, with their measured answer
     rate, p50 and price per call. The pill re-sorts it (fallback.prefer); a switch skips a provider (fallback.exclude).
@@ -39,6 +46,7 @@ export function RoutingEditor({ column, anchor, onClose, onSave }: { column: Col
 				<div role="radiogroup" aria-label="Order providers by" className="grid grid-cols-4 gap-1 rounded-lg bg-neutral-5 p-1">
 					{CHOICES.map((choice) => <button key={choice} type="button" role="radio" aria-checked={prefer === choice} onClick={() => setPrefer(choice)} className={clsx('h-7 rounded-md text-caption font-medium transition-colors', prefer === choice ? 'bg-surface text-fg shadow-sm' : 'text-fg-subtle hover:text-fg')}>{PREFER_LABEL[choice]}</button>)}
 				</div>
+				<p data-routing-hint className="-mt-1 px-1 text-caption text-fg-muted">{CHOICE_HINT[prefer]} looot sets the order from its measured numbers.</p>
 				<ol aria-label="Providers in the order they are tried" className="flex flex-col">
 					<li aria-hidden className="grid grid-cols-[16px_1fr_40px_40px_56px_32px] items-center gap-2 px-1 pb-1 text-[10.5px] text-fg-subtle"><span /><span>Provider</span><span className="text-right">Hits</span><span className="text-right">p50</span><span className="text-right">Per call</span><span /></li>
 					{!stats && <li className="px-1 py-3 text-caption text-fg-subtle">Reading measured numbers from looot…</li>}

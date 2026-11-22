@@ -54,6 +54,8 @@ const EMAIL_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Renders one cell's content for the grid. Keeps a fixed row height; the detail panel shows the full value. */
 export function CellView(props: CellViewProps) {
 	const { cell, column, row, onToggleCheckbox } = props;
+	// A run-able column's cell that has never run says so, instead of looking like an empty answer.
+	if ((!cell || (cell.s === 'idle' && isBlank(cell.v) && !cell.f)) && column.type === 'enriched' && column.op) return <span data-not-run className="text-caption text-fg-subtle/60">Not run</span>;
 	if (!cell && column.format !== 'checkbox') return null;
 	if (cell?.s === 'running' || cell?.s === 'queued') return <CellProgress status={cell.s} column={column} rowId={row?.id} />;
 	if (cell?.s === 'error') return <CellError message={cell.e} />;

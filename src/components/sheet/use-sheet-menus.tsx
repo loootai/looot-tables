@@ -8,7 +8,7 @@ import { uniqueName } from '@/lib/references';
 import type { SheetCommands } from '@/lib/sheet-commands';
 import type { Column, Row, Sheet, Sort } from '@/lib/types';
 import { unpackableFields } from '@/lib/unpack';
-import { routedJob } from '@/lib/job-of';
+import { editColumnLabel, routedJob } from '@/lib/job-of';
 import { PackageOpen, Route } from 'lucide-react';
 import { ArrowDown, ArrowUp, Columns3, Eraser, EyeOff, FileText, Filter, FunctionSquare, Mail, MoveLeft, MoveRight, Pencil, Play, Plus, RefreshCw, Sparkles, Trash2, Upload } from 'lucide-react';
 import type { ActiveCell } from './grid';
@@ -43,7 +43,7 @@ export function useSheetMenus({ sheetId, sheet, allRows, commands, content, sele
 		const sorted = (dir: Sort['dir']) => view.sort?.columnId === column.id && view.sort.dir === dir;
 		return [
 			...(column.type === 'enriched' ? [
-				{ label: 'Edit AI column', icon: <Pencil />, onSelect: () => overlays.setEditor({ column }) },
+				{ label: editColumnLabel(column.op), icon: <Pencil />, onSelect: () => overlays.setEditor({ column }) },
 				{ label: 'Run unfinished cells', icon: <Play />, onSelect: () => runCells(rows, [column], 'unfinished') },
 				{ label: rows.length === allRows.length ? 'Re-run all cells' : `Re-run ${plural(rows.length, 'visible cell')}`, icon: <RefreshCw />, onSelect: () => runCells(rows, [column], 'all') },				...(routedJob(column.op) ? [{ label: 'Routing…', icon: <Route />, onSelect: () => overlays.setRouting({ column, anchor: overlays.columnMenu?.anchor ?? new DOMRect(200, 120, 0, 0) }) }] : []),
 				...((fields) => fields.length ? [{ label: `Unpack ${fields.map((field) => field.name).join(', ')} · $0`, icon: <PackageOpen />, onSelect: () => void commands.unpackColumn(column, allRows).then((added) => added && announceUnpack(added), report('Could not unpack this column')) }] : [])(unpackableFields(column, allRows)),

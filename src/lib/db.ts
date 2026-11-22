@@ -8,6 +8,7 @@ import { renameColumn, upgradeLegacyResults } from './enrichment-plan';
 import { foundRowKey } from './found-rows';
 import Dexie, { type EntityTable } from 'dexie';
 import { nanoid } from 'nanoid';
+
 import { accountStorageKey } from './account-storage';
 import { CloudError, type SheetRemote, type SheetSnapshot } from './sheet-remote';
 import { MAX_ROWS, MAX_SHEETS, SHEET_DATA_VERSION } from './workspace';
@@ -18,6 +19,9 @@ import { assertNoEnrichmentCycles } from './enrichment-dependencies';
 import type { Cell, CellMeta, CellValue, Column, ColumnOp, ColumnFormat, PopulateRequest, Row, Sheet } from './types';
 import { decodeLiveSheet, type LiveSheetEntry } from './collaboration';
 import { sheetSchema, rowSchema } from './workspace';
+
+/** Default width of a work email column: a full address fits beside its grade and the provider that answered. */
+export const EMAIL_COLUMN_WIDTH = 290;
 
 class LoootTablesDB extends Dexie {
 	sheets!: EntityTable<Sheet, 'id'>;
@@ -174,7 +178,7 @@ export function loadSheet(sheetId: string): Promise<boolean> {
 export const id = () => nanoid(12);
 
 export function newColumn(input: { name: string; type: Column['type']; op?: ColumnOp; width?: number; format?: ColumnFormat; categoryOptions?: string[]; categoryColors?: Record<string, string>; currency?: string; unit?: string; useGrouping?: boolean; decimalPlaces?: number; dateFormat?: Column['dateFormat'] }): Column {
-	return { id: id(), name: input.name, type: input.type, op: input.op, width: input.width ?? (input.type === 'enriched' ? 250 : 180), format: input.format ?? inferredFormat(input), categoryOptions: input.categoryOptions, categoryColors: input.categoryColors, currency: input.currency, unit: input.unit, useGrouping: input.useGrouping, decimalPlaces: input.decimalPlaces, dateFormat: input.dateFormat, createdAt: Date.now() };
+	return { id: id(), name: input.name, type: input.type, op: input.op, width: input.width ?? (input.op?.kind === 'email-enrichment' ? EMAIL_COLUMN_WIDTH : input.type === 'enriched' ? 250 : 180), format: input.format ?? inferredFormat(input), categoryOptions: input.categoryOptions, categoryColors: input.categoryColors, currency: input.currency, unit: input.unit, useGrouping: input.useGrouping, decimalPlaces: input.decimalPlaces, dateFormat: input.dateFormat, createdAt: Date.now() };
 }
 
 export const SHEET_LIMIT_MESSAGE = `Your workspace can have up to ${MAX_SHEETS} sheets. Delete a sheet to create another.`;
